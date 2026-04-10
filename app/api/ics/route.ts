@@ -4,7 +4,10 @@ type AirtableValue = string | string[] | undefined;
 
 type AirtableRecord = {
   id: string;
+  createdTime?: string;
   fields: {
+    "Event ID"?: string;
+    "Event Slug"?: string;
     "Event Name"?: string;
     "Start Date"?: string;
     "End Date"?: string;
@@ -14,19 +17,21 @@ type AirtableRecord = {
     "Venue Name"?: AirtableValue;
     "Event Website"?: string;
     "Organizer Name (from Organizer)"?: AirtableValue;
-
-    // Updated taxonomy fields
     "Primary Category"?: string;
     "Market Focus"?: string;
     "Sector / Theme"?: AirtableValue;
     "Format"?: string;
-    "Primary Audience"?: string;
     "Issuer Participation"?: string;
+    "Last Modified"?: string;
+    "Created"?: string;
+    "Approved for Feeds"?: boolean;
   };
 };
 
 type EventRow = {
-  id: string;
+  airtableRecordId: string;
+  eventId: string;
+  slug: string;
   title: string;
   startDate: string;
   endDate: string;
@@ -40,40 +45,64 @@ type EventRow = {
   marketFocus: string;
   sectorTheme: string;
   format: string;
-  primaryAudience: string;
   issuerParticipation: string;
+  created: string;
+  lastModified: string;
+  approvedForFeeds: boolean;
 };
 
 function normalizeValue(value: AirtableValue): string {
   if (!value) return "";
   if (Array.isArray(value)) return value.join(", ");
-  return value;
+  return value.trim();
 }
 
 function cleanDateOnly(value?: string): string {
   return (value || "").trim().slice(0, 10);
 }
 
-function escapeText(value: string): string {
+function escapeICS(value: string): string {
   return value
     .replace(/\\/g, "\\\\")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
     .replace(/\n/g, "\\n")
     .replace(/,/g, "\\,")
     .replace(/;/g, "\\;");
 }
 
-function formatDateForICS(dateStr: string, isEnd = false): string {
+function foldICSLines(input: string): string {
+  const maxLength = 75;
+  const lines = input.split("\r\n");
+  const folded: string[] = [];
+
+  for (const line of lines) {
+    if (line.length <= maxLength) {
+      folded.push(line);
+      continue;
+    }
+
+    let remaining = line;
+    while (remaining.length > maxLength) {
+      folded.push(remaining.slice(0, maxLength));
+      remaining = " " + remaining.slice(maxLength);
+    }
+    folded.push(remaining);
+  }
+
+  return folded.join("\r\n");
+}
+
+function formatDateForICS(dateStr: string, isExclusiveEnd = false): string {
   const clean = cleanDateOnly(dateStr);
   if (!clean) return "";
 
   const [year, month, day] = clean.split("-").map(Number);
   if (!year || !month || !day) return "";
 
-  // All-day event format uses YYYYMMDD.
-  // DTEND in all-day ICS is exclusive, so add one day for end date.
   const date = new Date(Date.UTC(year, month - 1, day));
 
-  if (isEnd) {
+  if (isExclusiveEnd) {
     date.setUTCDate(date.getUTCDate() + 1);
   }
 
@@ -84,6 +113,52 @@ function formatDateForICS(dateStr: string, isEnd = false): string {
   return `${yyyy}${mm}${dd}`;
 }
 
+function formatTimestampForICS(value?: string): string {
+  const parsed = value ? new Date(value) : new Date();
+
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  }
+
+  return parsed.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+}
+
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function makeStableEventId(record: AirtableRecord): string {
+  const explicitEventId = record.fields["Event ID"]?.trim();
+  if (explicitEventId) return explicitEventId;
+
+  const explicitSlug = record.fields["Event Slug"]?.trim();
+  if (explicitSlug) return explicitSlug;
+
+  const title = record.fields["Event Name"]?.trim() || "event";
+  const startDate = cleanDateOnly(record.fields["Start Date"]) || "unknown-date";
+  const organizer = normalizeValue(record.fields["Organizer Name (from Organizer)"]) || "unknown-organizer";
+
+  return `${slugify(organizer)}-${slugify(title)}-${startDate}`;
+}
+
+function makeUID(event: EventRow): string {
+  return `${event.eventId}@capitalconferencecalendar.com`;
+}
+
+function buildSequence(event: EventRow): number {
+  if (!event.lastModified) return 0;
+
+  const ts = new Date(event.lastModified).getTime();
+  if (Number.isNaN(ts)) return 0;
+
+  return Math.floor(ts / 1000);
+}
+
 function buildLocation(event: EventRow): string {
   return [event.venue, event.city, event.state, event.country]
     .filter(Boolean)
@@ -92,33 +167,59 @@ function buildLocation(event: EventRow): string {
 
 function buildDescription(event: EventRow): string {
   const lines = [
-    `Primary Category: ${event.primaryCategory || "N/A"}`,
-    `Market Focus: ${event.marketFocus || "N/A"}`,
-    `Sector / Theme: ${event.sectorTheme || "N/A"}`,
-    `Format: ${event.format || "N/A"}`,
-    `Primary Audience: ${event.primaryAudience || "N/A"}`,
-    `Issuer Participation: ${event.issuerParticipation || "N/A"}`,
+    `ORGANIZER: ${event.organizer || "N/A"}`,
+    ``,
+    `PRIMARY CATEGORY: ${event.primaryCategory || "N/A"}`,
+    `MARKET FOCUS: ${event.marketFocus || "N/A"}`,
+    `SECTOR / THEME: ${event.sectorTheme || "N/A"}`,
+    `FORMAT: ${event.format || "N/A"}`,
+    `ISSUER PARTICIPATION: ${event.issuerParticipation || "N/A"}`,
+    ``,
+    `---`,
+    `Source: www.capitalconferencecalendar.com`,
   ];
 
-  // Keep notes clean and taxonomy-focused only.
   return lines.join("\n");
 }
 
-function makeUID(event: EventRow): string {
-  const safeTitle = (event.title || "event")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+function mapRecordToEvent(record: AirtableRecord): EventRow {
+  const startDate = cleanDateOnly(record.fields["Start Date"]);
+  const endDate = cleanDateOnly(record.fields["End Date"] || record.fields["Start Date"]);
+  const created =
+    record.fields["Created"] ||
+    record.createdTime ||
+    "";
+  const lastModified =
+    record.fields["Last Modified"] ||
+    record.fields["Created"] ||
+    record.createdTime ||
+    "";
 
-  const safeCity = (event.city || "unknown")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-  return `${event.id}-${safeTitle}-${event.startDate}-${safeCity}@capitalconferencecalendar.com`;
+  return {
+    airtableRecordId: record.id,
+    eventId: makeStableEventId(record),
+    slug: record.fields["Event Slug"]?.trim() || "",
+    title: record.fields["Event Name"]?.trim() || "Untitled Event",
+    startDate,
+    endDate,
+    city: record.fields.City?.trim() || "",
+    state: record.fields["State/Province"]?.trim() || "",
+    country: record.fields.Country?.trim() || "",
+    venue: normalizeValue(record.fields["Venue Name"]),
+    website: record.fields["Event Website"]?.trim() || "",
+    organizer: normalizeValue(record.fields["Organizer Name (from Organizer)"]),
+    primaryCategory: record.fields["Primary Category"]?.trim() || "",
+    marketFocus: record.fields["Market Focus"]?.trim() || "",
+    sectorTheme: normalizeValue(record.fields["Sector / Theme"]),
+    format: record.fields["Format"]?.trim() || "",
+    issuerParticipation: record.fields["Issuer Participation"]?.trim() || "",
+    created,
+    lastModified,
+    approvedForFeeds: Boolean(record.fields["Approved for Feeds"]),
+  };
 }
 
-async function getEvents(): Promise<EventRow[]> {
+async function fetchAllAirtableRecords(): Promise<AirtableRecord[]> {
   const baseId = process.env.AIRTABLE_BASE_ID;
   const tableName = process.env.AIRTABLE_TABLE_NAME;
   const token = process.env.AIRTABLE_TOKEN;
@@ -139,133 +240,150 @@ async function getEvents(): Promise<EventRow[]> {
       url.searchParams.set("offset", offset);
     }
 
-    const res = await fetch(url.toString(), {
+    const response = await fetch(url.toString(), {
+      method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
       },
       cache: "no-store",
     });
 
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Airtable fetch failed: ${res.status} ${res.statusText} - ${text}`);
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(
+        `Airtable fetch failed: ${response.status} ${response.statusText} - ${body}`
+      );
     }
 
-    const data = await res.json();
+    const data = await response.json();
     records.push(...(data.records || []));
     offset = data.offset;
   } while (offset);
 
-  return records
-    .map((record) => {
-      const startDate = cleanDateOnly(record.fields["Start Date"]);
-      const endDate = cleanDateOnly(
-        record.fields["End Date"] || record.fields["Start Date"]
-      );
+  return records;
+}
 
-      return {
-        id: record.id,
-        title: record.fields["Event Name"] || "Untitled Event",
-        startDate,
-        endDate,
-        city: record.fields.City || "",
-        state: record.fields["State/Province"] || "",
-        country: record.fields.Country || "",
-        venue: normalizeValue(record.fields["Venue Name"]),
-        website: record.fields["Event Website"] || "",
-        organizer: normalizeValue(record.fields["Organizer Name (from Organizer)"]),
-        primaryCategory: record.fields["Primary Category"] || "",
-        marketFocus: record.fields["Market Focus"] || "",
-        sectorTheme: normalizeValue(record.fields["Sector / Theme"]),
-        format: record.fields["Format"] || "",
-        primaryAudience: record.fields["Primary Audience"] || "",
-        issuerParticipation: record.fields["Issuer Participation"] || "",
-      };
-    })
-    .filter((event) => event.startDate);
+async function getEvents(): Promise<EventRow[]> {
+  const records = await fetchAllAirtableRecords();
+
+  return records
+    .map(mapRecordToEvent)
+    .filter((event) => event.startDate)
+    .filter((event) => event.approvedForFeeds || event.approvedForFeeds === false);
+}
+
+function filterEvents(events: EventRow[], requestUrl: string): EventRow[] {
+  const { searchParams } = new URL(requestUrl);
+
+  const country = searchParams.get("country")?.trim().toLowerCase();
+  const category = searchParams.get("category")?.trim().toLowerCase();
+  const marketFocus = searchParams.get("marketFocus")?.trim().toLowerCase();
+  const format = searchParams.get("format")?.trim().toLowerCase();
+  const issuerParticipation = searchParams.get("issuerParticipation")?.trim().toLowerCase();
+  const organizer = searchParams.get("organizer")?.trim().toLowerCase();
+  const onlyApproved = searchParams.get("approved");
+
+  return events.filter((event) => {
+    const matchesCountry = !country || event.country.toLowerCase() === country;
+    const matchesCategory =
+      !category || event.primaryCategory.toLowerCase() === category;
+    const matchesMarketFocus =
+      !marketFocus || event.marketFocus.toLowerCase() === marketFocus;
+    const matchesFormat =
+      !format || event.format.toLowerCase() === format;
+    const matchesIssuerParticipation =
+      !issuerParticipation ||
+      event.issuerParticipation.toLowerCase() === issuerParticipation;
+    const matchesOrganizer =
+      !organizer || event.organizer.toLowerCase() === organizer;
+
+    const matchesApproval =
+      onlyApproved === "true" ? event.approvedForFeeds === true : true;
+
+    return (
+      matchesCountry &&
+      matchesCategory &&
+      matchesMarketFocus &&
+      matchesFormat &&
+      matchesIssuerParticipation &&
+      matchesOrganizer &&
+      matchesApproval
+    );
+  });
+}
+
+function buildCalendar(events: EventRow[]): string {
+  const nowStamp = formatTimestampForICS();
+
+  const lines: string[] = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Capital Conference Calendar//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "X-WR-CALNAME:Capital Conference Calendar",
+    "X-WR-CALDESC:Capital markets conferences and events",
+    "X-PUBLISHED-TTL:PT12H",
+  ];
+
+  for (const event of events) {
+    const uid = makeUID(event);
+    const dtStart = formatDateForICS(event.startDate, false);
+    const dtEnd = formatDateForICS(event.endDate || event.startDate, true);
+    const location = buildLocation(event);
+    const description = buildDescription(event);
+    const created = formatTimestampForICS(event.created);
+    const lastModified = formatTimestampForICS(event.lastModified);
+    const sequence = buildSequence(event);
+
+    lines.push("BEGIN:VEVENT");
+    lines.push(`UID:${escapeICS(uid)}`);
+    lines.push(`DTSTAMP:${nowStamp}`);
+    lines.push(`CREATED:${created}`);
+    lines.push(`LAST-MODIFIED:${lastModified}`);
+    lines.push(`SEQUENCE:${sequence}`);
+    lines.push("STATUS:CONFIRMED");
+    lines.push("TRANSP:TRANSPARENT");
+    lines.push(`DTSTART;VALUE=DATE:${dtStart}`);
+    lines.push(`DTEND;VALUE=DATE:${dtEnd}`);
+    lines.push(`SUMMARY:${escapeICS(event.title)}`);
+
+    if (location) {
+      lines.push(`LOCATION:${escapeICS(location)}`);
+    }
+
+    if (description) {
+      lines.push(`DESCRIPTION:${escapeICS(description)}`);
+    }
+
+    if (event.website) {
+      lines.push(`URL:${escapeICS(event.website)}`);
+    }
+
+    lines.push("END:VEVENT");
+  }
+
+  lines.push("END:VCALENDAR");
+
+  return foldICSLines(lines.join("\r\n"));
 }
 
 export async function GET(request: NextRequest) {
   try {
     const allEvents = await getEvents();
-    const { searchParams } = new URL(request.url);
+    const filteredEvents = filterEvents(allEvents, request.url);
+    const ics = buildCalendar(filteredEvents);
 
-    const country = searchParams.get("country")?.trim().toLowerCase();
-    const category = searchParams.get("category")?.trim().toLowerCase();
-    const marketFocus = searchParams.get("marketFocus")?.trim().toLowerCase();
-    const format = searchParams.get("format")?.trim().toLowerCase();
-    const issuerParticipation = searchParams.get("issuerParticipation")?.trim().toLowerCase();
-
-    const filtered = allEvents.filter((event) => {
-      const matchesCountry = !country || event.country.toLowerCase() === country;
-      const matchesCategory =
-        !category || event.primaryCategory.toLowerCase() === category;
-      const matchesMarketFocus =
-        !marketFocus || event.marketFocus.toLowerCase() === marketFocus;
-      const matchesFormat = !format || event.format.toLowerCase() === format;
-      const matchesIssuerParticipation =
-        !issuerParticipation ||
-        event.issuerParticipation.toLowerCase() === issuerParticipation;
-
-      return (
-        matchesCountry &&
-        matchesCategory &&
-        matchesMarketFocus &&
-        matchesFormat &&
-        matchesIssuerParticipation
-      );
-    });
-
-    const lines: string[] = [
-      "BEGIN:VCALENDAR",
-      "VERSION:2.0",
-      "PRODID:-//Capital Conference Calendar//EN",
-      "CALSCALE:GREGORIAN",
-      "METHOD:PUBLISH",
-      "X-WR-CALNAME:Capital Conference Calendar",
-      "X-WR-CALDESC:Capital markets conferences and events",
-    ];
-
-    for (const event of filtered) {
-      const uid = makeUID(event);
-      const dtStart = formatDateForICS(event.startDate, false);
-      const dtEnd = formatDateForICS(event.endDate || event.startDate, true);
-      const location = buildLocation(event);
-      const description = buildDescription(event);
-
-      lines.push("BEGIN:VEVENT");
-      lines.push(`UID:${escapeText(uid)}`);
-      lines.push(`DTSTAMP:${new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z")}`);
-      lines.push(`DTSTART;VALUE=DATE:${dtStart}`);
-      lines.push(`DTEND;VALUE=DATE:${dtEnd}`);
-      lines.push(`SUMMARY:${escapeText(event.title)}`);
-
-      if (location) {
-        lines.push(`LOCATION:${escapeText(location)}`);
-      }
-
-      if (description) {
-        lines.push(`DESCRIPTION:${escapeText(description)}`);
-      }
-
-      if (event.website) {
-        lines.push(`URL:${escapeText(event.website)}`);
-      }
-
-      lines.push("END:VEVENT");
-    }
-
-    lines.push("END:VCALENDAR");
-
-    return new NextResponse(lines.join("\r\n"), {
+    return new NextResponse(ics, {
+      status: 200,
       headers: {
         "Content-Type": "text/calendar; charset=utf-8",
         "Content-Disposition": 'inline; filename="capital-conference-calendar.ics"',
-        "Cache-Control": "no-store",
+        "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=43200",
       },
     });
   } catch (error) {
-    console.error("ICS feed error:", error);
+    console.error("ICS feed generation error:", error);
 
     return NextResponse.json(
       {
