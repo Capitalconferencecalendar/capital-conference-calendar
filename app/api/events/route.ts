@@ -22,8 +22,6 @@ type EventRow = {
   sectorThemes: string;
   format: string;
   issuerParticipation: string;
-  lastVerified: string;
-  sourcePage: string;
 };
 
 function toText(value: unknown): string {
@@ -81,17 +79,13 @@ function foldIcsLine(line: string): string {
   return parts.join("\r\n ");
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 function buildUid(event: EventRow): string {
-  const base = [event.id, event.startDate, event.endDate, event.title]
+  const base = [
+    event.id,
+    event.startDate,
+    event.endDate,
+    event.title,
+  ]
     .filter(Boolean)
     .join("-");
   return `${base.replace(/\s+/g, "-")}@capitalconferencecalendar.com`;
@@ -105,29 +99,40 @@ function buildLocation(event: EventRow): string {
 
 function buildDescription(event: EventRow): string {
   const lines: string[] = [];
-  const eventLink = event.website || event.sourcePage;
+  const eventLink = event.website;
 
-  if (event.organizer) lines.push(`Organizer: ${event.organizer}`);
-  if (event.primaryCategory) lines.push(`Primary Category: ${event.primaryCategory}`);
-  if (event.marketFocus) lines.push(`Market Focus: ${event.marketFocus}`);
-  if (event.sectorThemes) lines.push(`Sector / Themes: ${event.sectorThemes}`);
+  if (event.organizer) {
+    lines.push(`Organizer: ${event.organizer}`);
+  }
+
+  if (event.primaryCategory) {
+    lines.push(`Primary Category: ${event.primaryCategory}`);
+  }
+
+  if (event.marketFocus) {
+    lines.push(`Market Focus: ${event.marketFocus}`);
+  }
+
+  if (event.sectorThemes) {
+    lines.push(`Sector / Themes: ${event.sectorThemes}`);
+  }
+
   if (event.format.toLowerCase() === "hybrid") {
     lines.push("Access: With Live Stream");
   }
+
   if (event.issuerParticipation) {
     lines.push(`Issuer Participation: ${event.issuerParticipation}`);
   }
-  if (event.region) lines.push(`Region: ${event.region}`);
+
+  if (event.region) {
+    lines.push(`Region: ${event.region}`);
+  }
 
   if (eventLink) {
     lines.push("");
-    lines.push("Event Link:");
-    lines.push(eventLink);
+    lines.push(`Event Link: ${eventLink}`);
   }
-  if (event.sourcePage && event.sourcePage !== eventLink) {
-    lines.push(`Source Page: ${event.sourcePage}`);
-  }
-
   lines.push(`Capital Conference Calendar: https://www.capitalconferencecalendar.com`);
 
   return lines.join("\n");
@@ -196,8 +201,6 @@ async function getEvents(): Promise<EventRow[]> {
         sectorThemes: toText(fields["Sector / Themes"]) || toText(fields["Sector / Theme"]),
         format: toText(fields["Format"]),
         issuerParticipation: toText(fields["Issuer Participation"]),
-        lastVerified: cleanDateOnly(fields["Last Verified"]),
-        sourcePage: toText(fields["Source Page (event-specific)"]),
       };
     })
     .filter((event) => event.startDate);
@@ -207,54 +210,22 @@ function matchesMulti(value: string, selected: string[]): boolean {
   return selected.length === 0 || selected.includes(value);
 }
 
-function matchesQuery(event: EventRow, query: string): boolean {
-  if (!query) return true;
-
-  const haystack = [
-    event.title,
-    event.organizer,
-    event.city,
-    event.state,
-    event.region,
-    event.country,
-    event.venue,
-    event.primaryCategory,
-    event.marketFocus,
-    event.sectorThemes,
-    event.format,
-    event.issuerParticipation,
-  ]
-    .join(" ")
-    .toLowerCase();
-
-  return haystack.includes(query.toLowerCase());
-}
-
 function buildCalendarName(filters: {
-  query: string;
   categories: string[];
   marketFocuses: string[];
   issuerParticipation: string[];
   sectorThemes: string[];
   states: string[];
   regions: string[];
-  countries: string[];
   organizers: string[];
-  from: string;
-  to: string;
 }) {
   const parts: string[] = [];
 
-  if (filters.query) parts.push(`Search: ${filters.query}`);
   if (filters.categories.length > 0) parts.push(filters.categories.join(", "));
   if (filters.marketFocuses.length > 0) parts.push(filters.marketFocuses.join(", "));
   if (filters.regions.length > 0) parts.push(filters.regions.join(", "));
   if (filters.states.length > 0) parts.push(filters.states.join(", "));
-  if (filters.countries.length > 0) parts.push(filters.countries.join(", "));
   if (filters.organizers.length > 0) parts.push(filters.organizers.join(", "));
-  if (filters.sectorThemes.length > 0) parts.push(filters.sectorThemes.join(", "));
-  if (filters.from) parts.push(`From ${filters.from}`);
-  if (filters.to) parts.push(`To ${filters.to}`);
 
   const suffix = parts.length > 0 ? ` — ${parts.join(" | ")}` : "";
   return `Capital Conference Calendar${suffix}`;
@@ -272,16 +243,11 @@ export async function GET(request: NextRequest) {
     const sectorThemes = toArray(searchParams.getAll("sectorTheme"));
     const states = toArray(searchParams.getAll("state"));
     const regions = toArray(searchParams.getAll("region"));
-    const countries = toArray(searchParams.getAll("country"));
     const organizers = toArray(searchParams.getAll("organizer"));
-    const query = searchParams.get("q")?.trim() || "";
-    const from = searchParams.get("from")?.trim().slice(0, 10) || "";
-    const to = searchParams.get("to")?.trim().slice(0, 10) || "";
 
     const events = await getEvents();
 
     const filteredEvents = events
-      .filter((event) => matchesQuery(event, query))
       .filter((event) => matchesMulti(event.primaryCategory, categories))
       .filter((event) => matchesMulti(event.marketFocus, marketFocuses))
       .filter((event) =>
@@ -297,10 +263,7 @@ export async function GET(request: NextRequest) {
       )
       .filter((event) => matchesMulti(event.state, states))
       .filter((event) => matchesMulti(event.region, regions))
-      .filter((event) => matchesMulti(event.country, countries))
       .filter((event) => matchesMulti(event.organizer, organizers))
-      .filter((event) => !from || event.startDate >= from)
-      .filter((event) => !to || event.startDate <= to)
       .sort((a, b) => {
         if (a.startDate !== b.startDate) {
           return a.startDate.localeCompare(b.startDate);
@@ -309,23 +272,14 @@ export async function GET(request: NextRequest) {
       });
 
     const calendarName = buildCalendarName({
-      query,
       categories,
       marketFocuses,
       issuerParticipation,
       sectorThemes,
       states,
       regions,
-      countries,
       organizers,
-      from,
-      to,
     });
-
-    const dtstamp = new Date()
-      .toISOString()
-      .replace(/[-:]/g, "")
-      .replace(/\.\d{3}Z$/, "Z");
 
     const lines: string[] = [
       "BEGIN:VCALENDAR",
@@ -344,18 +298,14 @@ export async function GET(request: NextRequest) {
     for (const event of filteredEvents) {
       const start = event.startDate;
       const endExclusive = addDays(event.endDate || event.startDate, 1);
-      const url =
-        event.website ||
-        event.sourcePage ||
-        "https://www.capitalconferencecalendar.com";
       const description = buildDescription(event);
-      const htmlDescription = `${escapeHtml(description).replace(/\n/g, "<br/>")}${
-        url ? `<br/><br/><a href="${escapeHtml(url)}">${escapeHtml(url)}</a>` : ""
-      }`;
       const location = buildLocation(event);
+      const url = event.website || "https://www.capitalconferencecalendar.com";
 
       lines.push("BEGIN:VEVENT");
-      lines.push(`DTSTAMP:${dtstamp}`);
+      lines.push(
+        `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z")}`
+      );
       lines.push(foldIcsLine(`UID:${escapeIcsText(buildUid(event))}`));
       lines.push(foldIcsLine(`SUMMARY:${escapeIcsText(event.title)}`));
       lines.push(`DTSTART;VALUE=DATE:${formatIcsDate(start)}`);
@@ -367,13 +317,12 @@ export async function GET(request: NextRequest) {
 
       if (description) {
         lines.push(foldIcsLine(`DESCRIPTION:${escapeIcsText(description)}`));
-        lines.push(
-          foldIcsLine(`X-ALT-DESC;FMTTYPE=text/html:${htmlDescription}`)
-        );
       }
 
-      lines.push(foldIcsLine(`URL:${escapeIcsText(url)}`));
-      lines.push(foldIcsLine(`SOURCE:${escapeIcsText(url)}`));
+      if (url) {
+        lines.push(foldIcsLine(`URL:${escapeIcsText(url)}`));
+      }
+
       lines.push("STATUS:CONFIRMED");
       lines.push("TRANSP:TRANSPARENT");
       lines.push("END:VEVENT");
@@ -381,7 +330,9 @@ export async function GET(request: NextRequest) {
 
     lines.push("END:VCALENDAR");
 
-    return new Response(`${lines.join("\r\n")}\r\n`, {
+    const body = `${lines.join("\r\n")}\r\n`;
+
+    return new Response(body, {
       status: 200,
       headers: {
         "Content-Type": "text/calendar; charset=utf-8",
