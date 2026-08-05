@@ -1,7 +1,8 @@
 import GuideLayout from "../calendar-setup/GuideLayout";
 import CopyLinkMockup from "../calendar-setup/CopyLinkMockup";
 
-const DEFAULT_FEED_URL = "https://capitalconferences.com/api/ics/abc123";
+const DEFAULT_FEED_URL = "https://capitalconferencecalendar.com/api/ics?view=investor-conferences";
+const DISPLAY_FEED_URL = "https://capitalconferencecalendar.com/api/ics?view=your-market-view";
 
 function resolveFeedUrl(value: string | string[] | undefined) {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -11,14 +12,14 @@ function resolveFeedUrl(value: string | string[] | undefined) {
   return DEFAULT_FEED_URL;
 }
 
-function cardFrame(children: React.ReactNode) {
+function frame(children: React.ReactNode, padding = "18px") {
   return (
     <div
       style={{
-        border: "1px solid #dbe4ee",
-        borderRadius: "10px",
-        backgroundColor: "#ffffff",
-        overflow: "hidden",
+        padding,
+        background: "linear-gradient(180deg, rgba(8,31,55,0.98), rgba(4,20,36,0.98))",
+        border: "1px solid rgba(107, 157, 210, 0.18)",
+        borderRadius: "18px",
       }}
     >
       {children}
@@ -26,190 +27,221 @@ function cardFrame(children: React.ReactNode) {
   );
 }
 
+function Label({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: "11px",
+        fontWeight: 900,
+        letterSpacing: "0.13em",
+        textTransform: "uppercase",
+        color: "#8fb8ff",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Pill({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        borderRadius: "999px",
+        padding: "8px 12px",
+        border: "1px solid rgba(107,157,210,0.16)",
+        background: "rgba(6, 24, 44, 0.82)",
+        color: "#dbeafe",
+        fontSize: "13px",
+        fontWeight: 800,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
 function HeroGooglePreview() {
-  return cardFrame(
-    <div style={{ display: "grid", gridTemplateColumns: "86px minmax(0, 1fr)", minHeight: "220px" }}>
+  return frame(
+    <div style={{ display: "grid", gap: "14px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
+        <Label>Live feed setup</Label>
+        <span style={{ fontSize: "12px", color: "#2dd4bf", fontWeight: 800 }}>Google Calendar</span>
+      </div>
       <div
         style={{
           display: "grid",
-          placeItems: "center",
-          background: "linear-gradient(140deg, #1a73e8 0%, #34a853 40%, #fbbc05 72%, #ea4335 100%)",
-          color: "#ffffff",
-          fontWeight: 900,
-          fontSize: "38px",
+          gridTemplateColumns: "1fr auto 1fr auto 1fr",
+          gap: "10px",
+          alignItems: "center",
         }}
       >
-        31
-      </div>
-      <div style={{ padding: "10px" }}>
-        <div style={{ fontSize: "16px", fontWeight: 700, color: "#334155", marginBottom: "8px" }}>Google Calendar</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: "10px" }}>
-          <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "8px" }}>
-            <div style={{ fontSize: "12px", color: "#0f172a", fontWeight: 700, marginBottom: "6px" }}>May 2026</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px" }}>
-              {Array.from({ length: 28 }, (_, i) => (
-                <div
-                  key={i}
-                  style={{
-                    textAlign: "center",
-                    fontSize: "10px",
-                    color: i === 11 ? "#ffffff" : "#64748b",
-                    backgroundColor: i === 11 ? "#1a73e8" : "transparent",
-                    borderRadius: "999px",
-                    height: "18px",
-                    lineHeight: "18px",
-                  }}
-                >
-                  {i + 1}
-                </div>
-              ))}
-            </div>
-          </div>
-          <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "8px" }}>
-            <div style={{ fontSize: "12px", fontWeight: 700, color: "#475569", marginBottom: "6px" }}>Other calendars</div>
-            <div style={{ display: "flex", alignItems: "center", gap: "7px", fontSize: "12px", color: "#0f172a" }}>
-              <span style={{ width: "10px", height: "10px", borderRadius: "2px", backgroundColor: "#7e57c2" }} />
-              Capital Conference Calendar
-            </div>
+        <div style={{ borderRadius: "16px", padding: "14px", background: "rgba(8, 39, 67, 0.9)", border: "1px solid rgba(107,157,210,0.18)" }}>
+          <Label>Filtered Market View</Label>
+          <div style={{ marginTop: "10px", color: "#ffffff", fontSize: "18px", fontWeight: 900 }}>Healthcare Conferences</div>
+          <div style={{ marginTop: "6px", color: "#8fa8c3", fontSize: "13px" }}>NYC · Investors · Next 30 days</div>
+        </div>
+        <div style={{ color: "#3b82f6", fontSize: "24px", fontWeight: 900 }}>→</div>
+        <div style={{ borderRadius: "16px", padding: "14px", background: "rgba(3, 20, 38, 0.86)", border: "1px solid rgba(59,130,246,0.22)" }}>
+          <Label>Live ICS Feed</Label>
+          <div style={{ marginTop: "12px", color: "#dbeafe", fontSize: "13px", lineHeight: 1.5 }}>Updates automatically as conferences are added, reviewed, and reclassified.</div>
+        </div>
+        <div style={{ color: "#3b82f6", fontSize: "24px", fontWeight: 900 }}>→</div>
+        <div style={{ borderRadius: "16px", padding: "14px", background: "rgba(8, 39, 67, 0.9)", border: "1px solid rgba(107,157,210,0.18)" }}>
+          <Label>Google Calendar</Label>
+          <div style={{ marginTop: "12px", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px" }}>
+            {["M", "T", "W", "T", "F", "S", "S", "", "15", "16", "17", "18", "19", "", ""].map((cell, index) => (
+              <div
+                key={`${cell}-${index}`}
+                style={{
+                  minHeight: "22px",
+                  borderRadius: "8px",
+                  background: cell === "17" ? "#3b82f6" : "rgba(255,255,255,0.04)",
+                  color: cell === "17" ? "#ffffff" : "#9fb5cf",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  display: "grid",
+                  placeItems: "center",
+                }}
+              >
+                {cell}
+              </div>
+            ))}
           </div>
         </div>
       </div>
-    </div>
+    </div>,
   );
 }
 
 function Step1Visual() {
-  return cardFrame(
-    <div style={{ padding: "10px" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: "6px", marginBottom: "8px" }}>
-        {["148", "49", "52", "4", "12"].map((value, idx) => (
-          <div key={value} style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "6px", backgroundColor: idx === 0 ? "#f8fbff" : "#ffffff" }}>
-            <div style={{ fontSize: "15px", fontWeight: 800, color: "#0f172a" }}>{value}</div>
-            <div style={{ fontSize: "10px", color: "#64748b" }}>Metric</div>
+  return frame(
+    <div style={{ display: "grid", gap: "12px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "10px" }}>
+        {["Location", "Market Focus", "Audience"].map((label, index) => (
+          <div key={label} style={{ borderRadius: "14px", padding: "12px", background: index === 0 ? "rgba(59,130,246,0.18)" : "rgba(255,255,255,0.04)", border: "1px solid rgba(107,157,210,0.16)" }}>
+            <div style={{ color: "#8fb8ff", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>{label}</div>
+            <div style={{ marginTop: "8px", color: "#ffffff", fontSize: "15px", fontWeight: 800 }}>
+              {label === "Location" ? "New York, NY" : label === "Market Focus" ? "Healthcare" : "Institutional Investors"}
+            </div>
           </div>
         ))}
       </div>
-      <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "8px" }}>
-        <div style={{ fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>Build Your Market View</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "6px" }}>
-          {["Issuer", "Location", "Sector", "Market"].map((field) => (
-            <div key={field} style={{ border: "1px solid #dbe4ee", borderRadius: "6px", padding: "6px", fontSize: "11px", color: "#64748b" }}>
-              {field}
-            </div>
-          ))}
-        </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "7px" }}>
-          <button style={{ border: "1px solid #0f2d4f", backgroundColor: "#0f2d4f", color: "#fff", fontSize: "11px", borderRadius: "6px", padding: "5px 8px" }}>
-            Copy Live Calendar Link
-          </button>
-        </div>
+      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+        {["Upcoming 30 Days", "Hot Weeks", "Investor Conferences", "Saved View"].map((chip) => (
+          <Pill key={chip}>{chip}</Pill>
+        ))}
       </div>
-    </div>
+    </div>,
   );
 }
 
 function Step2Visual({ feedUrl }: { feedUrl: string }) {
-  return cardFrame(
+  return frame(
     <CopyLinkMockup
       feedUrl={feedUrl}
-      borderColor="#c7d7ea"
-      buttonBorderColor="#0f2d4f"
-      buttonBgColor="#0f2d4f"
-    />
+      displayFeedUrl={DISPLAY_FEED_URL}
+      borderColor="rgba(107, 157, 210, 0.24)"
+      buttonBorderColor="#2563eb"
+      buttonBgColor="#2563eb"
+      dark
+      title="Copy your CCC live feed link"
+      subtitle="Use this subscription link in Google Calendar."
+      copiedLabel="Live feed copied."
+    />,
   );
 }
 
 function Step3Visual() {
-  return cardFrame(
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 120px" }}>
-      <div style={{ padding: "10px" }}>
-        <div style={{ fontSize: "14px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>Calendar</div>
-        <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "8px" }}>
-          <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "6px" }}>May 2026</div>
-          <div style={{ height: "72px", backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "6px" }} />
+  return frame(
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 150px", gap: "14px", alignItems: "start" }}>
+      <div style={{ borderRadius: "16px", padding: "14px", background: "rgba(8,39,67,0.78)", border: "1px solid rgba(107,157,210,0.16)" }}>
+        <div style={{ color: "#ffffff", fontSize: "15px", fontWeight: 900 }}>Google Calendar</div>
+        <div style={{ marginTop: "10px", display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "5px" }}>
+          {["S", "M", "T", "W", "T", "F", "S", "", "", "15", "16", "17", "18", "19"].map((cell, index) => (
+            <div
+              key={`${cell}-${index}`}
+              style={{
+                minHeight: "24px",
+                borderRadius: "8px",
+                background: cell === "17" ? "rgba(59,130,246,0.95)" : "rgba(255,255,255,0.04)",
+                color: cell === "17" ? "#ffffff" : "#9fb5cf",
+                fontSize: "11px",
+                display: "grid",
+                placeItems: "center",
+                fontWeight: 700,
+              }}
+            >
+              {cell}
+            </div>
+          ))}
         </div>
       </div>
-      <div style={{ borderLeft: "1px solid #e2e8f0", padding: "10px", position: "relative" }}>
-        <div style={{ fontSize: "12px", color: "#475569", fontWeight: 700, marginBottom: "8px" }}>Other calendars</div>
-        <div
-          style={{
-            width: "34px",
-            height: "34px",
-            borderRadius: "999px",
-            border: "2px solid #1d4f91",
-            color: "#1d4f91",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "21px",
-            fontWeight: 700,
-          }}
-        >
-          +
-        </div>
-        <div style={{ position: "absolute", right: "10px", bottom: "10px", color: "#1d4f91", fontSize: "26px", fontWeight: 900 }}>↙</div>
+      <div style={{ display: "grid", gap: "8px" }}>
+        <div style={{ color: "#8fa8c3", fontSize: "12px", fontWeight: 800 }}>Other calendars</div>
+        <div style={{ width: "42px", height: "42px", borderRadius: "12px", border: "1px solid rgba(59,130,246,0.34)", color: "#8fb8ff", display: "grid", placeItems: "center", fontSize: "26px", fontWeight: 800 }}>+</div>
+        <div style={{ color: "#8fa8c3", fontSize: "12px", lineHeight: 1.45 }}>Click the plus icon to add a new calendar from URL.</div>
       </div>
-    </div>
+    </div>,
   );
 }
 
 function Step4Visual() {
-  return cardFrame(
-    <div style={{ padding: "10px" }}>
-      <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", overflow: "hidden" }}>
-        {["Add calendar", "Subscribe to calendar", "Create new calendar", "Browse calendars of interest", "From URL", "Import"].map((item) => (
-          <div
-            key={item}
-            style={{
-              padding: "8px 10px",
-              fontSize: "12px",
-              color: item === "From URL" ? "#0f3d75" : "#334155",
-              backgroundColor: item === "From URL" ? "#eaf2fb" : "#ffffff",
-              fontWeight: item === "From URL" ? 700 : 500,
-              borderBottom: "1px solid #eef2f7",
-            }}
-          >
-            {item}
-          </div>
-        ))}
-      </div>
-    </div>
+  return frame(
+    <div style={{ display: "grid", gap: "8px" }}>
+      {["Add calendar", "Browse calendars of interest", "Create new calendar", "From URL", "Import"].map((item) => (
+        <div
+          key={item}
+          style={{
+            borderRadius: "12px",
+            padding: "10px 12px",
+            border: "1px solid rgba(107,157,210,0.14)",
+            background: item === "From URL" ? "rgba(59,130,246,0.18)" : "rgba(255,255,255,0.04)",
+            color: item === "From URL" ? "#ffffff" : "#c8d8ec",
+            fontSize: "13px",
+            fontWeight: item === "From URL" ? 900 : 700,
+          }}
+        >
+          {item}
+        </div>
+      ))}
+    </div>,
   );
 }
 
-function Step5Visual({ feedUrl }: { feedUrl: string }) {
-  return cardFrame(
-    <div style={{ padding: "10px", display: "grid", gap: "8px" }}>
-      <div style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>From URL</div>
-      <div style={{ fontSize: "11px", color: "#64748b" }}>URL of calendar</div>
-      <div style={{ border: "1px solid #a9c7e8", borderRadius: "6px", padding: "7px", fontSize: "12px", color: "#334155", overflowWrap: "anywhere" }}>
-        {feedUrl}
+function Step5Visual() {
+  return frame(
+    <div style={{ display: "grid", gap: "10px" }}>
+      <Label>From URL</Label>
+      <div style={{ borderRadius: "14px", padding: "12px", background: "rgba(3,20,38,0.86)", border: "1px solid rgba(107,157,210,0.18)", color: "#c8d8ec", fontSize: "13px", overflowWrap: "anywhere" }}>
+        {DISPLAY_FEED_URL}
       </div>
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: "7px" }}>
-        <button style={{ border: "1px solid #d7dde5", backgroundColor: "#fff", color: "#334155", fontSize: "12px", borderRadius: "6px", padding: "6px 10px" }}>
-          Cancel
-        </button>
-        <button style={{ border: "1px solid #1d4f91", backgroundColor: "#1d4f91", color: "#fff", fontSize: "12px", borderRadius: "6px", padding: "6px 10px" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <span style={{ borderRadius: "10px", padding: "10px 14px", background: "linear-gradient(180deg, #3b82f6, #2563eb)", color: "#ffffff", fontSize: "12px", fontWeight: 900 }}>
           Add calendar
-        </button>
+        </span>
       </div>
-    </div>
+    </div>,
   );
 }
 
 function Step6Visual() {
-  return cardFrame(
-    <div style={{ padding: "10px", display: "grid", gap: "8px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "#334155", fontSize: "13px", fontWeight: 700 }}>
-        <span>Other calendars</span>
-        <span>+</span>
+  return frame(
+    <div style={{ display: "grid", gap: "12px" }}>
+      <div style={{ color: "#ffffff", fontSize: "16px", fontWeight: 900 }}>Capital Conference Calendar</div>
+      <div style={{ display: "grid", gap: "8px" }}>
+        <div style={{ color: "#8fa8c3", fontSize: "12px" }}>Calendar name</div>
+        <div style={{ borderRadius: "12px", padding: "10px 12px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(107,157,210,0.16)", color: "#dbeafe", fontSize: "13px" }}>
+          Healthcare Conferences · New York · Investors
+        </div>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: "7px", fontSize: "14px", color: "#0f172a", border: "1px solid #dbe4ee", borderRadius: "8px", padding: "8px", backgroundColor: "#f8fbff" }}>
-        <span style={{ width: "11px", height: "11px", borderRadius: "2px", backgroundColor: "#7e57c2" }} />
-        Capital Conference Calendar
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#2dd4bf", fontSize: "13px", fontWeight: 800 }}>
+        <span style={{ width: "10px", height: "10px", borderRadius: "999px", background: "#2dd4bf" }} />
+        Feed updates automatically after Google refreshes the subscription.
       </div>
-      <div style={{ textAlign: "right", fontSize: "12px", color: "#1d4f91", fontWeight: 700 }}>Your live feed appears here</div>
-    </div>
+    </div>,
   );
 }
 
@@ -221,83 +253,92 @@ export default async function GoogleCalendarHelpPage(props: {
 
   return (
     <GuideLayout
+      platformKey="google"
       breadcrumbCurrent="Google Calendar"
       platformLabel="Google Calendar Setup"
-      accent="#1a73e8"
-      headline="Add Your Conference Feed to Google Calendar"
-      subheadline="Subscribe to the live Capital Conference Calendar feed and your filtered events will automatically appear in your Google Calendar"
-      chips={["One-time setup", "Automatic updates", "Remove anytime"]}
+      accent="#3b82f6"
+      headline="Sync your conference view to your calendar."
+      subheadline="Create a live conference feed from your Capital Conference Calendar market view and subscribe to it in Google Calendar."
+      supportingCopy="When events are added, reviewed, or reclassified in the matching view, your subscribed calendar can update automatically after Google refreshes the feed."
+      chips={["One-time setup", "Live ICS feed", "Google / Apple / Outlook", "Remove anytime"]}
       heroPreview={<HeroGooglePreview />}
-      workflowItems={[]}
       steps={[
         {
           number: 1,
-          title: "Build your market view",
-          copy: "Use filters in Capital Conference Calendar to create the exact conference view you want in your calendar.",
+          title: "Build the market view you want to track",
+          copy: "Filter by date, city, market focus, organizer, audience, or quick feeds so the live calendar only reflects the conferences that matter to you.",
           visual: <Step1Visual />,
         },
         {
           number: 2,
-          title: "Copy your live calendar link",
-          copy: "Click “Copy Live Calendar Link” on the right panel. Your unique subscription URL is copied to your clipboard.",
+          title: "Copy your live feed subscription link",
+          copy: "Open calendar sync on the right side of Discovery and copy your CCC live feed link. This is the subscription URL Google will use.",
           visual: <Step2Visual feedUrl={feedUrl} />,
         },
         {
           number: 3,
           title: "Open Google Calendar",
-          copy: "In Google Calendar, look at the left sidebar. Under “Other calendars,” click the + icon.",
+          copy: "In Google Calendar, go to the left sidebar and find Other calendars. This is where you add a calendar from URL.",
           visual: <Step3Visual />,
         },
         {
           number: 4,
-          title: "Select “From URL”",
-          copy: "In the menu that appears, choose “From URL.”",
+          title: "Choose From URL",
+          copy: "Click the plus icon beside Other calendars, then choose From URL from the add-calendar menu.",
           visual: <Step4Visual />,
         },
         {
           number: 5,
-          title: "Paste your link and click Add",
-          copy: "Paste your Capital Conference Calendar link into the URL field, then click “Add calendar.”",
-          visual: <Step5Visual feedUrl={feedUrl} />,
+          title: "Paste your CCC live feed link",
+          copy: "Paste your subscription link and add the calendar. Google will create a subscribed calendar tied to your filtered market view.",
+          visual: <Step5Visual />,
         },
         {
           number: 6,
-          title: "Your conference calendar is live!",
-          copy: "Your live feed will appear in the left sidebar. Matching events will start populating based on Google Calendar’s refresh schedule.",
+          title: "Your live conference feed is connected",
+          copy: "Your subscribed feed now appears in Google Calendar. It stays linked to the market view you created and can refresh as matching conferences change.",
           visual: <Step6Visual />,
         },
       ]}
       supportCards={[
         {
-          title: "Important: Refresh Timing",
-          body: "Google Calendar refreshes subscribed calendars periodically. Updates from Capital Conference Calendar may not appear instantly and can take several hours depending on Google’s refresh cycle.",
-        },
-        {
           title: "What happens after you subscribe?",
           bullets: [
             "New matching conferences can appear automatically",
-            "Conference updates can be reflected",
-            "Cancelled events can be removed",
-            "You can unsubscribe at any time",
+            "Updated records can refresh into your calendar",
+            "Reclassified events can move in or out of the feed",
+            "You can remove the subscription at any time",
+          ],
+        },
+        {
+          title: "Important: refresh timing",
+          body: "Google controls how often subscribed calendars refresh. New events do not appear instantly, but the link stays live and continues pulling updates from the same market view.",
+        },
+        {
+          title: "Best uses for live feeds",
+          bullets: [
+            "Track one city or sector over the next 30 days",
+            "Monitor sponsor targets or issuer windows",
+            "Keep a saved market view in your calendar workflow",
           ],
         },
       ]}
       faqs={[
         {
-          question: "Can I edit subscribed events?",
-          answer: "Subscribed events are managed by the source feed. You can edit your own notes locally, but core event data comes from the live feed.",
+          question: "Can I change the calendar name later?",
+          answer: "Yes. Google lets you rename the subscribed calendar inside your calendar list after you add it.",
         },
         {
           question: "Will new conferences appear automatically?",
-          answer: "Yes. New matching conferences can appear as Google refreshes subscribed calendars.",
+          answer: "Yes, as long as the new event matches your filtered market view and Google has refreshed the subscription.",
         },
         {
-          question: "Can I subscribe to multiple conference views?",
-          answer: "Yes. Build different market views and subscribe to each with its own live calendar link.",
+          question: "Can I subscribe to more than one CCC feed?",
+          answer: "Yes. Each saved or filtered market view can have its own live subscription link.",
         },
         {
-          question: "Does this work on mobile?",
-          answer: "Yes. Once subscribed, the calendar appears across devices signed into your Google account.",
+          question: "Does this work on desktop and mobile?",
+          answer: "Yes. Once the feed is subscribed in your Google account, it can appear anywhere that Google Calendar syncs.",
         },
       ]}
     />

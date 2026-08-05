@@ -4,14 +4,24 @@ import { useState } from "react";
 
 export default function CopyLinkMockup({
   feedUrl,
+  displayFeedUrl,
   borderColor,
   buttonBorderColor,
   buttonBgColor,
+  title = "Your Live Calendar Link",
+  subtitle = "Click copy to save your live link.",
+  copiedLabel = "Link copied to clipboard.",
+  dark = false,
 }: {
   feedUrl: string;
+  displayFeedUrl?: string;
   borderColor: string;
   buttonBorderColor: string;
   buttonBgColor: string;
+  title?: string;
+  subtitle?: string;
+  copiedLabel?: string;
+  dark?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -27,23 +37,37 @@ export default function CopyLinkMockup({
 
   return (
     <div style={{ padding: "10px", display: "grid", gap: "7px" }}>
-      <div style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a" }}>Your Live Calendar Link</div>
+      <div
+        style={{
+          fontSize: "14px",
+          fontWeight: 700,
+          color: dark ? "#f8fbff" : "#0f172a",
+        }}
+      >
+        {title}
+      </div>
       <div
         style={{
           border: `1px solid ${borderColor}`,
           borderRadius: "7px",
-          backgroundColor: "#fbfdff",
+          backgroundColor: dark ? "rgba(3, 20, 38, 0.82)" : "#fbfdff",
           padding: "8px",
           fontSize: "12px",
-          color: "#334155",
+          color: dark ? "#c8d8ec" : "#334155",
           overflowWrap: "anywhere",
         }}
       >
-        {feedUrl}
+        {displayFeedUrl ?? feedUrl}
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
-        <span style={{ fontSize: "12px", color: copied ? "#15803d" : "#64748b", fontWeight: 700 }}>
-          {copied ? "Link copied to clipboard." : "Click copy to save your live link."}
+        <span
+          style={{
+            fontSize: "12px",
+            color: copied ? "#22c55e" : dark ? "#8fa8c3" : "#64748b",
+            fontWeight: 700,
+          }}
+        >
+          {copied ? copiedLabel : subtitle}
         </span>
         <button
           type="button"
@@ -65,4 +89,3 @@ export default function CopyLinkMockup({
     </div>
   );
 }
-

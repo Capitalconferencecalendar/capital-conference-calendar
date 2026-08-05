@@ -42,6 +42,22 @@ function cleanDateOnly(value: unknown): string {
   return toText(value).slice(0, 10);
 }
 
+function isWebsiteApproved(fields: Record<string, unknown>): boolean {
+  const approvalKey =
+    Object.keys(fields).find(
+      (key) => key.replace(/[^a-z]/gi, "").toLowerCase() === "websiteapproval"
+    ) || "Website Approval";
+  const normalized = toText(fields[approvalKey]).toLowerCase().replace(/\s+/g, "");
+  if (!normalized) return false;
+  const looksApproved = normalized.includes("approved") || normalized.includes("appoved");
+  const looksRejected =
+    normalized.includes("notapproved") ||
+    normalized.includes("unapproved") ||
+    normalized.includes("pending") ||
+    normalized.includes("rejected");
+  return looksApproved && !looksRejected;
+}
+
 function toArray(values: string[]): string[] {
   return values.map((v) => v.trim()).filter(Boolean);
 }
@@ -174,6 +190,7 @@ async function getEvents(): Promise<EventRow[]> {
   } while (offset);
 
   return records
+    .filter((record) => isWebsiteApproved(record.fields || {}))
     .map((record) => {
       const fields = record.fields || {};
       const startDate = cleanDateOnly(fields["Start Date"]);
@@ -231,11 +248,14 @@ function matchesQuery(event: EventRow, query: string): boolean {
 }
 
 function buildCalendarName(filters: {
+  explicitName: string;
+  feedKey: string;
   query: string;
   categories: string[];
   marketFocuses: string[];
   issuerParticipation: string[];
   sectorThemes: string[];
+  cities: string[];
   states: string[];
   regions: string[];
   countries: string[];
@@ -243,12 +263,15 @@ function buildCalendarName(filters: {
   from: string;
   to: string;
 }) {
+  if (filters.explicitName) return filters.explicitName;
   const parts: string[] = [];
 
   if (filters.query) parts.push(`Search: ${filters.query}`);
   if (filters.categories.length > 0) parts.push(filters.categories.join(", "));
   if (filters.marketFocuses.length > 0) parts.push(filters.marketFocuses.join(", "));
+  if (filters.issuerParticipation.length > 0) parts.push(filters.issuerParticipation.join(", "));
   if (filters.regions.length > 0) parts.push(filters.regions.join(", "));
+  if (filters.cities.length > 0) parts.push(filters.cities.join(", "));
   if (filters.states.length > 0) parts.push(filters.states.join(", "));
   if (filters.countries.length > 0) parts.push(filters.countries.join(", "));
   if (filters.organizers.length > 0) parts.push(filters.organizers.join(", "));
@@ -270,11 +293,14 @@ export async function GET(request: NextRequest) {
       searchParams.getAll("issuerParticipation")
     );
     const sectorThemes = toArray(searchParams.getAll("sectorTheme"));
+    const cities = toArray(searchParams.getAll("city"));
     const states = toArray(searchParams.getAll("state"));
     const regions = toArray(searchParams.getAll("region"));
     const countries = toArray(searchParams.getAll("country"));
     const organizers = toArray(searchParams.getAll("organizer"));
     const query = searchParams.get("q")?.trim() || "";
+    const explicitName = searchParams.get("name")?.trim() || "";
+    const feedKey = searchParams.get("feedKey")?.trim() || "";
     const from = searchParams.get("from")?.trim().slice(0, 10) || "";
     const to = searchParams.get("to")?.trim().slice(0, 10) || "";
 
@@ -295,6 +321,7 @@ export async function GET(request: NextRequest) {
             .map((value) => value.trim())
             .some((value) => sectorThemes.includes(value))
       )
+      .filter((event) => matchesMulti(event.city, cities))
       .filter((event) => matchesMulti(event.state, states))
       .filter((event) => matchesMulti(event.region, regions))
       .filter((event) => matchesMulti(event.country, countries))
@@ -309,11 +336,14 @@ export async function GET(request: NextRequest) {
       });
 
     const calendarName = buildCalendarName({
+      explicitName,
+      feedKey,
       query,
       categories,
       marketFocuses,
       issuerParticipation,
       sectorThemes,
+      cities,
       states,
       regions,
       countries,
@@ -333,6 +363,7 @@ export async function GET(request: NextRequest) {
       "PRODID:-//Capital Conference Calendar//EN",
       "CALSCALE:GREGORIAN",
       "METHOD:PUBLISH",
+      foldIcsLine(`X-WR-RELCALID:${escapeIcsText(feedKey || "capital-conference-calendar")}`),
       foldIcsLine(`X-WR-CALNAME:${escapeIcsText(calendarName)}`),
       foldIcsLine(
         `X-WR-CALDESC:${escapeIcsText(

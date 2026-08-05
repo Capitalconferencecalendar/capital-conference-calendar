@@ -12,6 +12,7 @@ type AddToCalendarProps = {
   url?: string;
   compact?: boolean;
   showIcon?: boolean;
+  fullWidth?: boolean;
 };
 
 function toGoogleDate(date: string) {
@@ -33,6 +34,7 @@ export default function AddToCalendar({
   url = "",
   compact = false,
   showIcon = false,
+  fullWidth = false,
 }: AddToCalendarProps) {
   const [open, setOpen] = useState(false);
   const portalReady = typeof window !== "undefined";
@@ -145,6 +147,7 @@ export default function AddToCalendar({
           userSelect: "none",
           whiteSpace: "nowrap",
           minWidth: compact ? "108px" : "auto",
+          width: fullWidth ? "100%" : "auto",
           boxShadow: compact
             ? "0 1px 0 rgba(255,255,255,0.8) inset, 0 6px 12px rgba(8,24,43,0.26), 0 0 0 1px rgba(144,179,224,0.2), 0 0 14px rgba(128,166,216,0.16)"
             : "0 1px 0 rgba(255,255,255,0.8) inset, 0 8px 14px rgba(8,24,43,0.28), 0 0 0 1px rgba(144,179,224,0.2), 0 0 16px rgba(128,166,216,0.18)",

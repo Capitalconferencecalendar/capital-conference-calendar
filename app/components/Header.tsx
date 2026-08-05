@@ -1,15 +1,14 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type HeaderProps = {
   active?: "dashboard" | "events" | "feeds" | "submit" | "help" | "about" | "legal" | "subscribe";
   searchQuery?: string;
 };
 
-function NavIcon({ name }: { name: "dashboard" | "about" | "contact" | "subscribe" | "submit" }) {
+function NavIcon({ name }: { name: "dashboard" | "about" | "contact" | "legal" | "subscribe" | "submit" }) {
   const common = {
     width: 14,
     height: 14,
@@ -50,6 +49,15 @@ function NavIcon({ name }: { name: "dashboard" | "about" | "contact" | "subscrib
     );
   }
 
+  if (name === "legal") {
+    return (
+      <svg {...common} aria-hidden="true">
+        <path d="M12 3 5 6v6c0 5 3.4 8.3 7 9 3.6-.7 7-4 7-9V6l-7-3Z" />
+        <path d="M9 12h6" />
+      </svg>
+    );
+  }
+
   if (name === "subscribe") {
     return (
       <svg {...common} aria-hidden="true">
@@ -72,11 +80,13 @@ function TopNavLink({
   label,
   icon,
   isActive,
+  compact = false,
 }: {
   href: string;
   label: string;
-  icon: "dashboard" | "about" | "contact" | "subscribe" | "submit";
+  icon: "dashboard" | "about" | "contact" | "legal" | "subscribe" | "submit";
   isActive?: boolean;
+  compact?: boolean;
 }) {
   return (
     <Link
@@ -87,9 +97,9 @@ function TopNavLink({
         placeItems: "center",
         justifyContent: "center",
         gap: "2px",
-        width: "72px",
-        height: "52px",
-        padding: "4px 6px",
+        width: compact ? "62px" : "72px",
+        height: compact ? "46px" : "52px",
+        padding: compact ? "3px 5px" : "4px 6px",
         borderRadius: "10px",
         color: isActive ? "#ffffff" : "#1e293b",
         background: isActive
@@ -101,7 +111,7 @@ function TopNavLink({
         boxShadow: isActive
           ? "0 6px 18px rgba(15, 23, 42, 0.14)"
           : "0 1px 4px rgba(15, 23, 42, 0.05)",
-        fontSize: "10px",
+        fontSize: compact ? "9px" : "10px",
         fontWeight: 700,
         lineHeight: 1,
         whiteSpace: "nowrap",
@@ -118,6 +128,27 @@ export default function Header({
   searchQuery = "",
 }: HeaderProps) {
   const [query, setQuery] = useState(searchQuery);
+  const [compactNav, setCompactNav] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const syncCompact = () => setCompactNav(mq.matches);
+    syncCompact();
+    mq.addEventListener("change", syncCompact);
+    return () => mq.removeEventListener("change", syncCompact);
+  }, []);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDocClick = (event: MouseEvent) => {
+      if (menuRef.current?.contains(event.target as Node)) return;
+      setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [menuOpen]);
 
   return (
     <header
@@ -138,11 +169,14 @@ export default function Header({
         style={{
           maxWidth: "100%",
           margin: "0 auto",
-          padding: "12px 14px",
+          padding: compactNav ? "8px 12px" : "12px 14px",
           display: "grid",
-          gridTemplateColumns: "280px minmax(360px, 1fr) auto",
+          gridTemplateColumns: compactNav ? "auto minmax(0, 1fr)" : "280px minmax(360px, 1fr) auto",
+          gridTemplateAreas: compactNav
+            ? "\"actions logo\" \"search search\""
+            : "\"logo search actions\"",
           alignItems: "center",
-          gap: "16px",
+          gap: compactNav ? "10px" : "16px",
         }}
       >
         <Link
@@ -150,24 +184,33 @@ export default function Header({
           style={{
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
+            justifyContent: compactNav ? "flex-start" : "center",
             gap: "10px",
             textDecoration: "none",
             color: "#0f172a",
-            width: "100%",
+            width: compactNav ? "auto" : "100%",
+            minWidth: compactNav ? "180px" : "240px",
+            gridArea: "logo",
+            justifySelf: compactNav ? "start" : "stretch",
+            position: "relative",
+            zIndex: 3,
+            flexShrink: 0,
+            overflow: "visible",
           }}
         >
-          <Image
+          <img
             src="/logo.png"
             alt="Capital Conference Calendar"
-            width={2255}
-            height={389}
-            priority
+            loading="eager"
+            decoding="sync"
             style={{
-              height: "46px",
+              height: compactNav ? "42px" : "50px",
               width: "auto",
               objectFit: "contain",
               display: "block",
+              maxWidth: "100%",
+              visibility: "visible",
+              opacity: 1,
             }}
           />
 
@@ -184,7 +227,8 @@ export default function Header({
             minWidth: 0,
             justifySelf: "center",
             width: "100%",
-            maxWidth: "640px",
+            maxWidth: compactNav ? "560px" : "640px",
+            gridArea: "search",
           }}
         >
           <div
@@ -201,12 +245,12 @@ export default function Header({
               placeholder="Search conferences, organizers, cities, sectors..."
               style={{
                 width: "100%",
-                height: "46px",
+                height: compactNav ? "40px" : "46px",
                 borderRadius: "10px",
                 border: "1px solid #d5dde7",
                 backgroundColor: "#ffffff",
                 padding: query ? "0 42px 0 16px" : "0 16px",
-                fontSize: "14px",
+                fontSize: compactNav ? "13px" : "14px",
                 color: "#0f172a",
                 outline: "none",
                 boxSizing: "border-box",
@@ -240,18 +284,18 @@ export default function Header({
 
           <button
             type="submit"
-            style={{
-              height: "46px",
-              padding: "0 18px",
-              borderRadius: "10px",
-              border: "1px solid #111827",
-              backgroundColor: "#111827",
-              color: "#ffffff",
-              fontSize: "14px",
-              fontWeight: 700,
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-            }}
+              style={{
+                height: compactNav ? "40px" : "46px",
+                padding: compactNav ? "0 14px" : "0 18px",
+                borderRadius: "10px",
+                border: "1px solid #111827",
+                backgroundColor: "#111827",
+                color: "#ffffff",
+                fontSize: compactNav ? "13px" : "14px",
+                fontWeight: 700,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
           >
             Search
           </button>
@@ -259,44 +303,143 @@ export default function Header({
 
         <div
           className="ccc-header-actions"
+          ref={menuRef}
           style={{
             display: "flex",
             alignItems: "center",
-            justifyContent: "flex-end",
+            justifyContent: compactNav ? "flex-start" : "flex-end",
             gap: "8px",
             flexWrap: "wrap",
+            position: "relative",
+            gridArea: "actions",
+            justifySelf: compactNav ? "start" : "end",
           }}
         >
-          <TopNavLink
-            href="/"
-            label="Dashboard"
-            icon="dashboard"
-            isActive={active === "dashboard"}
-          />
-          <TopNavLink
-            href="/?mode=about"
-            label="About"
-            icon="about"
-            isActive={active === "about"}
-          />
-          <TopNavLink
-            href="/?mode=contact"
-            label="Contact"
-            icon="contact"
-            isActive={active === "help"}
-          />
-          <TopNavLink
-            href="/?mode=subscribe"
-            label="Subscribe"
-            icon="subscribe"
-            isActive={active === "subscribe"}
-          />
-          <TopNavLink
-            href="/?mode=submit"
-            label="Submit"
-            icon="submit"
-            isActive={active === "submit"}
-          />
+          {compactNav ? (
+            <>
+              <TopNavLink
+                href="/"
+                label="Dashboard"
+                icon="dashboard"
+                isActive={active === "dashboard"}
+                compact
+              />
+              <button
+                type="button"
+                onClick={() => setMenuOpen((v) => !v)}
+                style={{
+                  height: "46px",
+                  minWidth: "62px",
+                  borderRadius: "10px",
+                  border: "1px solid #cfd9e6",
+                  background: "#eef3f8",
+                  color: "#1e293b",
+                  display: "grid",
+                  placeItems: "center",
+                  gap: "2px",
+                  fontSize: "9px",
+                  fontWeight: 700,
+                  lineHeight: 1,
+                  padding: "3px 5px",
+                  cursor: "pointer",
+                }}
+                aria-expanded={menuOpen}
+                aria-label="Open utility menu"
+              >
+                <span style={{ fontSize: "14px", lineHeight: 1 }}>☰</span>
+                Menu
+              </button>
+              {menuOpen ? (
+                <div
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    top: "58px",
+                    width: "190px",
+                    borderRadius: "12px",
+                    border: "1px solid rgba(147,197,253,0.28)",
+                    background: "linear-gradient(180deg, rgba(8,30,53,0.96), rgba(6,22,40,0.98))",
+                    boxShadow: "0 16px 28px rgba(2,8,18,0.42)",
+                    padding: "8px",
+                    display: "grid",
+                    gap: "6px",
+                    zIndex: 120,
+                  }}
+                >
+                  {[
+                    { href: "/?mode=about", label: "About", icon: "about" as const, active: active === "about" },
+                    { href: "/?mode=contact", label: "Contact", icon: "contact" as const, active: active === "help" },
+                    { href: "/?mode=legal", label: "Legal", icon: "legal" as const, active: active === "legal" },
+                    { href: "/?mode=subscribe", label: "Subscribe", icon: "subscribe" as const, active: active === "subscribe" },
+                    { href: "/?mode=submit", label: "Submit", icon: "submit" as const, active: active === "submit" },
+                  ].map((item) => (
+                    <Link
+                      key={item.label}
+                      href={item.href}
+                      onClick={() => setMenuOpen(false)}
+                      style={{
+                        height: "38px",
+                        borderRadius: "9px",
+                        border: item.active ? "1px solid rgba(147,197,253,0.6)" : "1px solid rgba(147,197,253,0.2)",
+                        background: item.active ? "rgba(37,99,235,0.28)" : "rgba(8,24,44,0.55)",
+                        color: "#dbeafe",
+                        textDecoration: "none",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "0 10px",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                      }}
+                    >
+                      <NavIcon name={item.icon} />
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <TopNavLink
+                href="/"
+                label="Dashboard"
+                icon="dashboard"
+                isActive={active === "dashboard"}
+                compact={false}
+              />
+              <TopNavLink
+                href="/?mode=about"
+                label="About"
+                icon="about"
+                isActive={active === "about"}
+              />
+              <TopNavLink
+                href="/?mode=contact"
+                label="Contact"
+                icon="contact"
+                isActive={active === "help"}
+              />
+              <TopNavLink
+                href="/?mode=legal"
+                label="Legal"
+                icon="legal"
+                isActive={active === "legal"}
+              />
+              <TopNavLink
+                href="/?mode=subscribe"
+                label="Subscribe"
+                icon="subscribe"
+                isActive={active === "subscribe"}
+              />
+              <TopNavLink
+                href="/?mode=submit"
+                label="Submit"
+                icon="submit"
+                isActive={active === "submit"}
+              />
+            </>
+          )}
         </div>
       </div>
     </header>

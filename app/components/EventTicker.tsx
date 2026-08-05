@@ -13,6 +13,10 @@ type TickerEvent = {
   city: string;
 };
 
+type EventTickerProps = {
+  events?: TickerEvent[];
+};
+
 function toText(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "string") return value.trim();
@@ -22,6 +26,27 @@ function toText(value: unknown): string {
 
 function cleanDateOnly(value: unknown): string {
   return toText(value).slice(0, 10);
+}
+
+function toUtcDayTime(dateOnly: string): number {
+  if (!dateOnly) return Number.NaN;
+  return new Date(`${dateOnly}T00:00:00Z`).getTime();
+}
+
+function isWebsiteApproved(fields: Record<string, unknown>): boolean {
+  const approvalKey =
+    Object.keys(fields).find(
+      (key) => key.replace(/[^a-z]/gi, "").toLowerCase() === "websiteapproval"
+    ) || "Website Approval";
+  const normalized = toText(fields[approvalKey]).toLowerCase().replace(/\s+/g, "");
+  if (!normalized) return false;
+  const looksApproved = normalized.includes("approved") || normalized.includes("appoved");
+  const looksRejected =
+    normalized.includes("notapproved") ||
+    normalized.includes("unapproved") ||
+    normalized.includes("pending") ||
+    normalized.includes("rejected");
+  return looksApproved && !looksRejected;
 }
 
 function formatDateRange(startDate: string, endDate: string): string {
@@ -78,6 +103,7 @@ async function getUpcomingTickerEvents(): Promise<TickerEvent[]> {
   const todayTime = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
 
   return records
+    .filter((record) => isWebsiteApproved(record.fields || {}))
     .map((record) => {
       const fields = record.fields || {};
       return {
@@ -90,8 +116,8 @@ async function getUpcomingTickerEvents(): Promise<TickerEvent[]> {
     })
     .filter((event) => event.startDate)
     .filter((event) => {
-      const t = new Date(`${event.startDate}T00:00:00Z`).getTime();
-      return !Number.isNaN(t) && t >= todayTime;
+      const activeUntil = toUtcDayTime(event.endDate || event.startDate);
+      return !Number.isNaN(activeUntil) && activeUntil >= todayTime;
     })
     .sort((a, b) => {
       if (a.startDate !== b.startDate) return a.startDate.localeCompare(b.startDate);
@@ -100,8 +126,8 @@ async function getUpcomingTickerEvents(): Promise<TickerEvent[]> {
     .slice(0, 20);
 }
 
-export default async function EventTicker() {
-  const events = await getUpcomingTickerEvents();
+export default async function EventTicker({ events: providedEvents }: EventTickerProps) {
+  const events = providedEvents?.length ? providedEvents : await getUpcomingTickerEvents();
   if (events.length === 0) return null;
 
   const items = events.map((event) => {
@@ -109,10 +135,13 @@ export default async function EventTicker() {
     return `${event.title} — ${dateLabel}${event.city ? `, ${event.city}` : ""}`;
   });
 
-  const duplicated = [...events, ...events];
+  const tickerLoops = events.length === 1 ? 12 : 3;
+  const duplicated = Array.from({ length: tickerLoops }, () => events).flat();
+  const tickerDurationSeconds = Math.max(70, events.length * 14);
 
   return (
     <div
+      className="ccc-ticker-shell"
       style={{
         position: "fixed",
         top: 0,
@@ -129,28 +158,57 @@ export default async function EventTicker() {
       }}
       aria-label="Upcoming events ticker"
     >
-      <div
+      <Link
+        href="/?mode=market&workspace=database"
         style={{
           flexShrink: 0,
-          padding: "0 12px",
+          padding: "0 14px 0 16px",
           fontSize: "11px",
-          fontWeight: 800,
-          letterSpacing: "0.08em",
+          fontWeight: 900,
+          letterSpacing: "0.12em",
           textTransform: "uppercase",
           color: "#ffffff",
-          borderRight: "1px solid rgba(255,255,255,0.14)",
+          borderRight: "1px solid rgba(255,255,255,0.10)",
           marginRight: "10px",
+          textDecoration: "none",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "9px",
+          height: "100%",
+          cursor: "pointer",
+          background: "linear-gradient(180deg, rgba(8,28,48,0.96), rgba(11,34,56,0.92))",
+          boxShadow: "inset 0 -1px 0 rgba(255,255,255,0.03), 0 0 0 1px rgba(46,211,183,0.06)",
         }}
       >
+        <span
+          aria-hidden="true"
+          style={{
+            position: "relative",
+            width: "8px",
+            height: "8px",
+            borderRadius: "999px",
+            background: "#34d399",
+            boxShadow: "0 0 0 4px rgba(52,211,153,0.14), 0 0 16px rgba(45,212,191,0.48)",
+            flexShrink: 0,
+          }}
+        />
         Upcoming Events
-      </div>
+      </Link>
 
       <div className="ccc-ticker-viewport" style={{ minWidth: 0, flex: 1, overflow: "hidden" }}>
-        <div className="ccc-ticker-track">
+        <div
+          className="ccc-ticker-track"
+          style={{
+            animation:
+              duplicated.length > 1
+                ? `cccTickerScroll ${tickerDurationSeconds}s linear infinite`
+                : "none",
+          }}
+        >
           {duplicated.map((event, index) => (
             <span key={`${event.id}-${index}`} className="ccc-ticker-item">
               <Link
-                href={`/events?startEventId=${encodeURIComponent(event.id)}#results-panel`}
+                href={`/?mode=market&workspace=database&q=${encodeURIComponent(event.title)}&eventId=${encodeURIComponent(event.id)}`}
                 style={{
                   color: "inherit",
                   textDecoration: "none",

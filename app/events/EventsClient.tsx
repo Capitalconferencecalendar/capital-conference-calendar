@@ -1,10 +1,9 @@
 "use client";
 
-import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, type CSSProperties, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import AddToCalendar from "../components/AddToCalendar";
 import ConcentrationStrip from "../components/ConcentrationStrip";
 import type { ConcentrationItem } from "../components/ConcentrationStrip";
-import AreaEventsPanel from "../components/AreaEventsPanel";
 
 export type WorkspaceEvent = {
   id: string;
@@ -25,6 +24,13 @@ export type WorkspaceEvent = {
   issuerParticipation: string;
   region: string;
   format: string;
+  publicCompanySector?: string;
+  additionalPublicCompanySectors?: string;
+  eventCharacter?: string;
+  organizerType?: string;
+  verificationStatus?: string;
+  dataCompletenessScore?: string;
+  websiteApproval?: string;
 };
 
 type SavedList = { id: string; name: string; eventIds: string[]; createdAt: string };
@@ -48,15 +54,59 @@ type AnalysisAction =
   | { type: "sectorTheme"; value: string }
   | { type: "conferenceType"; value: string }
   | { type: "marketFocus"; value: string }
+  | { type: "issuerParticipation"; value: string }
   | { type: "city"; value: string }
   | { type: "organizer"; value: string }
   | { type: "week"; from: string; to: string };
+
+type MarketSignalType = "hotweek" | "cluster" | "participation" | "theme" | "organizer";
+
+type MarketSignalAction =
+  | { kind: "analysis"; action: AnalysisAction }
+  | { kind: "cluster"; item: ConcentrationItem };
+
+type MarketSignalStrip = {
+  id: string;
+  type: MarketSignalType;
+  label: string;
+  badge?: string;
+  headline: string;
+  body: string;
+  cta: string;
+  action: MarketSignalAction;
+};
 
 type Props = {
   events: WorkspaceEvent[];
   initialCity: string;
   initialSearchQuery?: string;
-  initialMode?: "market" | "about" | "contact" | "subscribe" | "submit";
+  initialEventId?: string;
+  initialMode?: "getstarted" | "market" | "marketview" | "about" | "contact" | "legal" | "subscribe" | "submit";
+  previewContext?: {
+    generatedAt: string;
+    publicCounts: {
+      totalRecords: number;
+      approvedVisibleRecords: number;
+      verifiedApprovedRecords: number;
+      pendingApprovalRecords: number;
+    };
+    freshness: {
+      latestVerifiedDate: string | null;
+      approvedRecordsWithVerificationStamp: number;
+      approvedRecordsMissingVerificationStamp: number;
+    };
+    approvedCoverage: {
+      earliestDate: string | null;
+      latestDate: string | null;
+      monthsCovered: number;
+      meaningfulCoverageMonths: number;
+      strongestConsecutiveRun: {
+        startMonth: string | null;
+        endMonth: string | null;
+        length: number;
+      };
+    };
+  } | null;
 };
 
 const DEFAULT_FILTERS: FiltersState = {
@@ -80,6 +130,221 @@ function splitCsv(value: string) {
   return value.split(",").map((v) => v.trim()).filter(Boolean);
 }
 
+function getTopByCount(items: string[]) {
+  const map = new Map<string, number>();
+  items.filter(Boolean).forEach((item) => map.set(item, (map.get(item) || 0) + 1));
+  return Array.from(map.entries()).sort((a, b) => {
+    if (b[1] !== a[1]) return b[1] - a[1];
+    return a[0].localeCompare(b[0]);
+  });
+}
+
+function getCityValue(event: WorkspaceEvent) {
+  return [event.city, event.state].filter(Boolean).join(", ").trim();
+}
+
+function getOrganizerValue(event: WorkspaceEvent) {
+  return (event.organizer || "").trim();
+}
+
+function getMarketFocusValues(event: WorkspaceEvent) {
+  return splitCsv(event.marketFocus);
+}
+
+function getThemeValues(event: WorkspaceEvent) {
+  return splitCsv(event.sectorThemes);
+}
+
+function formatPreviewDate(value: string | null | undefined) {
+  if (!value) return "Not yet stamped";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function getPublicCompanySectorValues(event: WorkspaceEvent) {
+  return unique([
+    ...splitCsv(event.publicCompanySector || ""),
+    ...splitCsv(event.additionalPublicCompanySectors || ""),
+  ]);
+}
+
+function getSectorLabels(event: WorkspaceEvent) {
+  const publicCompanySectors = getPublicCompanySectorValues(event);
+  if (publicCompanySectors.length) return publicCompanySectors;
+  return getThemeValues(event);
+}
+
+function getEventCharacterValues(event: WorkspaceEvent) {
+  return splitCsv(event.eventCharacter || "");
+}
+
+function getAudienceValues(event: WorkspaceEvent) {
+  return unique([
+    ...splitCsv(event.issuerParticipation),
+    ...splitCsv(event.marketFocus),
+    ...splitCsv(event.primaryCategory),
+  ]).filter((value) =>
+    /(institutional investors?|family offices?|private equity|venture capital|retail investors?|public company|issuer|mixed participation|company presentations|1x1|one-on-one|industry networking|public markets|private markets)/i.test(
+      value
+    )
+  );
+}
+
+function getParticipationText(event: WorkspaceEvent) {
+  return [
+    event.issuerParticipation,
+    event.primaryCategory,
+    event.marketFocus,
+    event.sectorThemes,
+    event.publicCompanySector,
+    event.additionalPublicCompanySectors,
+    event.eventCharacter,
+  ]
+    .filter(Boolean)
+    .join(", ")
+    .toLowerCase();
+}
+
+function isInvestorHeavy(event: WorkspaceEvent) {
+  const haystack = getParticipationText(event);
+  return /(institutional investors|investor conference|investor-heavy|family office|private equity|venture capital|lp\/gp|investor access|retail investors)/i.test(haystack);
+}
+
+function isIssuerHeavy(event: WorkspaceEvent) {
+  const haystack = getParticipationText(event);
+  if (/no issuer participation/i.test(haystack)) return false;
+  return /(public company|issuer participation|company presentations|presentations \+ 1x1 meetings|1x1 meetings|public markets|micro-cap|small-cap|issuer-heavy)/i.test(haystack);
+}
+
+function hasNoIssuerParticipation(event: WorkspaceEvent) {
+  return /no issuer participation|without issuer participation|issuer not participating/i.test(
+    getParticipationText(event)
+  );
+}
+
+function hasIssuerAccess(event: WorkspaceEvent) {
+  const haystack = getParticipationText(event);
+  if (hasNoIssuerParticipation(event)) return false;
+  return /(company presentations|public company presentations|presentations \+ 1x1 meetings|1x1 meetings only|1x1 meetings|one-on-one|issuer participation|mixed participation|public company|issuer access|roadshow)/i.test(
+    haystack
+  );
+}
+
+function isMixedParticipation(event: WorkspaceEvent) {
+  const haystack = getParticipationText(event);
+  return /(mixed participation|mixed|presentations \+ 1x1 meetings)/i.test(haystack) || (hasIssuerAccess(event) && isInvestorHeavy(event));
+}
+
+function getAudienceCounts(events: WorkspaceEvent[]) {
+  return getTopByCount(events.flatMap((event) => getAudienceValues(event)));
+}
+
+function getIssuerParticipationCounts(events: WorkspaceEvent[]) {
+  return getTopByCount(
+    events.flatMap((event) => {
+      const labels = splitCsv(event.issuerParticipation);
+      return labels.length ? labels : event.issuerParticipation ? [event.issuerParticipation] : [];
+    })
+  );
+}
+
+function getMarketFocusCounts(events: WorkspaceEvent[]) {
+  return getTopByCount(
+    events.flatMap((event) => {
+      const focus = splitCsv(event.marketFocus);
+      return focus.length ? focus : splitCsv(event.sectorThemes);
+    })
+  );
+}
+
+function getSectorCounts(events: WorkspaceEvent[]) {
+  return getTopByCount(events.flatMap((event) => getSectorLabels(event)));
+}
+
+function getEventCharacterCounts(events: WorkspaceEvent[]) {
+  return getTopByCount(events.flatMap((event) => getEventCharacterValues(event)));
+}
+
+function buildWindowStats(items: WorkspaceEvent[]) {
+  const weekCounts = Array.from(
+    items.reduce((map, event) => {
+      const week = getWeekStart(event.startDate);
+      if (!week) return map;
+      map.set(week, (map.get(week) || 0) + 1);
+      return map;
+    }, new Map<string, number>())
+  )
+    .map(([weekStart, count]) => ({ weekStart, count }))
+    .sort((a, b) => b.count - a.count || a.weekStart.localeCompare(b.weekStart));
+
+  const weekCityCounts = Array.from(
+    items.reduce((map, event) => {
+      const week = getWeekStart(event.startDate);
+      const city = [event.city, event.state].filter(Boolean).join(", ");
+      if (!week || !city) return map;
+      const key = `${week}__${city}`;
+      map.set(key, (map.get(key) || 0) + 1);
+      return map;
+    }, new Map<string, number>())
+  )
+    .map(([key, count]) => {
+      const [weekStart, city] = key.split("__");
+      return { weekStart, city, count };
+    })
+    .sort((a, b) => b.count - a.count || a.weekStart.localeCompare(b.weekStart));
+
+  const bestWeek = weekCounts[0] || { weekStart: "", count: 0 };
+  const bestWeekCity =
+    weekCityCounts.find((item) => item.weekStart === bestWeek.weekStart) ||
+    weekCityCounts[0] ||
+    { city: "N/A", count: 0, weekStart: bestWeek.weekStart };
+  const bestWeekCities = weekCityCounts
+    .filter((item) => item.weekStart === bestWeek.weekStart)
+    .slice(0, 3)
+    .map((item) => item.city);
+
+  return {
+    count: items.length,
+    bestWeek,
+    bestWeekCity,
+    bestWeekCities,
+    weekCounts,
+  };
+}
+
+function buildSectorOpportunityWindows(events: WorkspaceEvent[]) {
+  const sectorMap = new Map<string, WorkspaceEvent[]>();
+  events.forEach((event) => {
+    getSectorLabels(event).forEach((sector) => {
+      sectorMap.set(sector, [...(sectorMap.get(sector) || []), event]);
+    });
+  });
+
+  return Array.from(sectorMap.entries())
+    .map(([sector, sectorEvents]) => {
+      const issuerAccessEvents = sectorEvents.filter(hasIssuerAccess);
+      const investorHeavyEvents = sectorEvents.filter(isInvestorHeavy);
+      const cityCounts = getTopByCount(sectorEvents.map(getCityValue));
+      const peakWeek = buildWindowStats(sectorEvents).bestWeek;
+      return {
+        sector,
+        count: sectorEvents.length,
+        issuerAccessCount: issuerAccessEvents.length,
+        investorHeavyCount: investorHeavyEvents.length,
+        topCity: cityCounts[0]?.[0] || "N/A",
+        topCities: cityCounts.slice(0, 3).map(([city]) => city),
+        peakWeek,
+      };
+    })
+    .sort((a, b) => b.count - a.count || a.sector.localeCompare(b.sector))
+    .slice(0, 5);
+}
+
 function getWeekStart(dateStr: string) {
   const d = new Date(`${dateStr}T00:00:00`);
   if (Number.isNaN(d.getTime())) return "";
@@ -87,6 +352,38 @@ function getWeekStart(dateStr: string) {
   const diff = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + diff);
   return d.toISOString().slice(0, 10);
+}
+
+function getWeekEndFromStart(weekStart: string) {
+  const d = new Date(`${weekStart}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return "";
+  d.setDate(d.getDate() + 6);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatWeekLabel(weekStart: string) {
+  const start = new Date(`${weekStart}T00:00:00`);
+  if (Number.isNaN(start.getTime())) return weekStart;
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  const startMonth = start.toLocaleDateString("en-US", { month: "short" });
+  const endMonth = end.toLocaleDateString("en-US", { month: "short" });
+  const startDay = start.getDate();
+  const endDay = end.getDate();
+  return startMonth === endMonth ? `${startMonth} ${startDay}-${endDay}` : `${startMonth} ${startDay}-${endMonth} ${endDay}`;
+}
+
+function addDaysISO(baseIso: string, days: number) {
+  const d = new Date(`${baseIso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return baseIso;
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatMonthDay(iso: string) {
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function toDateRangeParts(startDate: string, endDate: string) {
@@ -112,7 +409,263 @@ function buildDescription(e: WorkspaceEvent) {
     .join("\n");
 }
 
-function AboutIcon({ kind, color }: { kind: "radar" | "calendar" | "layers" | "globe" | "zap" | "headset" | "building" | "messages" | "mail"; color: string }) {
+type InsightEvidence = {
+  fieldsUsed: string[];
+  relatedEventIds?: string[];
+  sharedSectorThemes?: string[];
+  daysApart?: number;
+  sameCity?: boolean;
+  sameState?: boolean;
+  sameRegion?: boolean;
+};
+
+type DetailInsight = {
+  type: string;
+  title: string;
+  explanation: string;
+  priority: number;
+  confidence: "high" | "medium" | "low";
+  evidence: InsightEvidence;
+};
+
+type RelatedMatch = {
+  related: WorkspaceEvent;
+  score: number;
+  confidence: "high" | "medium" | "low";
+  explanation: string;
+  relationshipTypes: string[];
+  tags: string[];
+  evidence: InsightEvidence;
+  sharedThemes: string[];
+  sharedFocus: string[];
+  sharedIssuerParticipation: string[];
+  sameCity: boolean;
+  sameState: boolean;
+  sameRegion: boolean;
+  sameWeek: boolean;
+  tripExtension: boolean;
+  sameOrganizer: boolean;
+  categoryMatch: boolean;
+  bothPresentations: boolean;
+  bothOneOnOne: boolean;
+  daysApart: number;
+  meaningfulSignals: number;
+};
+
+function parseDateOnly(iso: string) {
+  const date = new Date(`${iso}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function differenceInDays(fromIso: string, toIso: string) {
+  const from = parseDateOnly(fromIso);
+  const to = parseDateOnly(toIso);
+  if (!from || !to) return null;
+  return Math.round((to.getTime() - from.getTime()) / 86400000);
+}
+
+function getMonthKey(iso: string) {
+  const date = parseDateOnly(iso);
+  if (!date) return "";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function getEventEndIso(event: WorkspaceEvent) {
+  return event.endDate || event.startDate;
+}
+
+function sharedValues(left: string[], right: string[]) {
+  const rightSet = new Set(right);
+  return left.filter((value) => rightSet.has(value));
+}
+
+function getIssuerValues(event: WorkspaceEvent) {
+  return splitCsv(event.issuerParticipation);
+}
+
+function eventHasPresentations(event: WorkspaceEvent) {
+  return /company presentations|public company presentations|presentations/i.test(event.issuerParticipation);
+}
+
+function eventHasOneOnOneAccess(event: WorkspaceEvent) {
+  return /1x1|1×1|one-on-one|one on one/i.test(event.issuerParticipation);
+}
+
+function getDerivedParticipationSignals(event: WorkspaceEvent) {
+  const signals: string[] = [];
+  if (eventHasPresentations(event)) signals.push("Public Company Presentations");
+  if (eventHasOneOnOneAccess(event)) signals.push("1x1 Access");
+  return signals;
+}
+
+function getPrimaryParticipationLabel(event: WorkspaceEvent) {
+  const derived = getDerivedParticipationSignals(event);
+  if (derived.length) return derived[0];
+  return splitCsv(event.issuerParticipation)[0] || event.issuerParticipation || "";
+}
+
+function buildMatchExplanation(base: WorkspaceEvent, match: Omit<RelatedMatch, "explanation" | "confidence" | "tags" | "evidence">) {
+  const clauses: string[] = [];
+  if (match.sharedThemes.length) clauses.push(`Shares ${match.sharedThemes.slice(0, 2).join(" and ")} sector themes`);
+  else if (match.sharedFocus.length) clauses.push(`Targets the same ${match.sharedFocus.slice(0, 2).join(" and ")} market focus`);
+  else if (match.sharedIssuerParticipation.length) clauses.push(`Uses the same ${match.sharedIssuerParticipation.slice(0, 2).join(" and ")} participation model`);
+  else if (match.categoryMatch && base.primaryCategory) clauses.push(`Matches the ${base.primaryCategory} event type`);
+
+  if (match.bothPresentations) clauses.push("both include public-company presentations");
+  if (match.bothOneOnOne) clauses.push("both offer one-on-one access");
+
+  if (match.sameCity) clauses.push(`takes place in ${getCityValue(match.related) || "the same city"}`);
+  else if (match.sameState) clauses.push(`takes place elsewhere in ${match.related.state}`);
+  else if (match.sameRegion && match.related.region) clauses.push(`stays within the ${match.related.region} region`);
+
+  if (match.tripExtension && match.daysApart >= 0) clauses.push(`${match.daysApart} day${match.daysApart === 1 ? "" : "s"} after this event`);
+  else if (match.daysApart >= 0 && match.daysApart <= 45) clauses.push(`${match.daysApart} day${match.daysApart === 1 ? "" : "s"} later`);
+  else if (match.daysApart < 0) clauses.push(`${Math.abs(match.daysApart)} day${Math.abs(match.daysApart) === 1 ? "" : "s"} earlier`);
+  else if (match.sameWeek) clauses.push("during the same calendar week");
+
+  const first = clauses.shift();
+  if (!first) return "Shares relevant timing and conference-profile signals with this event.";
+  const tail = clauses.slice(0, 2);
+  return `${first}${tail.length ? `, ${tail.join(", ")}` : ""}.`;
+}
+
+function buildRelatedMatch(base: WorkspaceEvent, related: WorkspaceEvent): RelatedMatch {
+  const baseCity = getCityValue(base);
+  const relatedCity = getCityValue(related);
+  const sharedThemes = sharedValues(getThemeValues(base), getThemeValues(related));
+  const sharedFocus = sharedValues(getMarketFocusValues(base), getMarketFocusValues(related));
+  const sharedIssuerParticipation = sharedValues(getIssuerValues(base), getIssuerValues(related));
+  const sameCity = Boolean(baseCity && relatedCity && baseCity === relatedCity);
+  const sameState = Boolean(base.state && related.state && base.state === related.state && !sameCity);
+  const sameRegion = Boolean(base.region && related.region && base.region === related.region && !sameCity && !sameState);
+  const sameWeek = getWeekStart(base.startDate) === getWeekStart(related.startDate);
+  const sameOrganizer = Boolean(base.organizer && related.organizer && base.organizer === related.organizer);
+  const categoryMatch = Boolean(base.primaryCategory && related.primaryCategory && base.primaryCategory === related.primaryCategory);
+  const bothPresentations = eventHasPresentations(base) && eventHasPresentations(related);
+  const bothOneOnOne = eventHasOneOnOneAccess(base) && eventHasOneOnOneAccess(related);
+  const daysFromEndToStart = differenceInDays(getEventEndIso(base), related.startDate);
+  const daysBetweenStarts = differenceInDays(base.startDate, related.startDate);
+  const daysApart = daysFromEndToStart ?? daysBetweenStarts ?? 999;
+  const within7 = daysApart >= 0 && daysApart <= 7;
+  const within21 = daysApart >= 0 && daysApart <= 21;
+  const tripExtension = daysApart >= 1 && daysApart <= 7 && (sameCity || sameState || sameRegion);
+
+  let score = 0;
+  if (sameCity) score += 30;
+  if (sameState) score += 20;
+  if (sameRegion) score += 10;
+  if (within7) score += 25;
+  else if (within21) score += 15;
+  if (sharedThemes.length) score += 25;
+  if (categoryMatch) score += 10;
+  if (sharedFocus.length) score += 15;
+  if (sharedIssuerParticipation.length) score += 15;
+  if (bothPresentations) score += 15;
+  if (bothOneOnOne) score += 15;
+  if (sameOrganizer) score += 8;
+
+  const meaningfulSignals = [
+    sameCity || sameState || sameRegion,
+    within7 || within21 || sameWeek,
+    sharedThemes.length > 0,
+    sharedFocus.length > 0,
+    sharedIssuerParticipation.length > 0,
+    bothPresentations,
+    bothOneOnOne,
+    categoryMatch,
+  ].filter(Boolean).length;
+
+  const relationshipTypes = unique([
+    sameCity ? "same_city" : "",
+    sameState ? "same_state" : "",
+    sameRegion ? "same_region" : "",
+    sameWeek ? "same_week" : "",
+    tripExtension ? "trip_extension" : "",
+    sharedThemes.length ? "similar_sector" : "",
+    sharedFocus.length ? "similar_market_focus" : "",
+    sharedIssuerParticipation.length ? "similar_issuer_participation" : "",
+    sameOrganizer ? "same_organizer" : "",
+  ]);
+
+  const tags = [
+    sameCity ? "Same City" : "",
+    sameState ? "Same State" : "",
+    sameRegion ? "Same Region" : "",
+    sameWeek ? "Same Week" : "",
+    tripExtension ? "Trip Extension" : "",
+    sharedThemes.length ? "Similar Sector" : "",
+    sharedFocus.length ? "Similar Market Focus" : "",
+    sharedIssuerParticipation.length ? "Similar Issuer Participation" : "",
+    sameOrganizer ? "Same Organizer" : "",
+  ].filter(Boolean);
+
+  const explanation = buildMatchExplanation(base, {
+    related,
+    score,
+    sharedThemes,
+    sharedFocus,
+    sharedIssuerParticipation,
+    sameCity,
+    sameState,
+    sameRegion,
+    sameWeek,
+    tripExtension,
+    sameOrganizer,
+    categoryMatch,
+    bothPresentations,
+    bothOneOnOne,
+    daysApart,
+    meaningfulSignals,
+    relationshipTypes,
+  });
+
+  const confidence: "high" | "medium" | "low" = score >= 70 || meaningfulSignals >= 4 ? "high" : score >= 35 || meaningfulSignals >= 3 ? "medium" : "low";
+
+  return {
+    related,
+    score,
+    confidence,
+    explanation,
+    relationshipTypes,
+    tags,
+    evidence: {
+      fieldsUsed: unique([
+        "Start Date",
+        "End Date",
+        sameCity || sameState || sameRegion ? "City" : "",
+        sameState ? "State / Province" : "",
+        sameRegion ? "Region" : "",
+        sharedThemes.length ? "Sector Themes" : "",
+        sharedFocus.length ? "Market Focus" : "",
+        sharedIssuerParticipation.length || bothPresentations || bothOneOnOne ? "Issuer Participation" : "",
+        categoryMatch ? "Primary Category" : "",
+        sameOrganizer ? "Organizer" : "",
+      ]),
+      relatedEventIds: [related.id],
+      sharedSectorThemes: sharedThemes,
+      daysApart,
+      sameCity,
+      sameState,
+      sameRegion,
+    },
+    sharedThemes,
+    sharedFocus,
+    sharedIssuerParticipation,
+    sameCity,
+    sameState,
+    sameRegion,
+    sameWeek,
+    tripExtension,
+    sameOrganizer,
+    categoryMatch,
+    bothPresentations,
+    bothOneOnOne,
+    daysApart,
+    meaningfulSignals,
+  };
+}
+
+function AboutIcon({ kind, color }: { kind: "radar" | "calendar" | "layers" | "globe" | "zap" | "headset" | "building" | "messages" | "mail" | "warning" | "database" | "shield" | "link"; color: string }) {
   const common: React.SVGProps<SVGSVGElement> = {
     width: 40,
     height: 40,
@@ -147,7 +700,259 @@ function AboutIcon({ kind, color }: { kind: "radar" | "calendar" | "layers" | "g
   if (kind === "mail") {
     return <svg {...common}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></svg>;
   }
+  if (kind === "link") {
+    return <svg {...common}><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11.2 4.72" /><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L12.8 19.3" /></svg>;
+  }
+  if (kind === "warning") {
+    return <svg {...common}><path d="M12 4 3 20h18L12 4Z" /><path d="M12 10v4M12 17h.01" /></svg>;
+  }
+  if (kind === "database") {
+    return <svg {...common}><ellipse cx="12" cy="6" rx="7" ry="3" /><path d="M5 6v8c0 1.7 3.1 3 7 3s7-1.3 7-3V6" /><path d="M5 10c0 1.7 3.1 3 7 3s7-1.3 7-3" /></svg>;
+  }
+  if (kind === "shield") {
+    return <svg {...common}><path d="M12 3 5 6v6c0 5 3.4 8.3 7 9 3.6-.7 7-4 7-9V6l-7-3Z" /><path d="M9 12h6" /></svg>;
+  }
   return <svg {...common}><path d="M13 3 4 14h6l-1 7 9-11h-6l1-7Z" /></svg>;
+}
+
+function QuickActionIcon({ kind }: { kind: "clear" | "share" | "saveView" | "saveSelected" }) {
+  const common: React.SVGProps<SVGSVGElement> = {
+    width: 18,
+    height: 18,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.9,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  };
+  if (kind === "clear") return <svg {...common}><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg>;
+  if (kind === "share") return <svg {...common}><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" /><path d="M12 16V3" /><path d="m7 8 5-5 5 5" /></svg>;
+  if (kind === "saveView") return <svg {...common}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" /><path d="M17 21v-8H7v8" /><path d="M7 3v5h8" /></svg>;
+  return <svg {...common}><path d="M12 5v14" /><path d="M5 12h14" /></svg>;
+}
+
+function RightRailSectionIcon({ kind }: { kind: "sync" | "actions" | "lists" | "views" | "status" }) {
+  const common: React.SVGProps<SVGSVGElement> = {
+    width: 18,
+    height: 18,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.9,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  };
+  if (kind === "sync") return <svg {...common}><path d="M8 2v4M16 2v4" /><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M3 10h18" /><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" /></svg>;
+  if (kind === "actions") return <svg {...common}><path d="M13 3 4 14h6l-1 7 9-11h-6l1-7Z" /></svg>;
+  if (kind === "lists") return <svg {...common}><path d="M9 6h11M9 12h11M9 18h11" /><path d="m3.5 6 1.5 1.5L7.5 5" /><path d="m3.5 12 1.5 1.5L7.5 11" /><path d="m3.5 18 1.5 1.5L7.5 17" /></svg>;
+  if (kind === "views") return <svg {...common}><path d="m7 4 5-2 5 2v16l-5-2-5 2Z" /><path d="M12 2v16" /></svg>;
+  return <svg {...common}><path d="M3 12h4l3 8 4-16 3 8h4" /></svg>;
+}
+
+function FilterSectionIcon({ kind }: { kind: "date" | "location" | "segments" | "participation" | "organizers" }) {
+  const common: React.SVGProps<SVGSVGElement> = {
+    width: 16,
+    height: 16,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.75,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  };
+  // Lucide-like: calendar-days, map-pin, chart-column, users, building-2
+  if (kind === "date") {
+    return (
+      <svg {...common} aria-hidden="true">
+        <path d="M8 2v4M16 2v4" />
+        <rect x="3" y="4" width="18" height="18" rx="2" />
+        <path d="M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01" />
+      </svg>
+    );
+  }
+  if (kind === "location") {
+    return (
+      <svg {...common} aria-hidden="true">
+        <path d="M12 22s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Z" />
+        <circle cx="12" cy="11" r="2.8" />
+      </svg>
+    );
+  }
+  if (kind === "segments") {
+    return (
+      <svg {...common} aria-hidden="true">
+        <path d="M3 3v18h18" />
+        <path d="M7 15v3M12 10v8M17 6v12" />
+      </svg>
+    );
+  }
+  if (kind === "participation") {
+    return (
+      <svg {...common} aria-hidden="true">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+        <circle cx="10" cy="7" r="3" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a3 3 0 0 1 0 5.74" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common} aria-hidden="true">
+      <rect x="3" y="3" width="7" height="18" rx="1.5" />
+      <rect x="14" y="7" width="7" height="14" rx="1.5" />
+      <path d="M6.5 7h.01M6.5 11h.01M6.5 15h.01M17.5 11h.01M17.5 15h.01" />
+    </svg>
+  );
+}
+
+function MarketSignalIcon({ kind, color }: { kind: MarketSignalType; color: string }) {
+  const common: React.SVGProps<SVGSVGElement> = {
+    width: 20,
+    height: 20,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: color,
+    strokeWidth: 1.85,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  };
+
+  if (kind === "hotweek") {
+    return (
+      <svg {...common} aria-hidden="true">
+        <path d="M12 3c.7 2 2.3 3.5 3.8 4.8 1.7 1.5 3.2 3.2 3.2 6a7 7 0 1 1-14 0c0-3.4 2.1-5.8 4.7-8.4.9-.9 1.8-1.7 2.3-2.4Z" />
+        <path d="M12 13c1 1 1.7 2 1.7 3.1A2.7 2.7 0 0 1 11 18.8a2.6 2.6 0 0 1-2.7-2.7c0-1.6.9-2.6 2.1-3.9" />
+      </svg>
+    );
+  }
+  if (kind === "cluster") {
+    return (
+      <svg {...common} aria-hidden="true">
+        <path d="M12 21s6-4.6 6-9.5a6 6 0 1 0-12 0C6 16.4 12 21 12 21Z" />
+        <circle cx="12" cy="11" r="2.5" />
+        <path d="M18.5 6.5 21 4M2.5 6.5 5 4M20.5 12H23M1 12h2.5" />
+      </svg>
+    );
+  }
+  if (kind === "participation") {
+    return (
+      <svg {...common} aria-hidden="true">
+        <path d="M4 18v-5M10 18V8M16 18v-8M22 18v-3" />
+        <path d="M3 20h20" />
+      </svg>
+    );
+  }
+  if (kind === "theme") {
+    return (
+      <svg {...common} aria-hidden="true">
+        <path d="M4 16l4-4 3 3 7-7" />
+        <path d="M14 8h4v4" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common} aria-hidden="true">
+      <rect x="4" y="3" width="16" height="18" rx="2" />
+      <path d="M8 7h.01M12 7h.01M16 7h.01M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01" />
+    </svg>
+  );
+}
+
+function DiscoveryStatIcon({ kind }: { kind: "conferences" | "organizers" | "cities" | "states" | "themes" }) {
+  const common: React.SVGProps<SVGSVGElement> = {
+    width: 18,
+    height: 18,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "#9ec5ff",
+    strokeWidth: 1.85,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  };
+  // Lucide-style anchors: CalendarDays, Building2, MapPin, Map, Tags
+  if (kind === "conferences") return <svg {...common}><path d="M8 2v4M16 2v4" /><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01" /></svg>;
+  if (kind === "organizers") return <svg {...common}><rect x="3" y="3" width="7" height="18" rx="1.5" /><rect x="14" y="7" width="7" height="14" rx="1.5" /><path d="M6.5 7h.01M6.5 11h.01M6.5 15h.01M17.5 11h.01M17.5 15h.01" /></svg>;
+  if (kind === "cities") return <svg {...common}><path d="M12 22s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Z" /><circle cx="12" cy="11" r="2.8" /></svg>;
+  if (kind === "states") return <svg {...common}><path d="m3 7 5-2 4 2 5-2 4 2v10l-4 2-5-2-4 2-5-2V7Z" /><path d="M8 5v12M12 7v12M17 5v12" /></svg>;
+  return <svg {...common}><path d="M20 10V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v4" /><path d="M2 10h20" /><path d="M7 14h.01M12 14h.01M17 14h.01" /><path d="M7 18h.01M12 18h.01M17 18h.01" /></svg>;
+}
+
+function MarketViewIcon({
+  kind,
+  color = "#9ec5ff",
+}: {
+  kind:
+    | "calendar"
+    | "building"
+    | "mappin"
+    | "map"
+    | "tag"
+    | "target"
+    | "clock"
+    | "flame"
+    | "users"
+    | "trend"
+    | "layers"
+    | "globe";
+  color?: string;
+}) {
+  const common: React.SVGProps<SVGSVGElement> = {
+    width: 18,
+    height: 18,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: color,
+    strokeWidth: 1.85,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  };
+  if (kind === "calendar") return <svg {...common}><path d="M8 2v4M16 2v4" /><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01" /></svg>;
+  if (kind === "building") return <svg {...common}><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 7h.01M12 7h.01M16 7h.01M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01" /><path d="M10 21v-3h4v3" /></svg>;
+  if (kind === "mappin") return <svg {...common}><path d="M12 22s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Z" /><circle cx="12" cy="11" r="2.8" /></svg>;
+  if (kind === "map") return <svg {...common}><path d="m3 7 5-2 4 2 5-2 4 2v10l-4 2-5-2-4 2-5-2V7Z" /><path d="M8 5v12M12 7v12M17 5v12" /></svg>;
+  if (kind === "tag") return <svg {...common}><path d="M20 10V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v4" /><path d="M2 10h20" /><path d="M7 14h.01M12 14h.01M17 14h.01" /><path d="M7 18h.01M12 18h.01M17 18h.01" /></svg>;
+  if (kind === "target") return <svg {...common}><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="4" /><circle cx="12" cy="12" r="1.5" /></svg>;
+  if (kind === "clock") return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M12 7v6l4 2" /></svg>;
+  if (kind === "flame") return <svg {...common}><path d="M12 3c1.4 2.7 3.6 4.2 3.6 7a3.6 3.6 0 1 1-7.2 0c0-1.9 1.1-3.2 2.3-4.7.7-.9 1.3-1.8 1.3-2.3Z" /><path d="M12 13c.8 1 1.8 1.7 1.8 3a1.8 1.8 0 1 1-3.6 0c0-.9.5-1.5 1-2.2.3-.3.6-.6.8-.8Z" /></svg>;
+  if (kind === "users") return <svg {...common}><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="10" cy="7" r="3" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a3 3 0 0 1 0 5.74" /></svg>;
+  if (kind === "trend") return <svg {...common}><path d="M3 17 9 11l4 4 8-8" /><path d="M14 7h7v7" /></svg>;
+  if (kind === "layers") return <svg {...common}><path d="m12 4-9 5 9 5 9-5-9-5Z" /><path d="m3 13 9 5 9-5" /></svg>;
+  return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3a13.5 13.5 0 0 1 0 18" /><path d="M12 3a13.5 13.5 0 0 0 0 18" /></svg>;
+}
+
+function FilterChipIcon({ kind }: { kind: "date" | "location" | "theme" | "participation" | "organizer" }) {
+  const common: React.SVGProps<SVGSVGElement> = {
+    width: 18,
+    height: 18,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "#9ec5ff",
+    strokeWidth: 1.85,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  };
+  if (kind === "date") return <svg {...common}><path d="M8 2v4M16 2v4" /><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01" /></svg>;
+  if (kind === "location") return <svg {...common}><path d="M12 22s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Z" /><circle cx="12" cy="11" r="2.8" /></svg>;
+  if (kind === "theme") return <svg {...common}><path d="M20 10V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v4" /><path d="M2 10h20" /><path d="M7 14h.01M12 14h.01M17 14h.01" /><path d="M7 18h.01M12 18h.01M17 18h.01" /></svg>;
+  if (kind === "participation") return <svg {...common}><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="10" cy="7" r="3" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a3 3 0 0 1 0 5.74" /></svg>;
+  return <svg {...common}><rect x="3" y="3" width="7" height="18" rx="1.5" /><rect x="14" y="7" width="7" height="14" rx="1.5" /><path d="M6.5 7h.01M6.5 11h.01M6.5 15h.01M17.5 11h.01M17.5 15h.01" /></svg>;
+}
+
+function WorkspaceViewIcon({ kind }: { kind: "database" | "calendar" | "map" }) {
+  const common: React.SVGProps<SVGSVGElement> = {
+    width: 17,
+    height: 17,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.9,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  };
+  if (kind === "database") return <svg {...common}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 10h18M9 4v16M15 4v16" /></svg>;
+  if (kind === "calendar") return <svg {...common}><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M8 2v4M16 2v4M3 10h18" /></svg>;
+  return <svg {...common}><path d="M3 7h6l2-3 3 2h7v3l-4 1-2 4-5 1-2 4-5-3z" /></svg>;
 }
 
 function normalizeExternalUrl(raw: string) {
@@ -226,6 +1031,7 @@ function StatGlyph({ kind }: { kind: "total" | "cities" | "next30" | "hot" }) {
 
 function QuickViewGlyph({
   kind,
+  color = "#e6dbff",
 }: {
   kind:
     | "city"
@@ -237,13 +1043,14 @@ function QuickViewGlyph({
     | "next30"
     | "next60"
     | "region";
+  color?: string;
 }) {
   const common = {
     width: 13,
     height: 13,
     viewBox: "0 0 24 24",
     fill: "none",
-    stroke: "#e6dbff",
+    stroke: color,
     strokeWidth: 2,
     strokeLinecap: "round" as const,
     strokeLinejoin: "round" as const,
@@ -339,10 +1146,18 @@ function CalendarBrandGlyph({ brand }: { brand: "google" | "apple" | "outlook" }
   );
 }
 
-export default function EventsClient({ events, initialCity, initialSearchQuery = "", initialMode = "market" }: Props) {
+export default function EventsClient({
+  events,
+  initialCity: _initialCity,
+  initialSearchQuery = "",
+  initialEventId = "",
+  initialMode = "getstarted",
+  previewContext = null,
+}: Props) {
   const PANEL_HEIGHT = "calc(100vh - 126px)";
   const centerWorkspaceRef = useRef<HTMLElement | null>(null);
   const resultsAnchorRef = useRef<HTMLDivElement | null>(null);
+  const firstResultCardRef = useRef<HTMLElement | null>(null);
   const [filters, setFilters] = useState<FiltersState>(DEFAULT_FILTERS);
   const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
   const [savedLists, setSavedLists] = useState<SavedList[]>([]);
@@ -351,7 +1166,6 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const searchQuery = initialSearchQuery;
   const [activeQuickView, setActiveQuickView] = useState("");
-  const [nearbyCity, setNearbyCity] = useState(initialCity || "New York");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
@@ -360,9 +1174,17 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
   const [activeToolbarAction, setActiveToolbarAction] = useState<string>("");
   const [toolbarHelpText, setToolbarHelpText] = useState<string>("");
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
-  const [savedConferenceListsOpen, setSavedConferenceListsOpen] = useState(true);
-  const [savedMarketViewsOpen, setSavedMarketViewsOpen] = useState(true);
-  const [dashboardMode, setDashboardMode] = useState<"market" | "about" | "contact" | "subscribe" | "submit">(initialMode);
+  const [quickActionsOpen, setQuickActionsOpen] = useState(true);
+  const [savedConferenceListsOpen, setSavedConferenceListsOpen] = useState(false);
+  const [savedMarketViewsOpen, setSavedMarketViewsOpen] = useState(false);
+  const [dashboardMode, setDashboardMode] = useState<"getstarted" | "market" | "marketview" | "about" | "contact" | "legal" | "subscribe" | "submit">(initialMode);
+  const infoDashboardMode = dashboardMode as "about" | "contact" | "subscribe" | "submit";
+  const [workspaceViewMode, setWorkspaceViewMode] = useState<"database" | "calendar" | "map">("database");
+  const [calendarSelected, setCalendarSelected] = useState<{ weekStart: string; eventId: string } | null>(null);
+  const [calendarDetailDataset, setCalendarDetailDataset] = useState<"filtered" | "all">("filtered");
+  const [expandedWeeks, setExpandedWeeks] = useState<Record<string, boolean>>({});
+  const [detailExpanded, setDetailExpanded] = useState(false);
+  const [expandedRelatedGroups, setExpandedRelatedGroups] = useState<Record<string, boolean>>({});
   const subscribeEmailRef = useRef<HTMLInputElement | null>(null);
   const submitUrlRef = useRef<HTMLInputElement | null>(null);
   const [submitForm, setSubmitForm] = useState({
@@ -376,9 +1198,137 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
     notes: "",
   });
   const [submitFormMessage, setSubmitFormMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [accessRequestForm, setAccessRequestForm] = useState({
+    name: "",
+    email: "",
+    company: "",
+    role: "",
+    audience: "Investor",
+  });
+  const [accessRequestMessage, setAccessRequestMessage] = useState<string>("");
   const [saveListChoice, setSaveListChoice] = useState<string>("new");
   const saveMenuRef = useRef<HTMLDivElement | null>(null);
   const toolbarActionTimerRef = useRef<number | null>(null);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [isTabletViewport, setIsTabletViewport] = useState(false);
+  const [mobilePanel, setMobilePanel] = useState<"filters" | "workspace" | "intel" | null>(null);
+  const [mobileSearchTerm, setMobileSearchTerm] = useState(initialSearchQuery || "");
+  const [marketViewDataset, setMarketViewDataset] = useState<"all" | "filtered">("all");
+  const [marketViewRange, setMarketViewRange] = useState<"8w" | "30d" | "90d">("8w");
+  const [concentrationExpanded, setConcentrationExpanded] = useState(false);
+  const [insightsExpanded, setInsightsExpanded] = useState(false);
+  const [filterGroupsOpen, setFilterGroupsOpen] = useState({
+    dateTiming: false,
+    location: false,
+    marketSegments: false,
+    participation: false,
+    organizers: false,
+  });
+  const [getStartedStripOpen, setGetStartedStripOpen] = useState(false);
+  const primaryModeOptions = [
+    { key: "getstarted", label: "GET STARTED" },
+    { key: "discovery", label: "DISCOVERY" },
+    { key: "marketview", label: "MARKET VIEW" },
+  ] as const;
+
+  const handlePrimaryModeChange = (modeKey: (typeof primaryModeOptions)[number]["key"]) => {
+    if (modeKey === "getstarted") {
+      setDashboardMode("getstarted");
+      return;
+    }
+    if (modeKey === "discovery") {
+      setDashboardMode("market");
+      setWorkspaceViewMode("database");
+      return;
+    }
+    setDashboardMode("marketview");
+    setWorkspaceViewMode("database");
+  };
+
+  const renderPrimaryModeNav = (placement: "top" | "bottom" = "top") => {
+    const isLightMode = dashboardMode === "getstarted";
+    const isMarketViewMode = dashboardMode === "marketview";
+    const navBackground = isLightMode
+      ? "linear-gradient(180deg, rgba(255,255,255,0.72), rgba(236,244,253,0.82))"
+      : isMarketViewMode
+        ? "linear-gradient(180deg, rgba(12, 46, 68, 0.88), rgba(7, 31, 48, 0.96))"
+        : "linear-gradient(180deg, rgba(8, 25, 44, 0.82), rgba(5, 19, 34, 0.92))";
+    const navBorder = isLightMode
+      ? "1px solid rgba(120,150,190,0.22)"
+      : isMarketViewMode
+        ? "1px solid rgba(84, 148, 188, 0.28)"
+        : "1px solid rgba(94, 140, 190, .22)";
+    const navShadow = isLightMode
+      ? "0 10px 24px rgba(28, 64, 108, 0.08)"
+      : isMarketViewMode
+        ? "inset 0 1px 0 rgba(170,220,245,0.04), 0 10px 24px rgba(4,18,30,0.18)"
+        : "inset 0 1px 0 rgba(255,255,255,0.03)";
+    const outerStyle: CSSProperties =
+      placement === "top"
+        ? {
+            display: "flex",
+            justifyContent: "center",
+            marginBottom: "16px",
+            paddingBottom: "10px",
+          }
+        : {
+            display: "flex",
+            justifyContent: "center",
+            marginTop: "20px",
+            paddingTop: "16px",
+            borderTop: isLightMode ? "1px solid rgba(120,150,190,0.22)" : "1px solid rgba(90,130,180,0.18)",
+          };
+
+    return (
+    <div style={outerStyle}>
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "8px",
+          flexWrap: "wrap",
+          justifyContent: "center",
+          padding: "8px",
+          borderRadius: "16px",
+          background: navBackground,
+          border: navBorder,
+          boxShadow: navShadow,
+        }}
+      >
+        {primaryModeOptions.map((mode) => {
+          const isActive =
+            mode.key === "getstarted"
+              ? dashboardMode === "getstarted"
+              : mode.key === "discovery"
+                ? dashboardMode === "market"
+                : dashboardMode === "marketview";
+          return (
+            <button
+              key={mode.key}
+              type="button"
+              onClick={() => handlePrimaryModeChange(mode.key)}
+              style={{
+                height: "40px",
+                padding: "0 18px",
+                borderRadius: "10px",
+                border: isActive ? "1px solid #5f9cff" : "1px solid rgba(94, 140, 190, .35)",
+                background: isActive ? "linear-gradient(180deg, #1f5fcf, #153f8f)" : "rgba(8, 25, 44, .7)",
+                color: isActive ? "#eef6ff" : "#9ec2e8",
+                fontSize: "11px",
+                fontWeight: 800,
+                letterSpacing: ".10em",
+                cursor: "pointer",
+                boxShadow: isActive ? "0 0 18px rgba(65, 132, 255, .35)" : "none",
+              }}
+            >
+              {mode.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+    );
+  };
 
   const controlStyle: CSSProperties = {
     width: "100%",
@@ -386,10 +1336,32 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
     maxWidth: "100%",
     boxSizing: "border-box",
     height: "36px",
-    borderRadius: "8px",
+    borderRadius: "9px",
     background: "#08223d",
     color: "#e2e8f0",
-    border: "1px solid rgba(96,165,250,0.3)",
+    border: "1px solid rgba(96,165,250,0.28)",
+    fontSize: "14px",
+    padding: "0 10px",
+  };
+  const railSectionCardStyle: CSSProperties = {
+    border: "1px solid rgba(96,165,250,0.16)",
+    borderRadius: "12px",
+    background: "rgba(8,30,53,0.74)",
+    padding: "12px",
+  };
+  const leftRailSectionCardStyle: CSSProperties = {
+    ...railSectionCardStyle,
+    border: "1px solid rgba(96,165,250,0.06)",
+    background: "rgba(8,28,49,0.44)",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.02)",
+  };
+  const rightRailSectionCardStyle: CSSProperties = {
+    ...railSectionCardStyle,
+    border: "1px solid rgba(100,140,190,0.22)",
+    borderRadius: "14px",
+    background: "rgba(8,27,48,0.72)",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+    overflow: "hidden",
   };
 
   useEffect(() => {
@@ -412,6 +1384,46 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
   useEffect(() => {
     setDashboardMode(initialMode);
   }, [initialMode]);
+
+  useEffect(() => {
+    const mobileMq = window.matchMedia("(max-width: 767px)");
+    const tabletMq = window.matchMedia("(min-width: 768px) and (max-width: 1023px)");
+    const syncViewportMode = () => {
+      setIsMobileViewport(mobileMq.matches);
+      setIsTabletViewport(tabletMq.matches);
+    };
+    syncViewportMode();
+    mobileMq.addEventListener("change", syncViewportMode);
+    tabletMq.addEventListener("change", syncViewportMode);
+    return () => {
+      mobileMq.removeEventListener("change", syncViewportMode);
+      tabletMq.removeEventListener("change", syncViewportMode);
+    };
+  }, []);
+
+  useEffect(() => {
+    const compactViewport = isMobileViewport || isTabletViewport;
+    if (!compactViewport) return;
+    if (!mobilePanel) return;
+    const previousOverflow = document.body.style.overflow;
+    const previousTouchAction = document.body.style.touchAction;
+    document.body.style.overflow = "hidden";
+    document.body.style.touchAction = "none";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.touchAction = previousTouchAction;
+    };
+  }, [isMobileViewport, isTabletViewport, mobilePanel]);
+
+  useEffect(() => {
+    const compactViewport = isMobileViewport || isTabletViewport;
+    if (!compactViewport) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobilePanel(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isMobileViewport, isTabletViewport]);
 
   useEffect(() => {
     const scroller = centerWorkspaceRef.current;
@@ -450,7 +1462,7 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
 
   const scrollToResultsAnchor = () => {
     const scroller = centerWorkspaceRef.current;
-    const anchor = resultsAnchorRef.current;
+    const anchor = firstResultCardRef.current || resultsAnchorRef.current;
     if (!scroller || !anchor) return;
     const targetTop = Math.max(0, anchor.offsetTop - 8);
     scroller.scrollTo({ top: targetTop, behavior: "smooth" });
@@ -458,6 +1470,25 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
       scroller.scrollTo({ top: targetTop, behavior: "smooth" });
     });
   };
+
+  const scrollToWorkspaceTop = () => {
+    const scroller = centerWorkspaceRef.current;
+    if (scroller) {
+      scroller.scrollTo({ top: 0, behavior: "smooth" });
+      window.requestAnimationFrame(() => {
+        scroller.scrollTo({ top: 0, behavior: "smooth" });
+      });
+      return;
+    }
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+    }
+  };
+
+  const isTickerSearchResult =
+    !!searchQuery &&
+    dashboardMode === "market" &&
+    workspaceViewMode === "database";
 
   const recordActivity = useCallback((type: "event" | "feed" | "view", label: string, detail?: string) => {
     const next: RecentActivity = {
@@ -478,13 +1509,15 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
   useLayoutEffect(() => {
     const el = centerWorkspaceRef.current;
     if (!el) return;
+    if (isTickerSearchResult) return;
     el.scrollTop = 0;
     window.requestAnimationFrame(() => {
       el.scrollTop = 0;
     });
-  }, []);
+  }, [isTickerSearchResult]);
 
   useEffect(() => {
+    if (isTickerSearchResult) return;
     const resetAllScroll = () => {
       window.scrollTo({ top: 0, left: 0, behavior: "auto" });
       document.documentElement.scrollTop = 0;
@@ -503,7 +1536,7 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
       window.clearTimeout(t2);
       window.clearTimeout(t3);
     };
-  }, []);
+  }, [isTickerSearchResult]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("scrollRestoration" in window.history)) return;
@@ -530,6 +1563,7 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (isTickerSearchResult) return;
     if (window.location.hash) {
       window.history.replaceState(
         null,
@@ -552,7 +1586,7 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
       window.cancelAnimationFrame(r1);
       window.clearTimeout(t);
     };
-  }, []);
+  }, [isTickerSearchResult]);
 
   const cities = useMemo(() => unique(events.map((e) => [e.city, e.state].filter(Boolean).join(", "))), [events]);
   const regions = useMemo(() => unique(events.map((e) => e.region)), [events]);
@@ -570,10 +1604,13 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
     const daysByRange = filters.dateRange === "next30" ? 30 : filters.dateRange === "next60" ? 60 : filters.dateRange === "next90" ? 90 : 3650;
     const max = nowTime + daysByRange * 86400000;
     const q = searchQuery.trim().toLowerCase();
+    const hasExplicitDateWindow = Boolean(fromDate || toDate);
+    const useDefaultFutureOnly = filters.dateRange === "all" && !hasExplicitDateWindow;
 
     let list = events.filter((e) => {
       const start = new Date(`${e.startDate}T00:00:00Z`).getTime();
       if (filters.dateRange !== "all" && (start < nowTime || start > max)) return false;
+      if (useDefaultFutureOnly && start < nowTime) return false;
       if (fromDate) { const min = new Date(`${fromDate}T00:00:00Z`).getTime(); if (start < min) return false; }
       if (toDate) { const maxDate = new Date(`${toDate}T23:59:59Z`).getTime(); if (start > maxDate) return false; }
       if (filters.country && e.country !== filters.country) return false;
@@ -608,10 +1645,149 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
       }
     }
 
+    if (initialEventId) {
+      const matchedIndex = list.findIndex((event) => event.id === initialEventId);
+      if (matchedIndex > 0) {
+        const [matched] = list.splice(matchedIndex, 1);
+        list.unshift(matched);
+      }
+    }
+
     return list;
-  }, [events, filters, searchQuery, sortMode, fromDate, toDate, activeSavedListId, savedLists]);
+  }, [events, filters, searchQuery, sortMode, fromDate, toDate, activeSavedListId, savedLists, initialEventId]);
+
+  const activeFilterChips = useMemo(() => {
+    const chips: Array<{ key: string; label: string; clear: () => void }> = [];
+    if (filters.country) chips.push({ key: "country", label: filters.country, clear: () => setFilters((p) => ({ ...p, country: "" })) });
+    if (filters.region) chips.push({ key: "region", label: filters.region, clear: () => setFilters((p) => ({ ...p, region: "" })) });
+    if (filters.state) chips.push({ key: "state", label: filters.state, clear: () => setFilters((p) => ({ ...p, state: "" })) });
+    if (filters.cities[0]) chips.push({ key: "city", label: filters.cities[0], clear: () => setFilters((p) => ({ ...p, cities: [] })) });
+    if (filters.sectorThemes[0]) chips.push({ key: "theme", label: filters.sectorThemes[0], clear: () => setFilters((p) => ({ ...p, sectorThemes: [] })) });
+    if (filters.conferenceType[0]) chips.push({ key: "type", label: filters.conferenceType[0], clear: () => setFilters((p) => ({ ...p, conferenceType: [] })) });
+    if (filters.marketFocus[0]) chips.push({ key: "focus", label: filters.marketFocus[0], clear: () => setFilters((p) => ({ ...p, marketFocus: [] })) });
+    if (filters.issuerParticipation[0]) chips.push({ key: "issuer", label: filters.issuerParticipation[0], clear: () => setFilters((p) => ({ ...p, issuerParticipation: [] })) });
+    if (filters.organizer[0]) chips.push({ key: "organizer", label: filters.organizer[0], clear: () => setFilters((p) => ({ ...p, organizer: [] })) });
+    if (filters.dateRange !== "all") chips.push({ key: "dateRange", label: `Date: ${filters.dateRange.replace("next", "Next ").toUpperCase()}`, clear: () => setFilters((p) => ({ ...p, dateRange: "all" })) });
+    if (fromDate || toDate) {
+      const fromLabel = fromDate ? formatMonthDay(fromDate) : "Start";
+      const toLabel = toDate ? formatMonthDay(toDate) : "Open";
+      chips.push({
+        key: "dateWindow",
+        label: `${fromLabel} - ${toLabel}`,
+        clear: () => {
+          setFromDate("");
+          setToDate("");
+        },
+      });
+    }
+    return chips;
+  }, [filters, fromDate, toDate]);
+
+  const compactSingleResultLayout =
+    dashboardMode === "market" &&
+    workspaceViewMode === "database" &&
+    filteredEvents.length === 1;
+
+  useEffect(() => {
+    if (!searchQuery || dashboardMode !== "market" || workspaceViewMode !== "database") return;
+    const run = () => scrollToResultsAnchor();
+    const raf = window.requestAnimationFrame(run);
+    const timer = window.setTimeout(run, 80);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(timer);
+    };
+  }, [searchQuery, dashboardMode, workspaceViewMode, filteredEvents.length]);
+
+  useEffect(() => {
+    if (!initialEventId) return;
+    if (dashboardMode !== "market" || workspaceViewMode !== "database") return;
+    const matched = filteredEvents.find((event) => event.id === initialEventId);
+    if (!matched) return;
+
+    setSelectedEvents([matched.id]);
+
+    const run = () => {
+      scrollToResultsAnchor();
+      firstResultCardRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    };
+
+    const raf = window.requestAnimationFrame(run);
+    const timer = window.setTimeout(run, 120);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(timer);
+    };
+  }, [initialEventId, dashboardMode, workspaceViewMode, filteredEvents]);
+
+  const locationActiveCount = [filters.country, filters.region, filters.state, filters.cities[0]].filter(Boolean).length;
+  const marketSegmentsActiveCount = [filters.sectorThemes[0], filters.conferenceType[0], filters.marketFocus[0]].filter(Boolean).length;
+  const participationActiveCount = [filters.issuerParticipation[0]].filter(Boolean).length;
+  const organizersActiveCount = [filters.organizer[0]].filter(Boolean).length;
 
   const selectedSet = useMemo(() => new Set(selectedEvents), [selectedEvents]);
+  const buildCalendarWeeks = useCallback((source: WorkspaceEvent[]) => {
+    const weeks = new Map<
+      string,
+      {
+        weekStart: string;
+        weekEnd: string;
+        events: WorkspaceEvent[];
+        dayDates: string[];
+        byDay: WorkspaceEvent[][];
+      }
+    >();
+    source.forEach((event) => {
+      const startWeek = getWeekStart(event.startDate);
+      const endWeek = getWeekStart(event.endDate || event.startDate);
+      if (!startWeek || !endWeek) return;
+      let activeWeek = startWeek;
+      while (activeWeek <= endWeek) {
+        if (!weeks.has(activeWeek)) {
+          weeks.set(activeWeek, {
+            weekStart: activeWeek,
+            weekEnd: getWeekEndFromStart(activeWeek),
+            events: [],
+            dayDates: Array.from({ length: 7 }, (_, i) => addDaysISO(activeWeek, i)),
+            byDay: [[], [], [], [], [], [], []],
+          });
+        }
+        const bucket = weeks.get(activeWeek)!;
+        bucket.events.push(event);
+        const weekStartTs = new Date(`${activeWeek}T00:00:00Z`).getTime();
+        const weekEndTs = new Date(`${bucket.weekEnd}T23:59:59Z`).getTime();
+        const eventStartTs = new Date(`${event.startDate}T00:00:00Z`).getTime();
+        const eventEndTs = new Date(`${(event.endDate || event.startDate)}T23:59:59Z`).getTime();
+        for (let i = 0; i < 7; i += 1) {
+          const dayIso = bucket.dayDates[i];
+          const dayStartTs = new Date(`${dayIso}T00:00:00Z`).getTime();
+          const dayEndTs = new Date(`${dayIso}T23:59:59Z`).getTime();
+          if (dayStartTs > weekEndTs || dayEndTs < weekStartTs) continue;
+          if (eventStartTs <= dayEndTs && eventEndTs >= dayStartTs) {
+            bucket.byDay[i].push(event);
+          }
+        }
+        activeWeek = addDaysISO(activeWeek, 7);
+      }
+    });
+    return Array.from(weeks.values())
+      .map((week) => ({
+        ...week,
+        events: week.events
+          .slice()
+          .sort((a, b) => `${a.startDate}-${a.title}`.localeCompare(`${b.startDate}-${b.title}`)),
+        byDay: week.byDay.map((day) =>
+          day.slice().sort((a, b) => `${a.startDate}-${a.title}`.localeCompare(`${b.startDate}-${b.title}`))
+        ),
+      }))
+      .sort((a, b) => a.weekStart.localeCompare(b.weekStart));
+  }, []);
+
+  const calendarWeeks = useMemo(() => buildCalendarWeeks(filteredEvents), [buildCalendarWeeks, filteredEvents]);
+  const allCalendarWeeks = useMemo(() => buildCalendarWeeks(events), [buildCalendarWeeks, events]);
 
   const buildWeeks = useCallback((source: WorkspaceEvent[]) => {
     const map = new Map<string, WorkspaceEvent[]>();
@@ -813,13 +1989,189 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
   );
 
   const topCity = useMemo(() => {
-    const counts = new Map<string, number>();
-    filteredEvents.forEach((e) => {
-      const key = [e.city, e.state].filter(Boolean).join(", ");
-      counts.set(key, (counts.get(key) || 0) + 1);
-    });
-    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || "";
+    return getTopByCount(filteredEvents.map((e) => getCityValue(e)))[0]?.[0] || "";
   }, [filteredEvents]);
+
+  const calendarHotWeeks = useMemo(() => {
+    const ranked = calendarWeeks
+      .map((week) => ({ weekStart: week.weekStart, weekEnd: week.weekEnd, count: week.events.length }))
+      .sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        return a.weekStart.localeCompare(b.weekStart);
+      });
+    const top3 = new Set(ranked.slice(0, 3).map((week) => week.weekStart));
+    return ranked.filter((week) => week.count >= 3 || top3.has(week.weekStart));
+  }, [calendarWeeks]);
+
+  const calendarHotWeekKeys = useMemo(
+    () => new Set(calendarHotWeeks.map((week) => week.weekStart)),
+    [calendarHotWeeks]
+  );
+
+  const allCalendarHotWeeks = useMemo(() => {
+    const ranked = allCalendarWeeks
+      .map((week) => ({ weekStart: week.weekStart, weekEnd: week.weekEnd, count: week.events.length }))
+      .sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        return a.weekStart.localeCompare(b.weekStart);
+      });
+    const top3 = new Set(ranked.slice(0, 3).map((week) => week.weekStart));
+    return ranked.filter((week) => week.count >= 3 || top3.has(week.weekStart));
+  }, [allCalendarWeeks]);
+
+  const allCalendarHotWeekKeys = useMemo(
+    () => new Set(allCalendarHotWeeks.map((week) => week.weekStart)),
+    [allCalendarHotWeeks]
+  );
+
+  const calendarWeekSignals = useMemo(() => {
+    const entries = calendarWeeks.map((week) => {
+      const citiesRanked = getTopByCount(week.events.map((event) => getCityValue(event)));
+      const organizersRanked = getTopByCount(week.events.map((event) => getOrganizerValue(event)));
+      const focusRanked = getTopByCount(week.events.flatMap((event) => getMarketFocusValues(event)));
+      const themeRanked = getTopByCount(week.events.flatMap((event) => getThemeValues(event)));
+      const investorHeavyCount = week.events.filter((event) => isInvestorHeavy(event)).length;
+      const issuerHeavyCount = week.events.filter((event) => isIssuerHeavy(event)).length;
+      const cityCluster = citiesRanked.find(([, count]) => count >= 2) || null;
+      const organizerActivity = organizersRanked.find(([, count]) => count >= 2) || null;
+      const topFocus = focusRanked[0]?.[0] || themeRanked[0]?.[0] || "";
+      const topOrganizer = organizersRanked[0]?.[0] || "";
+      const chips = [
+        calendarHotWeekKeys.has(week.weekStart)
+          ? { key: "hot", label: "Hot Week", tone: "#f59e0b", detail: `${week.events.length} conferences` }
+          : null,
+        cityCluster
+          ? { key: "cluster", label: `${cityCluster[0].split(",")[0]} Cluster`, tone: "#2dd4bf", detail: `${cityCluster[1]} events` }
+          : null,
+        investorHeavyCount > 0
+          ? { key: "investor", label: "Investor-Heavy", tone: "#22c55e", detail: `${investorHeavyCount}` }
+          : issuerHeavyCount > 0
+            ? { key: "issuer", label: "Issuer-Heavy", tone: "#8b5cf6", detail: `${issuerHeavyCount}` }
+            : null,
+        topFocus
+          ? { key: "focus", label: `Top focus: ${topFocus}`, tone: "#3b82f6" }
+          : null,
+        organizerActivity
+          ? { key: "organizer", label: `${topOrganizer} activity`, tone: "#60a5fa", detail: `${organizerActivity[1]} events` }
+          : null,
+      ].filter(Boolean) as Array<{ key: string; label: string; tone: string; detail?: string }>;
+
+      return [
+        week.weekStart,
+        {
+          totalEvents: week.events.length,
+          topCity: citiesRanked[0]?.[0] || "",
+          topOrganizer,
+          topFocus,
+          topTheme: themeRanked[0]?.[0] || "",
+          investorHeavyCount,
+          issuerHeavyCount,
+          cityCluster,
+          organizerActivity,
+          isHotWeek: calendarHotWeekKeys.has(week.weekStart),
+          chips: chips.slice(0, 4),
+        },
+      ] as const;
+    });
+
+    return new Map(entries);
+  }, [calendarWeeks, calendarHotWeekKeys]);
+
+  const allCalendarWeekSignals = useMemo(() => {
+    const entries = allCalendarWeeks.map((week) => {
+      const citiesRanked = getTopByCount(week.events.map((event) => getCityValue(event)));
+      const organizersRanked = getTopByCount(week.events.map((event) => getOrganizerValue(event)));
+      const focusRanked = getTopByCount(week.events.flatMap((event) => getMarketFocusValues(event)));
+      const themeRanked = getTopByCount(week.events.flatMap((event) => getThemeValues(event)));
+      const investorHeavyCount = week.events.filter((event) => isInvestorHeavy(event)).length;
+      const issuerHeavyCount = week.events.filter((event) => isIssuerHeavy(event)).length;
+      const cityCluster = citiesRanked.find(([, count]) => count >= 2) || null;
+      const organizerActivity = organizersRanked.find(([, count]) => count >= 2) || null;
+      const topFocus = focusRanked[0]?.[0] || themeRanked[0]?.[0] || "";
+      const topOrganizer = organizersRanked[0]?.[0] || "";
+      const chips = [
+        allCalendarHotWeekKeys.has(week.weekStart)
+          ? { key: "hot", label: "Hot Week", tone: "#f59e0b", detail: `${week.events.length} conferences` }
+          : null,
+        cityCluster
+          ? { key: "cluster", label: `${cityCluster[0].split(",")[0]} Cluster`, tone: "#2dd4bf", detail: `${cityCluster[1]} events` }
+          : null,
+        investorHeavyCount > 0
+          ? { key: "investor", label: "Investor-Heavy", tone: "#22c55e", detail: `${investorHeavyCount}` }
+          : issuerHeavyCount > 0
+            ? { key: "issuer", label: "Issuer-Heavy", tone: "#8b5cf6", detail: `${issuerHeavyCount}` }
+            : null,
+        topFocus
+          ? { key: "focus", label: `Top focus: ${topFocus}`, tone: "#3b82f6" }
+          : null,
+        organizerActivity
+          ? { key: "organizer", label: `${topOrganizer} activity`, tone: "#60a5fa", detail: `${organizerActivity[1]} events` }
+          : null,
+      ].filter(Boolean) as Array<{ key: string; label: string; tone: string; detail?: string }>;
+
+      return [
+        week.weekStart,
+        {
+          totalEvents: week.events.length,
+          topCity: citiesRanked[0]?.[0] || "",
+          topOrganizer,
+          topFocus,
+          topTheme: themeRanked[0]?.[0] || "",
+          investorHeavyCount,
+          issuerHeavyCount,
+          cityCluster,
+          organizerActivity,
+          isHotWeek: allCalendarHotWeekKeys.has(week.weekStart),
+          chips: chips.slice(0, 4),
+        },
+      ] as const;
+    });
+
+    return new Map(entries);
+  }, [allCalendarWeeks, allCalendarHotWeekKeys]);
+
+  const calendarSummary = useMemo(() => {
+    const topFocus = getTopByCount(filteredEvents.flatMap((event) => getMarketFocusValues(event)))[0]?.[0] || "N/A";
+    const topAudience = getTopByCount(filteredEvents.map((event) => event.issuerParticipation).filter(Boolean))[0]?.[0] || "N/A";
+    const topOrganizer = getTopByCount(filteredEvents.map((event) => getOrganizerValue(event)))[0]?.[0] || "N/A";
+    const nextHotWeek = calendarHotWeeks[0] || null;
+    const investorHeavyCount = filteredEvents.filter((event) => isInvestorHeavy(event)).length;
+    const issuerHeavyCount = filteredEvents.filter((event) => isIssuerHeavy(event)).length;
+    const clusterWindows = Array.from(calendarWeekSignals.values()).filter((week) => week.cityCluster).length;
+
+    return {
+      eventCount: filteredEvents.length,
+      activeWeeks: calendarWeeks.length,
+      topCity: topCity || "N/A",
+      nextHotWeek,
+      topFocus,
+      topAudience,
+      topOrganizer,
+      investorHeavyCount,
+      issuerHeavyCount,
+      clusterWindows,
+      limitedData: filteredEvents.length < 4,
+    };
+  }, [calendarHotWeeks, calendarWeekSignals, calendarWeeks.length, filteredEvents, topCity]);
+
+  useEffect(() => {
+    if (!calendarSelected) return;
+    const currentWeek = calendarWeeks.find((week) => week.weekStart === calendarSelected.weekStart);
+    if (!currentWeek || !currentWeek.events.some((event) => event.id === calendarSelected.eventId)) {
+      setCalendarSelected(null);
+    }
+  }, [calendarSelected, calendarWeeks]);
+
+  useEffect(() => {
+    if (workspaceViewMode === "map") {
+      setWorkspaceViewMode("database");
+    }
+  }, [workspaceViewMode]);
+
+  useEffect(() => {
+    setDetailExpanded(false);
+    setExpandedRelatedGroups({});
+  }, [calendarSelected?.weekStart, calendarSelected?.eventId]);
 
   const analysisCards = useMemo(() => {
     const source = filteredEvents;
@@ -1231,6 +2583,335 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
     };
   }, [filteredEvents]);
 
+  const allStats = useMemo(() => {
+    const organizersCount = new Set(events.map((e) => e.organizer).filter(Boolean)).size;
+    const statesCount = new Set(events.map((e) => e.state).filter(Boolean)).size;
+    const citiesCount = new Set(events.map((e) => [e.city, e.state].filter(Boolean).join(", ")).filter(Boolean)).size;
+    const themesCount = unique(events.flatMap((e) => splitCsv(e.sectorThemes)).filter(Boolean)).length;
+    return {
+      events: events.length,
+      organizers: organizersCount,
+      states: statesCount,
+      cities: citiesCount,
+      themes: themesCount,
+    };
+  }, [events]);
+
+  const discoveryStats = useMemo(() => {
+    const hasManualFilterSelection = activeFilterChips.length > 0 || Boolean(activeSavedListId);
+    return hasManualFilterSelection
+      ? {
+          events: filteredEvents.length,
+          organizers: inViewStats.organizers,
+          cities: inViewStats.cities,
+          states: inViewStats.states,
+          themes: inViewStats.themes,
+          hotWeeks: viewTopWeeks.length,
+        }
+      : {
+          events: allStats.events,
+          organizers: allStats.organizers,
+          cities: allStats.cities,
+          states: allStats.states,
+          themes: allStats.themes,
+          hotWeeks: allEventTopWeeks.length,
+        };
+  }, [activeFilterChips.length, activeSavedListId, filteredEvents.length, inViewStats, viewTopWeeks.length, allStats, allEventTopWeeks.length]);
+
+
+  const computeMarketViewAnalytics = useCallback((source: WorkspaceEvent[]) => {
+    const cityCounts = Array.from(
+      source.reduce((m, e) => {
+        const key = [e.city, e.state].filter(Boolean).join(", ");
+        if (!key) return m;
+        m.set(key, (m.get(key) || 0) + 1);
+        return m;
+      }, new Map<string, number>())
+    ).sort((a, b) => b[1] - a[1]);
+
+    const organizerCounts = Array.from(
+      source.reduce((m, e) => {
+        const key = e.organizer || "";
+        if (!key) return m;
+        m.set(key, (m.get(key) || 0) + 1);
+        return m;
+      }, new Map<string, number>())
+    ).sort((a, b) => b[1] - a[1]);
+
+    const themeCounts = Array.from(
+      source.reduce((m, e) => {
+        splitCsv(e.sectorThemes).forEach((theme) => {
+          if (!theme) return;
+          m.set(theme, (m.get(theme) || 0) + 1);
+        });
+        return m;
+      }, new Map<string, number>())
+    ).sort((a, b) => b[1] - a[1]);
+
+    const durations = source.map((e) => {
+      const s = new Date(`${e.startDate}T00:00:00Z`).getTime();
+      const en = new Date(`${(e.endDate || e.startDate)}T00:00:00Z`).getTime();
+      if (Number.isNaN(s) || Number.isNaN(en)) return 1;
+      return Math.max(1, Math.round((en - s) / 86400000) + 1);
+    });
+    const avgDuration = durations.length ? (durations.reduce((a, b) => a + b, 0) / durations.length).toFixed(1) : "0";
+
+    const weekCounts = Array.from(
+      source.reduce((m, e) => {
+        const week = getWeekStart(e.startDate);
+        if (!week) return m;
+        m.set(week, (m.get(week) || 0) + 1);
+        return m;
+      }, new Map<string, number>())
+    )
+      .map(([weekStart, count]) => ({ weekStart, count }))
+      .sort((a, b) => a.weekStart.localeCompare(b.weekStart));
+
+    const topWeeks = [...weekCounts].sort((a, b) => b.count - a.count).slice(0, 3);
+
+    const monthCounts = Array.from(
+      source.reduce((m, e) => {
+        const d = new Date(`${e.startDate}T00:00:00Z`);
+        if (Number.isNaN(d.getTime())) return m;
+        const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+        m.set(key, (m.get(key) || 0) + 1);
+        return m;
+      }, new Map<string, number>())
+    )
+      .map(([month, count]) => ({ month, count }))
+      .sort((a, b) => a.month.localeCompare(b.month));
+
+    const maxWeek = weekCounts.reduce((max, item) => (item.count > max ? item.count : max), 1);
+    const maxMonth = monthCounts.reduce((max, item) => (item.count > max ? item.count : max), 1);
+
+    return {
+      total: source.length,
+      topCity: cityCounts[0]?.[0] || "N/A",
+      topCityCount: cityCounts[0]?.[1] || 0,
+      peakWeek: topWeeks[0]?.weekStart || "",
+      peakWeekCount: topWeeks[0]?.count || 0,
+      topOrganizer: organizerCounts[0]?.[0] || "N/A",
+      topOrganizerCount: organizerCounts[0]?.[1] || 0,
+      topTheme: themeCounts[0]?.[0] || "N/A",
+      topThemeCount: themeCounts[0]?.[1] || 0,
+      avgDuration,
+      weekCounts,
+      topWeeks,
+      cityCounts: cityCounts.slice(0, 7),
+      organizerCounts: organizerCounts.slice(0, 7),
+      themeCounts: themeCounts.slice(0, 7),
+      monthCounts,
+      maxWeek,
+      maxMonth,
+    };
+  }, []);
+
+  const allMarketAnalytics = useMemo(() => computeMarketViewAnalytics(events), [events, computeMarketViewAnalytics]);
+  const filteredMarketAnalytics = useMemo(() => computeMarketViewAnalytics(filteredEvents), [filteredEvents, computeMarketViewAnalytics]);
+  const marketSignalStrips = useMemo(() => {
+    if (filteredEvents.length < 4) return [] as MarketSignalStrip[];
+
+    const now = new Date();
+    const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const in90Utc = todayUtc + 90 * 86400000;
+    const futureEvents = filteredEvents.filter((event) => {
+      const start = new Date(`${event.startDate}T00:00:00Z`).getTime();
+      return !Number.isNaN(start) && start >= todayUtc && start <= in90Utc;
+    });
+    const source = futureEvents.length ? futureEvents : filteredEvents;
+
+    const countRanked = (items: string[]) =>
+      Array.from(
+        items.reduce((map, item) => {
+          const key = item.trim();
+          if (!key) return map;
+          map.set(key, (map.get(key) || 0) + 1);
+          return map;
+        }, new Map<string, number>())
+      ).sort((a, b) => b[1] - a[1]);
+
+    const participationCounts = countRanked(source.flatMap((event) => splitCsv(event.issuerParticipation)));
+    const focusCounts = countRanked(source.flatMap((event) => splitCsv(event.marketFocus)));
+    const organizerCounts = countRanked(source.map((event) => event.organizer));
+    const themeCounts = countRanked(source.flatMap((event) => splitCsv(event.sectorThemes)));
+
+    const candidatesByType: Record<MarketSignalType, MarketSignalStrip[]> = {
+      hotweek: [],
+      cluster: [],
+      participation: [],
+      theme: [],
+      organizer: [],
+    };
+
+    viewTopWeeks.slice(0, 3).forEach((week) => {
+      const weekEvents = source.filter((event) => {
+        const start = event.startDate;
+        const end = event.endDate || event.startDate;
+        return start <= week.weekEnd && end >= week.weekStart;
+      });
+      const weekCities = new Set(weekEvents.map((event) => [event.city, event.state].filter(Boolean).join(", ")).filter(Boolean)).size;
+      const weekThemes = new Set(weekEvents.flatMap((event) => splitCsv(event.sectorThemes))).size;
+      candidatesByType.hotweek.push({
+        id: `hot-${week.weekStart}`,
+        type: "hotweek",
+        label: "HOT WEEK",
+        badge: `${week.count} conferences`,
+        headline: `${formatWeekLabel(week.weekStart)}`,
+        body: `Upcoming activity is concentrated across ${Math.max(weekCities, 1)} cities and ${Math.max(weekThemes, 1)} themes in this market view.`,
+        cta: "View Hot Week",
+        action: { kind: "analysis", action: { type: "week", from: week.weekStart, to: week.weekEnd } },
+      });
+    });
+
+    viewClusters.slice(0, 3).forEach((cluster) => {
+      candidatesByType.cluster.push({
+        id: `cluster-${cluster.label}-${cluster.weekStart}`,
+        type: "cluster",
+        label: "CITY CLUSTER",
+        badge: `${cluster.count} overlap`,
+        headline: `${cluster.label || "Upcoming cluster"}`,
+        body: `${cluster.count} conferences overlap within a 7-day window around ${formatWeekLabel(cluster.weekStart)} in this filtered view.`,
+        cta: "Analyze Cluster",
+        action: { kind: "cluster", item: cluster },
+      });
+    });
+
+    participationCounts.slice(0, 2).forEach(([participationLabel, count], index) => {
+      const participationShare = Math.round((count / Math.max(source.length, 1)) * 100);
+      candidatesByType.participation.push({
+        id: `participation-${participationLabel}`,
+        type: "participation",
+        label: "PARTICIPATION TREND",
+        badge: `${participationShare}% share`,
+        headline: participationLabel,
+        body:
+          index === 0
+            ? `${participationLabel} is the dominant participation pattern across the current filtered conference set.`
+            : `${participationLabel} is surfacing repeatedly in the upcoming filtered conference mix.`,
+        cta: "View Trend",
+        action: { kind: "analysis", action: { type: "issuerParticipation", value: participationLabel } },
+      });
+    });
+
+    const rankedThemes = themeCounts.length
+      ? themeCounts.slice(0, 2).map(([label, count]) => ({
+          label,
+          count,
+          action: { type: "sectorTheme", value: label } as AnalysisAction,
+        }))
+      : focusCounts.slice(0, 2).map(([label, count]) => ({
+          label,
+          count,
+          action: { type: "marketFocus", value: label } as AnalysisAction,
+        }));
+
+    rankedThemes.forEach(({ label, count, action }, index) => {
+      const themeShare = Math.round((count / Math.max(source.length, 1)) * 100);
+      candidatesByType.theme.push({
+        id: `theme-${label}`,
+        type: "theme",
+        label: "MARKET TREND",
+        badge: `${themeShare}% share`,
+        headline: label,
+        body:
+          index === 0
+            ? `${label} conferences account for the largest visible share of this filtered market view.`
+            : `${label} is the next strongest driver in the current market slice and upcoming view.`,
+        cta: "Explore Theme",
+        action: { kind: "analysis", action },
+      });
+    });
+
+    organizerCounts.slice(0, 2).forEach(([organizerLabel, count], index) => {
+      candidatesByType.organizer.push({
+        id: `organizer-${organizerLabel}`,
+        type: "organizer",
+        label: "ORGANIZER ACTIVITY",
+        badge: `${count} events`,
+        headline: organizerLabel,
+        body:
+          index === 0
+            ? `This organizer appears repeatedly across the current filtered conference set and upcoming planning window.`
+            : `This organizer is also showing repeated activity across the filtered pipeline ahead.`,
+        cta: "View Organizer",
+        action: { kind: "analysis", action: { type: "organizer", value: organizerLabel } },
+      });
+    });
+
+    const typeOrder: MarketSignalType[] = ["hotweek", "cluster", "participation", "theme", "organizer"];
+    const maxSignals = Math.min(
+      typeOrder.reduce((count, type) => count + candidatesByType[type].length, 0),
+      Math.max(1, Math.floor(filteredEvents.length / 4))
+    );
+    const usedIds = new Set<string>();
+    const usedTypes: MarketSignalType[] = [];
+    const ordered: MarketSignalStrip[] = [];
+
+    while (ordered.length < maxSignals) {
+      let addedThisRound = false;
+      typeOrder.forEach((type) => {
+        if (ordered.length >= maxSignals) return;
+        const candidate = candidatesByType[type].find((item) => !usedIds.has(item.id));
+        if (!candidate) return;
+        if (usedTypes[usedTypes.length - 1] === type) return;
+        usedIds.add(candidate.id);
+        usedTypes.push(type);
+        ordered.push(candidate);
+        addedThisRound = true;
+      });
+      if (!addedThisRound) break;
+    }
+
+    return ordered;
+  }, [filteredEvents, viewTopWeeks, viewClusters]);
+
+  const marketSignalInsertMap = useMemo(() => {
+    const insertMap = new Map<number, MarketSignalStrip>();
+    if (!marketSignalStrips.length) return insertMap;
+    const usableLength = Math.max(filteredEvents.length - 1, 1);
+    const minIndex = Math.min(3, Math.max(filteredEvents.length - 1, 0));
+    marketSignalStrips.forEach((signal, index) => {
+      const ratio = (index + 1) / (marketSignalStrips.length + 1);
+      let targetIndex = Math.round(ratio * usableLength);
+      targetIndex = Math.max(minIndex, Math.min(filteredEvents.length - 1, targetIndex));
+      while (insertMap.has(targetIndex) && targetIndex < filteredEvents.length - 1) {
+        targetIndex += 1;
+      }
+      if (targetIndex < filteredEvents.length) {
+        insertMap.set(targetIndex, signal);
+      }
+    });
+    return insertMap;
+  }, [filteredEvents.length, marketSignalStrips]);
+
+  const firstMarketSignalInsertIndex = useMemo(() => {
+    const first = marketSignalInsertMap.keys().next();
+    return first.done ? -1 : first.value;
+  }, [marketSignalInsertMap]);
+
+  const quickFeedCounts = useMemo(() => {
+    const investorConferences = events.filter((event) => event.primaryCategory.toLowerCase().includes("investor")).length;
+    const healthcareConferences = events.filter((event) => event.sectorThemes.toLowerCase().includes("health")).length;
+    const privateMarkets = events.filter((event) => event.marketFocus.toLowerCase().includes("private")).length;
+    const canadaEvents = events.filter((event) => event.country.toLowerCase() === "canada").length;
+    const today = new Date();
+    const in30 = new Date();
+    in30.setDate(today.getDate() + 30);
+    const upcoming30 = events.filter((event) => {
+      const start = new Date(`${event.startDate}T00:00:00`);
+      return !Number.isNaN(start.getTime()) && start >= today && start <= in30;
+    }).length;
+    const hotWeeks = allConcentrationCards.filter((item) => item.type === "hotweek").length;
+    return {
+      investorConferences,
+      healthcareConferences,
+      privateMarkets,
+      canadaEvents,
+      upcoming30,
+      hotWeeks,
+    };
+  }, [events, allConcentrationCards]);
+
   const applyHeroQuickView = (key: string) => {
     const applyPreset = (next: Partial<FiltersState>) => {
       setFilters({
@@ -1305,6 +2986,11 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
     if (action.type === "week" && !action.from && !action.to) {
       return;
     }
+    setDashboardMode("market");
+    setWorkspaceViewMode("database");
+    setSelectedEvents([]);
+    setActiveSavedListId(null);
+    setActiveQuickView("");
     if (action.type === "sectorTheme") {
       setFilters({ ...DEFAULT_FILTERS, sectorThemes: [action.value] });
       setFromDate("");
@@ -1321,6 +3007,13 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
     }
     if (action.type === "marketFocus") {
       setFilters({ ...DEFAULT_FILTERS, marketFocus: [action.value] });
+      setFromDate("");
+      setToDate("");
+      scrollToResultsAnchor();
+      return;
+    }
+    if (action.type === "issuerParticipation") {
+      setFilters({ ...DEFAULT_FILTERS, issuerParticipation: [action.value] });
       setFromDate("");
       setToDate("");
       scrollToResultsAnchor();
@@ -1373,6 +3066,14 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
     setActiveSavedListId(null);
     recordActivity("view", `Saved list: ${name}`, `${eventIds.length} events`);
     scrollToResultsAnchor();
+  };
+
+  const saveSingleEventToNewList = (event: WorkspaceEvent) => {
+    const defaultName = `${event.title} List`;
+    const name = window.prompt("List name", defaultName);
+    if (!name) return;
+    setSavedLists((prev) => [{ id: `${Date.now()}`, name, eventIds: [event.id], createdAt: new Date().toISOString() }, ...prev]);
+    recordActivity("view", `Saved list: ${name}`, "1 event");
   };
 
   const addSelectedToExistingList = (listId: string) => {
@@ -1448,11 +3149,91 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
     recordActivity("view", `Deleted view: ${target.name}`);
   };
 
-  const openCalendarSync = (platform: "Google Calendar" | "Apple Calendar" | "Outlook") => {
-    recordActivity("feed", `Sync started: ${platform}`);
-    const icsUrl = `${window.location.origin}/api/ics`;
+  const buildSuggestedCalendarFeedName = () => {
+    const parts: string[] = [];
+    const locationLabel =
+      filters.cities[0] ||
+      filters.state ||
+      filters.region ||
+      filters.country ||
+      "";
+    const dateLabel =
+      fromDate && toDate
+        ? `${formatMonthDay(fromDate)}-${formatMonthDay(toDate)}`
+        : filters.dateRange === "next30"
+          ? "Next 30 Days"
+          : filters.dateRange === "next60"
+            ? "Next 60 Days"
+            : filters.dateRange === "next90"
+              ? "Next 90 Days"
+              : "";
+
+    if (filters.marketFocus[0]) parts.push(filters.marketFocus[0]);
+    else if (filters.sectorThemes[0]) parts.push(filters.sectorThemes[0]);
+    else if (filters.conferenceType[0]) parts.push(filters.conferenceType[0]);
+
+    if (locationLabel) parts.push(locationLabel);
+    if (filters.issuerParticipation[0]) parts.push(filters.issuerParticipation[0]);
+    if (dateLabel) parts.push(dateLabel);
+
+    const compact = parts.filter(Boolean).slice(0, 3);
+    return compact.length ? `CCC · ${compact.join(" · ")}` : "CCC · Current Market View";
+  };
+
+  const buildCalendarSyncParams = () => {
+    const params = new URLSearchParams();
+    const appendMany = (key: string, values: string[]) => {
+      values.filter(Boolean).forEach((value) => params.append(key, value));
+    };
+    const computedRangeEnd = (() => {
+      if (fromDate || toDate) return { from: fromDate, to: toDate };
+      if (filters.dateRange === "all") return { from: "", to: "" };
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setDate(end.getDate() + (filters.dateRange === "next30" ? 30 : filters.dateRange === "next60" ? 60 : 90));
+      return {
+        from: start.toISOString().slice(0, 10),
+        to: end.toISOString().slice(0, 10),
+      };
+    })();
+
+    if (searchQuery.trim()) params.set("q", searchQuery.trim());
+    appendMany("country", filters.country ? [filters.country] : []);
+    appendMany("region", filters.region ? [filters.region] : []);
+    appendMany("state", filters.state ? [filters.state] : []);
+    appendMany("city", filters.cities);
+    appendMany("sectorTheme", filters.sectorThemes);
+    appendMany("category", filters.conferenceType);
+    appendMany("issuerParticipation", filters.issuerParticipation);
+    appendMany("organizer", filters.organizer);
+    appendMany("marketFocus", filters.marketFocus);
+    if (computedRangeEnd.from) params.set("from", computedRangeEnd.from);
+    if (computedRangeEnd.to) params.set("to", computedRangeEnd.to);
+    return params;
+  };
+
+  const createCalendarFeedKey = (feedName: string, params: URLSearchParams) => {
+    const base = `${feedName}::${params.toString()}`;
+    let hash = 0;
+    for (let i = 0; i < base.length; i += 1) {
+      hash = (hash * 31 + base.charCodeAt(i)) >>> 0;
+    }
+    return `feed-${hash.toString(36)}`;
+  };
+
+  const launchCalendarSync = (platform: "Google Calendar" | "Apple Calendar" | "Outlook", customFeedName?: string) => {
+    recordActivity("feed", `Sync started: ${platform}`, customFeedName?.trim() || undefined);
+    const params = buildCalendarSyncParams();
+    const feedNameValue = customFeedName?.trim();
+    if (feedNameValue) params.set("name", feedNameValue);
+    params.set("feedKey", createCalendarFeedKey(feedNameValue || "Capital Conference Calendar - Current View", params));
+
+    const queryString = params.toString();
+    const icsPath = queryString ? `/api/ics?${queryString}` : "/api/ics";
+    const icsUrl = `${window.location.origin}${icsPath}`;
     const webcalUrl = icsUrl.replace(/^https?:\/\//i, "webcal://");
-    const feedName = encodeURIComponent("Capital Conference Calendar - Current View");
+    const feedName = encodeURIComponent(feedNameValue || "Capital Conference Calendar - Current View");
 
     if (platform === "Google Calendar") {
       const googleUrl = `https://calendar.google.com/calendar/u/0/r/settings/addbyurl?cid=${encodeURIComponent(webcalUrl)}`;
@@ -1461,13 +3242,20 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
     }
 
     if (platform === "Outlook") {
-      const outlookUrl = `https://outlook.live.com/calendar/0/addcalendar?url=${encodeURIComponent(icsUrl)}&name=${feedName}`;
-      window.open(outlookUrl, "_blank", "noopener,noreferrer");
+      const outlookHelpUrl = `/help/outlook-calendar?feedUrl=${encodeURIComponent(icsUrl)}`;
+      window.open(outlookHelpUrl, "_blank", "noopener,noreferrer");
       return;
     }
 
     // Apple Calendar / generic ICS clients
     window.open(webcalUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const openCalendarSync = (platform: "Google Calendar" | "Apple Calendar" | "Outlook") => {
+    const suggestedName = buildSuggestedCalendarFeedName();
+    const customFeedName = window.prompt("Name this calendar feed", suggestedName);
+    if (customFeedName === null) return;
+    launchCalendarSync(platform, customFeedName.trim() || suggestedName);
   };
 
   const createSelectedIcs = () => {
@@ -1528,7 +3316,7 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
         return;
       }
     }
-    scrollToResultsAnchor();
+    scrollToWorkspaceTop();
   };
 
   const handleSubmitConferenceUrl = () => {
@@ -1550,8 +3338,28 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
     });
   };
 
+  const handleAccessRequest = () => {
+    if (!accessRequestForm.name.trim() || !accessRequestForm.email.trim()) {
+      setAccessRequestMessage("Please add your name and email so we can review your request.");
+      return;
+    }
+    setAccessRequestMessage("Request received. We’ll review access requests and follow up with approved users.");
+    setAccessRequestForm({
+      name: "",
+      email: "",
+      company: "",
+      role: "",
+      audience: "Investor",
+    });
+  };
+
   const applyConcentrationItem = (item: ConcentrationItem) => {
     if (!item) return;
+    setDashboardMode("market");
+    setWorkspaceViewMode("database");
+    setSelectedEvents([]);
+    setActiveSavedListId(null);
+    setActiveQuickView("");
     if (item.type === "cluster") {
       setFilters({
         ...DEFAULT_FILTERS,
@@ -1576,741 +3384,2020 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
     scrollToResultsAnchor();
   };
 
-  return (
-    <div className="workspace-shell" style={{ display: "grid", gridTemplateColumns: "minmax(0, 280px) minmax(0, 1fr) minmax(0, 280px)", gridTemplateRows: "minmax(0, 1fr)", gap: "16px", alignItems: "stretch", width: "100%", height: PANEL_HEIGHT, maxWidth: "100%", minWidth: 0, minHeight: 0, overflow: "hidden" }}>
-      <aside
-        className="ccc-scroll-rail ccc-scroll-rail-left"
-        style={{ position: "relative", alignSelf: "stretch", display: "grid", gap: "14px", minWidth: 0, minHeight: 0, width: "100%", maxWidth: "280px", height: PANEL_HEIGHT, maxHeight: PANEL_HEIGHT, overflow: "hidden", paddingRight: "2px" }}
-      >
-        <div style={{ height: "100%", maxHeight: "100%", overflowY: "auto", overflowX: "hidden", overscrollBehaviorY: "contain", WebkitOverflowScrolling: "touch", paddingRight: "4px", paddingBottom: "8px" }}>
-        <div style={{ width: "100%", maxWidth: "100%", overflow: "hidden", border: "1px solid rgba(96,165,250,0.12)", borderRadius: "14px", background: "linear-gradient(180deg, rgba(7,27,48,0.84) 0%, rgba(6,24,43,0.8) 100%)", padding: "14px", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03), 0 12px 24px rgba(2,10,24,0.28)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
-            <div style={{ fontWeight: 800, color: "#dbeafe" }}>Refine Your Market View</div>
-            <button onClick={clearWorkspaceView} style={{ background: "transparent", border: 0, color: "#93c5fd", cursor: "pointer", fontSize: "12px" }}>Clear all</button>
-          </div>
+  const handleMarketSignalAction = useCallback((signal: MarketSignalStrip) => {
+    if (signal.action.kind === "cluster") {
+      applyConcentrationItem(signal.action.item);
+      setDashboardMode("marketview");
+      return;
+    }
+    applyAnalysisView(signal.action.action);
+    setDashboardMode("marketview");
+  }, [applyConcentrationItem, applyAnalysisView]);
 
-          <div style={{ display: "grid", gap: "8px", minWidth: 0 }}>
-            <label style={{ fontSize: "11px", color: "#93c5fd" }}>Date Range</label>
-            <select value={filters.dateRange} onChange={(e) => setFilters((p) => ({ ...p, dateRange: e.target.value as FiltersState["dateRange"] }))} style={controlStyle}>
-              <option value="next30">Next 30 Days</option>
-              <option value="next60">Next 60 Days</option>
-              <option value="next90">Next 90 Days</option>
-              <option value="all">All</option>
-            </select>
+  const forceMobile =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("mobile") === "1";
+  const isMobile = forceMobile || isMobileViewport;
+  const isTablet = !forceMobile && isTabletViewport;
 
-            <div className="ccc-filter-date-row" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: "8px", width: "100%", minWidth: 0, maxWidth: "100%" }}>
-              <div>
-                <label style={{ fontSize: "11px", color: "#93c5fd", display: "block", marginBottom: "4px" }}>From</label>
-                <input type="date" value={fromDate} onChange={(e)=>{setFromDate(e.target.value); if (!toDate || e.target.value > toDate) setToDate(e.target.value);}} style={{ ...controlStyle, minWidth: 0, maxWidth: "100%", padding: "0 8px" }} />
+  const mobileEvents = useMemo(() => {
+    const q = mobileSearchTerm.trim().toLowerCase();
+    if (!q) return filteredEvents;
+    return filteredEvents.filter((e) => {
+      const haystack = `${e.title} ${e.organizer} ${e.city} ${e.state} ${e.primaryCategory} ${e.marketFocus} ${e.sectorThemes}`.toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [filteredEvents, mobileSearchTerm]);
+
+  const getMobileTags = (event: WorkspaceEvent) => {
+    return unique([
+      event.primaryCategory,
+      ...splitCsv(event.sectorThemes),
+      ...splitCsv(event.marketFocus),
+      event.issuerParticipation,
+    ]).filter(Boolean);
+  };
+
+  if (isMobile || isTablet) {
+    const isCompact = isMobile;
+    return (
+      <div style={{ width: "100%", minHeight: "calc(100vh - 126px)", display: "grid", gap: isCompact ? "10px" : "12px", paddingBottom: "86px", overflowX: "hidden" }}>
+        <section style={{ border: "1px solid rgba(96,165,250,0.2)", borderRadius: "14px", background: "linear-gradient(180deg, rgba(7,24,44,0.92) 0%, rgba(5,18,34,0.94) 100%)", padding: "12px 12px 10px", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+          {forceMobile ? (
+            <div
+              aria-label="Mobile only marker"
+              style={{
+                width: "fit-content",
+                marginBottom: "9px",
+                border: "1px solid rgba(125,211,252,0.42)",
+                borderRadius: "999px",
+                background: "rgba(14,116,144,0.22)",
+                color: "#cffafe",
+                fontSize: "10px",
+                fontWeight: 850,
+                letterSpacing: "0.08em",
+                lineHeight: 1,
+                padding: "6px 8px",
+                textTransform: "uppercase",
+              }}
+            >
+              Mobile Only
+            </div>
+          ) : null}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
+            <div>
+              <div style={{ color: "#93c5fd", fontSize: "11px", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                <span className="ccc-mode-beacon" />
+                Live Market View
               </div>
-              <div>
-                <label style={{ fontSize: "11px", color: "#93c5fd", display: "block", marginBottom: "4px" }}>To</label>
-                <input type="date" value={toDate} min={fromDate || undefined} onChange={(e)=>setToDate(e.target.value)} style={{ ...controlStyle, minWidth: 0, maxWidth: "100%", padding: "0 8px" }} />
+              <div style={{ color: "#f8fbff", fontSize: isCompact ? "17px" : "19px", fontWeight: 800, lineHeight: 1.15, marginTop: "2px" }}>
+                {mobileEvents.length} of {events.length} Conferences
               </div>
             </div>
-
-            <label style={{ fontSize: "11px", color: "#93c5fd" }}>Country</label>
-            <select value={filters.country} onChange={(e) => setFilters((p) => ({ ...p, country: e.target.value }))} style={controlStyle}>
-              <option value="">All Country</option>
-              {countries.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}
-            </select>
-
-            <label style={{ fontSize: "11px", color: "#93c5fd" }}>Region</label>
-            <select value={filters.region} onChange={(e) => setFilters((p) => ({ ...p, region: e.target.value }))} style={controlStyle}>
-              <option value="">All Region</option>
-              {regions.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}
-            </select>
-
-            <label style={{ fontSize: "11px", color: "#93c5fd" }}>State</label>
-            <select value={filters.state} onChange={(e) => setFilters((p) => ({ ...p, state: e.target.value }))} style={controlStyle}>
-              <option value="">All State</option>
-              {states.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}
-            </select>
-
-            <label style={{ fontSize: "11px", color: "#93c5fd" }}>Cities</label>
-            <select
-              value={filters.cities[0] || ""}
-              onChange={(e) => setFilters((p) => ({ ...p, cities: e.target.value ? [e.target.value] : [] }))}
-              style={controlStyle}
+            <button
+              type="button"
+              onClick={() => {
+                setMobilePanel("intel");
+                setTimeout(() => scrollToResultsAnchor(), 20);
+              }}
+              style={{ height: "34px", borderRadius: "9px", border: "1px solid rgba(147,197,253,0.3)", background: "rgba(30,64,175,0.2)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", fontWeight: 700 }}
             >
-              <option value="">All Cities</option>
-              {cities.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}
-            </select>
-
-            <label style={{ fontSize: "11px", color: "#93c5fd" }}>Sector / Themes</label>
-            <select value={filters.sectorThemes[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, sectorThemes: e.target.value ? [e.target.value] : [] }))} style={controlStyle}>
-              <option value="">All Sectors / Themes</option>
-              {themes.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}
-            </select>
-
-            <label style={{ fontSize: "11px", color: "#93c5fd" }}>Conference Type</label>
-            <select value={filters.conferenceType[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, conferenceType: e.target.value ? [e.target.value] : [] }))} style={controlStyle}>
-              <option value="">All Types</option>
-              {conferenceTypes.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}
-            </select>
-
-            <label style={{ fontSize: "11px", color: "#93c5fd" }}>Issuer Participation</label>
-            <select value={filters.issuerParticipation[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, issuerParticipation: e.target.value ? [e.target.value] : [] }))} style={controlStyle}>
-              <option value="">All Issuer Participation</option>
-              {issuers.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}
-            </select>
-
-            <label style={{ fontSize: "11px", color: "#93c5fd" }}>Organizer</label>
-            <select value={filters.organizer[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, organizer: e.target.value ? [e.target.value] : [] }))} style={controlStyle}>
-              <option value="">All Organizers</option>
-              {organizers.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}
-            </select>
-
-            <label style={{ fontSize: "11px", color: "#93c5fd" }}>Market Focus</label>
-            <select value={filters.marketFocus[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, marketFocus: e.target.value ? [e.target.value] : [] }))} style={controlStyle}>
-              <option value="">All Market Focus</option>
-              {marketFocusOptions.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}
-            </select>
+              Market Intel
+            </button>
           </div>
+          <input
+            value={mobileSearchTerm}
+            onChange={(e) => setMobileSearchTerm(e.target.value)}
+            placeholder="Search in current results..."
+            style={{ marginTop: "10px", width: "100%", height: isCompact ? "36px" : "40px", borderRadius: "9px", border: "1px solid rgba(147,197,253,0.26)", background: "rgba(8,22,48,0.72)", color: "#e2e8f0", padding: "0 10px", fontSize: isCompact ? "13px" : "14px", outline: "none" }}
+          />
+        </section>
 
-          <button onClick={saveCurrentView} style={{ marginTop: "10px", width: "100%", height: "38px", borderRadius: "9px", border: "1px solid #2563eb", background: "#2563eb", color: "white", fontWeight: 700 }}>Save Current View</button>
-          <div style={{ display: "grid", gap: "8px", marginTop: "14px" }}>
-            {[
-              { label: "About", href: "/?mode=about" },
-              { label: "Contact", href: "/?mode=contact" },
-              { label: "Legal", href: "/legal" },
-              { label: "Subscribe", href: "/?mode=subscribe" },
-              { label: "Submit", href: "/?mode=submit" },
-            ].map((item) => (
-              <a
-                key={item.label}
-                href={item.href}
+        <section ref={resultsAnchorRef} style={{ display: "grid", gap: "10px", gridTemplateColumns: isCompact ? "minmax(0,1fr)" : "repeat(2, minmax(0, 1fr))", minWidth: 0 }}>
+          {mobileEvents.map((e) => {
+            const parts = toDateRangeParts(e.startDate, e.endDate);
+            const isMultiDay = parts.dayRange.includes("–");
+            const weekStart = getWeekStart(e.startDate);
+            const isHot = hotWeekKeys.has(weekStart);
+            const cityLabel = [e.city, e.state].filter(Boolean).join(", ");
+            const eventTime = new Date(`${e.startDate}T00:00:00Z`).getTime();
+            const isCluster = viewClusters.some((cluster) => {
+              if (cluster.type !== "cluster") return false;
+              if (cluster.label !== cityLabel) return false;
+              const start = new Date(`${cluster.weekStart}T00:00:00Z`).getTime();
+              const end = new Date(`${cluster.weekEnd}T23:59:59Z`).getTime();
+              return eventTime >= start && eventTime <= end;
+            });
+            const tags = getMobileTags(e).slice(0, 2);
+            const selected = selectedSet.has(e.id);
+            const link = buildEventLink(e);
+            return (
+              <article
+                key={`mobile-${e.id}`}
+                onClick={() => toggleSelect(e.id)}
                 style={{
-                  height: "34px",
-                  borderRadius: "9px",
-                  border: "1px solid rgba(147,197,253,0.28)",
-                  background: "rgba(12,40,72,0.8)",
-                  color: "#e2ecff",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  padding: "0 12px",
-                  textDecoration: "none",
-                  fontSize: "13px",
-                  fontWeight: 800,
+                  border: selected ? "1px solid rgba(96,165,250,0.8)" : "1px solid rgba(96,165,250,0.22)",
+                  borderRadius: "14px",
+                  background: "linear-gradient(145deg, rgba(8,28,52,0.95) 0%, rgba(4,14,30,0.98) 100%)",
+                  padding: isCompact ? "10px" : "12px",
+                  display: "grid",
+                  gap: "8px",
+                  boxShadow: selected ? "0 0 0 1px rgba(59,130,246,0.25), 0 12px 22px rgba(2,8,18,0.4)" : "0 10px 18px rgba(2,8,18,0.34)",
                 }}
               >
-                {item.label}
-              </a>
+                <div style={{ display: "grid", gridTemplateColumns: "66px minmax(0,1fr) auto", gap: "8px", alignItems: "start" }}>
+                  <div style={{ height: "66px", borderRadius: "12px", border: "1px solid rgba(147,197,253,0.24)", background: isHot ? "linear-gradient(180deg, rgba(141,99,59,0.45), rgba(68,42,26,0.6))" : isCluster ? "linear-gradient(180deg, rgba(127,53,69,0.44), rgba(58,22,34,0.62))" : "linear-gradient(180deg, rgba(56,88,138,0.52), rgba(22,37,69,0.64))", display: "grid", alignContent: "center", justifyItems: "center", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+                    <div style={{ color: "#dbeafe", fontSize: "11px", fontWeight: 800, lineHeight: 1, letterSpacing: "0.04em", minHeight: "11px" }}>{parts.month}</div>
+                    <div
+                      style={{
+                        color: "#f8fbff",
+                        fontSize: isMultiDay ? "18px" : "27px",
+                        fontWeight: 820,
+                        marginTop: "2px",
+                        lineHeight: 1,
+                        minHeight: isMultiDay ? "20px" : "27px",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        whiteSpace: "nowrap",
+                        letterSpacing: isMultiDay ? "0.01em" : "0",
+                        maxWidth: "100%",
+                      }}
+                    >
+                      {parts.dayRange}
+                    </div>
+                    <div style={{ color: "#cfe2fb", fontSize: "10px", fontWeight: 700, marginTop: "3px", lineHeight: 1, minHeight: "10px", letterSpacing: "0.03em" }}>{parts.dowRange}</div>
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ color: "#f8fbff", fontSize: isCompact ? "18px" : "19px", fontWeight: 760, lineHeight: 1.12, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{e.title}</div>
+                    <div style={{ color: "#c2d8f3", fontSize: isCompact ? "14px" : "15px", fontWeight: 650, marginTop: "5px", whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" }}>{e.organizer || "Organizer TBD"}</div>
+                    <div style={{ color: "#9ec0e4", fontSize: isCompact ? "13px" : "14px", marginTop: "2px" }}>{cityLabel || e.country || "Location TBD"}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleSelect(e.id);
+                    }}
+                    aria-label={selected ? "Deselect event" : "Select event"}
+                    style={{ width: "26px", height: "26px", borderRadius: "999px", border: selected ? "1px solid rgba(96,165,250,0.95)" : "1px solid rgba(147,197,253,0.4)", background: selected ? "rgba(37,99,235,0.38)" : "rgba(8,22,48,0.48)", color: "#dbeafe", fontSize: "12px", lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                  >
+                    {selected ? "✓" : ""}
+                  </button>
+                </div>
+
+                <div style={{ color: "#c9def9", fontSize: isCompact ? "13px" : "14px", lineHeight: 1.3 }}>
+                  <strong style={{ color: "#e9f2ff", fontWeight: 760 }}>Market Signal:</strong>{" "}
+                  {isCluster ? "Clustered activity in this market window." : isHot ? "Hot week participation is elevated." : "Institutional attendance trend remains active."}
+                </div>
+
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                  {(isHot ? ["HOT WEEK"] : []).concat(isCluster ? ["CLUSTER"] : []).concat(tags).slice(0, 2).map((tag, index) => (
+                    <span key={`${e.id}-m-tag-${tag}-${index}`} style={{ height: "24px", padding: "0 9px", borderRadius: "999px", border: "1px solid rgba(147,197,253,0.26)", background: "rgba(10,26,52,0.7)", color: "#dbeafe", fontSize: "11px", fontWeight: 650, display: "inline-flex", alignItems: "center" }}>{tag}</span>
+                  ))}
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: "8px" }}>
+                  <a
+                    href={link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(event) => event.stopPropagation()}
+                    style={{ height: isCompact ? "36px" : "38px", borderRadius: "10px", border: "1px solid rgba(147,197,253,0.3)", background: "rgba(8,22,48,0.75)", color: "#dbeafe", fontSize: isCompact ? "13px" : "14px", fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                  >
+                    Event Link
+                  </a>
+                  <div onClick={(event) => event.stopPropagation()} style={{ display: "flex", justifyContent: "stretch", minWidth: 0 }}>
+                    <AddToCalendar
+                      title={e.title}
+                      startDate={e.startDate}
+                      endDate={e.endDate}
+                      location={[cityLabel, e.venue].filter(Boolean).join(" · ")}
+                      description={buildDescription(e)}
+                      url={buildEventLink(e)}
+                      compact
+                      showIcon
+                      fullWidth
+                    />
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </section>
+
+        {mobilePanel ? (
+          <div style={{ position: "fixed", inset: 0, zIndex: 110, background: "rgba(2,8,20,0.62)" }} onClick={() => setMobilePanel(null)}>
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                bottom: "72px",
+                maxHeight: "70vh",
+                overflowY: "auto",
+                overscrollBehavior: "contain",
+                background: "linear-gradient(180deg, rgba(8,24,46,0.98) 0%, rgba(4,14,30,0.99) 100%)",
+                borderTop: "1px solid rgba(147,197,253,0.26)",
+                borderTopLeftRadius: "16px",
+                borderTopRightRadius: "16px",
+                padding: "12px",
+                display: "grid",
+                gap: "10px",
+                minWidth: 0,
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ color: "#f8fbff", fontWeight: 800 }}>
+                  {mobilePanel === "filters" ? "Filters" : mobilePanel === "workspace" ? "Workspace" : "Market Intelligence"}
+                </div>
+                <button type="button" onClick={() => setMobilePanel(null)} style={{ border: "1px solid rgba(147,197,253,0.28)", background: "rgba(8,22,48,0.6)", color: "#dbeafe", borderRadius: "8px", height: "30px", padding: "0 10px" }}>Done</button>
+              </div>
+
+              {mobilePanel === "filters" ? (
+                <div style={{ display: "grid", gap: "8px", minWidth: 0 }}>
+                  <select value={filters.dateRange} onChange={(e) => setFilters((p) => ({ ...p, dateRange: e.target.value as FiltersState["dateRange"] }))} style={controlStyle}>
+                    <option value="next30">Next 30 Days</option>
+                    <option value="next60">Next 60 Days</option>
+                    <option value="next90">Next 90 Days</option>
+                    <option value="all">All</option>
+                  </select>
+                  <input type="date" value={fromDate} onChange={(e)=>{setFromDate(e.target.value); if (!toDate || e.target.value > toDate) setToDate(e.target.value);}} style={{ ...controlStyle, padding: "0 8px" }} />
+                  <input type="date" value={toDate} min={fromDate || undefined} onChange={(e)=>setToDate(e.target.value)} style={{ ...controlStyle, padding: "0 8px" }} />
+                  <select value={filters.country} onChange={(e) => setFilters((p) => ({ ...p, country: e.target.value }))} style={controlStyle}><option value="">All Country</option>{countries.map((o, i) => <option key={`m-country-${o}-${i}`} value={o}>{o}</option>)}</select>
+                  <select value={filters.region} onChange={(e) => setFilters((p) => ({ ...p, region: e.target.value }))} style={controlStyle}><option value="">All Region</option>{regions.map((o, i) => <option key={`m-region-${o}-${i}`} value={o}>{o}</option>)}</select>
+                  <select value={filters.state} onChange={(e) => setFilters((p) => ({ ...p, state: e.target.value }))} style={controlStyle}><option value="">All State</option>{states.map((o, i) => <option key={`m-state-${o}-${i}`} value={o}>{o}</option>)}</select>
+                  <select value={filters.cities[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, cities: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Cities</option>{cities.map((o, i) => <option key={`m-city-${o}-${i}`} value={o}>{o}</option>)}</select>
+                  <select value={filters.conferenceType[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, conferenceType: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Types</option>{conferenceTypes.map((o, i) => <option key={`m-type-${o}-${i}`} value={o}>{o}</option>)}</select>
+                  <select value={filters.issuerParticipation[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, issuerParticipation: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Issuer Participation</option>{issuers.map((o, i) => <option key={`m-issuer-${o}-${i}`} value={o}>{o}</option>)}</select>
+                  <select value={filters.sectorThemes[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, sectorThemes: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Sectors / Themes</option>{themes.map((o, i) => <option key={`m-theme-${o}-${i}`} value={o}>{o}</option>)}</select>
+                  <select value={filters.marketFocus[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, marketFocus: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Market Focus</option>{marketFocusOptions.map((o, i) => <option key={`m-focus-${o}-${i}`} value={o}>{o}</option>)}</select>
+                  <select value={filters.organizer[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, organizer: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Organizers</option>{organizers.map((o, i) => <option key={`m-org-${o}-${i}`} value={o}>{o}</option>)}</select>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", position: "sticky", bottom: 0, background: "linear-gradient(180deg, rgba(4,14,30,0), rgba(4,14,30,0.96) 26%)", paddingTop: "8px" }}>
+                    <button type="button" onClick={clearWorkspaceView} style={{ height: "36px", borderRadius: "9px", border: "1px solid rgba(147,197,253,0.26)", background: "rgba(8,22,48,0.7)", color: "#dbeafe", fontWeight: 700 }}>Reset</button>
+                    <button type="button" onClick={() => setMobilePanel(null)} style={{ height: "36px", borderRadius: "9px", border: "1px solid rgba(59,130,246,0.45)", background: "rgba(37,99,235,0.3)", color: "#fff", fontWeight: 700 }}>Apply</button>
+                  </div>
+                </div>
+              ) : null}
+
+              {mobilePanel === "workspace" ? (
+                <div style={{ display: "grid", gap: "8px" }}>
+                  <button type="button" onClick={() => openCalendarSync("Google Calendar")} style={{ ...controlStyle, height: "38px", fontWeight: 700 }}>Google Calendar</button>
+                  <button type="button" onClick={() => openCalendarSync("Apple Calendar")} style={{ ...controlStyle, height: "38px", fontWeight: 700 }}>Apple Calendar</button>
+                  <button type="button" onClick={() => openCalendarSync("Outlook")} style={{ ...controlStyle, height: "38px", fontWeight: 700 }}>Outlook</button>
+                  <button type="button" onClick={createSelectedIcs} style={{ ...controlStyle, height: "38px", fontWeight: 700 }}>Download ICS Snapshot</button>
+                  <button type="button" onClick={saveCurrentView} style={{ ...controlStyle, height: "38px", fontWeight: 700 }}>Save Current View</button>
+                  <button type="button" onClick={shareSelected} style={{ ...controlStyle, height: "38px", fontWeight: 700 }}>Share Current Market View</button>
+                  <div style={{ color: "#9ec0e4", fontSize: "11px", marginTop: "4px" }}>Saved views and lists use local browser storage.</div>
+                </div>
+              ) : null}
+
+              {mobilePanel === "intel" ? (
+                <div style={{ display: "grid", gap: "10px" }}>
+                  <ConcentrationStrip
+                    items={viewConcentrationCards}
+                    onSelect={applyConcentrationItem}
+                  />
+                  <div style={{ border: "1px solid rgba(147,197,253,0.18)", borderRadius: "10px", background: "rgba(8,30,53,0.72)", padding: "10px", color: "#dbeafe", fontSize: "12px", lineHeight: 1.45 }}>
+                    <div>Top city: <strong>{inViewStats.cities} active cities</strong></div>
+                    <div>Top themes: <strong>{inViewStats.themes}</strong></div>
+                    <div>Recent additions: <strong>{events.slice(-5).length}</strong></div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        <nav style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 120, height: isCompact ? "68px" : "72px", paddingBottom: "env(safe-area-inset-bottom)", background: "linear-gradient(180deg, rgba(5,16,32,0.98), rgba(3,12,24,0.99))", borderTop: "1px solid rgba(147,197,253,0.22)", display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr))" }}>
+          {[
+            { id: "filters" as const, label: "Filters", icon: "◫" },
+            { id: "database" as const, label: "Database", icon: "▤" },
+            { id: "workspace" as const, label: "Workspace", icon: "⌘" },
+            { id: "intel" as const, label: "Market Intel", icon: "◉" },
+          ].map((item) => {
+            const active = item.id !== "database" ? mobilePanel === item.id : mobilePanel === null;
+            return (
+              <button
+                key={`mobile-nav-${item.id}`}
+                type="button"
+                onClick={() => {
+                  if (item.id === "database") {
+                    setMobilePanel(null);
+                    scrollToResultsAnchor();
+                    return;
+                  }
+                  setMobilePanel((prev) => (prev === item.id ? null : item.id));
+                }}
+                style={{ border: "none", background: "transparent", color: active ? "#f8fbff" : "#9fb8d8", display: "grid", justifyItems: "center", alignContent: "center", gap: "4px", fontSize: isCompact ? "11px" : "12px", fontWeight: 700, minHeight: "44px" }}
+              >
+                <span style={{ fontSize: isCompact ? "15px" : "16px", lineHeight: 1, color: active ? "#93c5fd" : "#7f95b5" }}>{item.icon}</span>
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+    );
+  }
+
+  return (
+    <div className="workspace-shell" style={{ display: "grid", gridTemplateColumns: "minmax(280px, 290px) minmax(0, 1fr) minmax(300px, 320px)", gridTemplateRows: "minmax(0, 1fr)", gap: "18px", alignItems: "stretch", width: "100%", height: PANEL_HEIGHT, maxWidth: "100%", minWidth: 0, minHeight: 0, overflow: "hidden", justifyContent: "center" }}>
+      <aside
+        className="ccc-scroll-rail ccc-scroll-rail-left"
+        style={{ position: "relative", alignSelf: "stretch", display: "grid", gap: "8px", minWidth: 0, minHeight: 0, width: "100%", maxWidth: "280px", height: PANEL_HEIGHT, maxHeight: PANEL_HEIGHT, overflow: "hidden", paddingRight: "2px" }}
+      >
+        <div style={{ height: "100%", maxHeight: "100%", overflowY: "auto", overflowX: "hidden", overscrollBehaviorY: "contain", WebkitOverflowScrolling: "touch", paddingRight: "4px", paddingBottom: "6px" }}>
+        <div style={{ ...leftRailSectionCardStyle, width: "100%", maxWidth: "100%", overflow: "hidden", padding: "10px" }}>
+          <div style={{ marginBottom: "10px" }}>
+            <div style={{ fontWeight: 900, color: "#dbeafe", fontSize: "20px", lineHeight: 1.05, marginBottom: "6px" }}>Refine Your Market View</div>
+            <div style={{ color: "#93aeca", fontSize: "12px", lineHeight: 1.35, marginBottom: "8px" }}>
+              Filter conferences by date, location, theme, and participation.
+            </div>
+            <button
+              type="button"
+              onClick={clearWorkspaceView}
+              style={{
+                height: "36px",
+                width: "100%",
+                borderRadius: "10px",
+                border: "1px solid rgba(120,160,220,0.2)",
+                background: "rgba(8,26,46,0.42)",
+                color: "#c9dff7",
+                cursor: "pointer",
+                fontSize: "12px",
+                fontWeight: 800,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+              }}
+            >
+              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#9ec2e8" }}>
+                <QuickActionIcon kind="clear" />
+              </span>
+              Clear Filters
+            </button>
+          </div>
+
+          <div style={{ display: "grid", gap: "6px", minWidth: 0 }}>
+            {[
+              { key: "dateTiming" as const, label: "DATE & TIMING", active: 0 },
+              { key: "location" as const, label: "LOCATION", active: locationActiveCount },
+              { key: "marketSegments" as const, label: "MARKET SEGMENTS", active: marketSegmentsActiveCount },
+              { key: "participation" as const, label: "PARTICIPATION", active: participationActiveCount },
+              { key: "organizers" as const, label: "ORGANIZERS", active: organizersActiveCount },
+            ].map((group, index) => (
+              <div
+                key={group.key}
+                style={{
+                  border: `1px solid rgba(96,165,250,${0.36 - index * 0.06})`,
+                  borderRadius: "10px",
+                  background: `linear-gradient(180deg, rgba(12,34,60,${0.52 - index * 0.06}), rgba(7,24,44,${0.4 - index * 0.05}))`,
+                  boxShadow: `inset 0 1px 0 rgba(255,255,255,0.04), 0 0 ${14 - index * 2}px rgba(59,130,246,${0.2 - index * 0.03})`,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setFilterGroupsOpen((prev) => ({ ...prev, [group.key]: !prev[group.key] }))}
+                  style={{ width: "100%", height: "48px", padding: "0 14px", border: 0, background: "transparent", color: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
+                >
+                  <span style={{ fontSize: "12px", fontWeight: 800, letterSpacing: "0.07em", display: "inline-flex", alignItems: "center", gap: "9px", color: "#d7e5f5" }}>
+                    <span style={{ width: "16px", height: "16px", color: "#b6c6da", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                      <FilterSectionIcon
+                        kind={
+                          group.key === "dateTiming"
+                            ? "date"
+                            : group.key === "location"
+                              ? "location"
+                              : group.key === "marketSegments"
+                                ? "segments"
+                                : group.key === "participation"
+                                  ? "participation"
+                                  : "organizers"
+                        }
+                      />
+                    </span>
+                    {group.label}
+                  </span>
+                  <span style={{ fontSize: "14px", color: "#c7dcf6", fontWeight: 800, letterSpacing: "0.01em", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                    {group.active ? `${group.active} active` : ""}
+                    <span style={{ fontSize: "16px", color: "#dbeafe", lineHeight: 1 }}>
+                      {filterGroupsOpen[group.key] ? "▾" : "▸"}
+                    </span>
+                  </span>
+                </button>
+                {filterGroupsOpen[group.key] ? (
+                  <div style={{ padding: "0 10px 8px", display: "grid", gap: "6px" }}>
+                    {group.key === "dateTiming" ? (
+                      <>
+                        <select value={filters.dateRange} onChange={(e) => setFilters((p) => ({ ...p, dateRange: e.target.value as FiltersState["dateRange"] }))} style={controlStyle}>
+                          <option value="next30">Next 30 Days</option>
+                          <option value="next60">Next 60 Days</option>
+                          <option value="next90">Next 90 Days</option>
+                          <option value="all">All</option>
+                        </select>
+                        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: "6px" }}>
+                          <input
+                            type="date"
+                            value={fromDate}
+                            onChange={(e)=>{setFromDate(e.target.value); if (!toDate || e.target.value > toDate) setToDate(e.target.value);}}
+                            style={{ ...controlStyle, padding: "0 30px 0 10px", fontSize: "13px" }}
+                          />
+                          <input
+                            type="date"
+                            value={toDate}
+                            min={fromDate || undefined}
+                            onChange={(e)=>setToDate(e.target.value)}
+                            style={{ ...controlStyle, padding: "0 30px 0 10px", fontSize: "13px" }}
+                          />
+                        </div>
+                      </>
+                    ) : null}
+                    {group.key === "location" ? (
+                      <>
+                        <select value={filters.country} onChange={(e) => setFilters((p) => ({ ...p, country: e.target.value }))} style={controlStyle}><option value="">All Country</option>{countries.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}</select>
+                        <select value={filters.region} onChange={(e) => setFilters((p) => ({ ...p, region: e.target.value }))} style={controlStyle}><option value="">All Region</option>{regions.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}</select>
+                        <select value={filters.state} onChange={(e) => setFilters((p) => ({ ...p, state: e.target.value }))} style={controlStyle}><option value="">All State</option>{states.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}</select>
+                        <select value={filters.cities[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, cities: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Cities</option>{cities.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}</select>
+                      </>
+                    ) : null}
+                    {group.key === "marketSegments" ? (
+                      <>
+                        <select value={filters.sectorThemes[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, sectorThemes: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Sectors / Themes</option>{themes.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}</select>
+                        <select value={filters.conferenceType[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, conferenceType: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Types</option>{conferenceTypes.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}</select>
+                        <select value={filters.marketFocus[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, marketFocus: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Market Focus</option>{marketFocusOptions.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}</select>
+                      </>
+                    ) : null}
+                    {group.key === "participation" ? (
+                      <select value={filters.issuerParticipation[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, issuerParticipation: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Issuer Participation</option>{issuers.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}</select>
+                    ) : null}
+                    {group.key === "organizers" ? (
+                      <select value={filters.organizer[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, organizer: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Organizers</option>{organizers.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}</select>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             ))}
           </div>
-          <div style={{ marginTop: "8px", border: "1px solid rgba(34,197,94,0.24)", borderRadius: "8px", background: "rgba(22,101,52,0.12)", padding: "8px 10px", color: "#86efac", fontSize: "12px", fontWeight: 700 }}>
-            Realtime Updates
+
+          <div style={{ marginTop: "6px", padding: "0" }}>
+            <div style={{ color: "#f8fbff", fontWeight: 800, fontSize: "14px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>Quick Feeds</div>
+            <div style={{ display: "grid", gap: "4px" }}>
+              {[
+                { key: "investor-conferences", title: "Investor Conferences", color: "#3b82f6", icon: "investor" as const, count: quickFeedCounts.investorConferences },
+                { key: "healthcare-conferences", title: "Healthcare", color: "#14b8a6", icon: "health" as const, count: quickFeedCounts.healthcareConferences },
+                { key: "private-markets", title: "Private Markets", color: "#7c3aed", icon: "private" as const, count: quickFeedCounts.privateMarkets },
+                { key: "canada-events", title: "Canada Events", color: "#dc2626", icon: "canada" as const, count: quickFeedCounts.canadaEvents },
+                { key: "upcoming-30-days", title: "Next 30 Days", color: "#2563eb", icon: "next30" as const, count: quickFeedCounts.upcoming30 },
+                { key: "hot-weeks", title: "Hot Weeks", color: "#f97316", icon: "next60" as const, count: quickFeedCounts.hotWeeks },
+              ].map((feed) => (
+                <button
+                  key={feed.key}
+                  type="button"
+                  onClick={() => {
+                    if (feed.key === "hot-weeks") {
+                      const firstHot = viewConcentrationCards.find((item) => item.type === "hotweek") || allConcentrationCards.find((item) => item.type === "hotweek");
+                      if (firstHot) {
+                        applyConcentrationItem(firstHot);
+                        recordActivity("feed", "Quick feed: hot weeks");
+                      }
+                      return;
+                    }
+                    applyHeroQuickView(feed.key);
+                  }}
+                  style={{ height: "38px", borderRadius: "8px", border: "1px solid rgba(147,197,253,0.08)", background: "rgba(147,197,253,0.02)", color: "#dbeafe", cursor: "pointer", display: "flex", alignItems: "center", gap: "10px", padding: "0 10px" }}
+                >
+                  <span style={{ width: "20px", height: "20px", display: "inline-flex", alignItems: "center", justifyContent: "center", color: feed.color, filter: "brightness(1.2)" }}>
+                    <QuickViewGlyph kind={feed.icon} color={feed.color} />
+                  </span>
+                  <span style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", alignItems: "center", gap: "8px", width: "100%", minWidth: 0 }}>
+                    <span style={{ fontSize: "13px", fontWeight: 700, color: "#dce8f8", lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "left" }}>{feed.title}</span>
+                    <span style={{ fontSize: "12px", fontWeight: 800, color: "#f8fbff" }}>({feed.count})</span>
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
+
         </div>
         </div>
       </aside>
 
-      <section ref={centerWorkspaceRef} className="center-workspace ccc-scroll-center" style={{ display: "grid", gap: "18px", minWidth: 0, minHeight: 0, maxWidth: "100%", width: "100%", height: PANEL_HEIGHT, maxHeight: PANEL_HEIGHT, overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", position: "relative", paddingRight: "2px", paddingBottom: "8px" }}>
+      <section ref={centerWorkspaceRef} className="center-workspace ccc-scroll-center" style={{ display: "grid", gap: "22px", minWidth: 0, minHeight: 0, maxWidth: "1240px", width: "100%", height: PANEL_HEIGHT, maxHeight: PANEL_HEIGHT, overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", position: "relative", padding: "0 28px 8px", margin: "0 auto" }}>
         <div style={{ position: "relative", zIndex: 1, transition: "opacity 180ms ease-out" }}>
-        {dashboardMode === "market" ? (
-        <div style={{ display: "grid", gap: "14px", paddingBottom: "10px" }}>
-        <div className="ccc-hero-panel" style={{ border: "1px solid rgba(96,165,250,0.24)", borderRadius: "18px", padding: "22px 24px 28px", minHeight: "332px", background: "radial-gradient(140% 130% at 86% -8%, rgba(44,112,248,0.28) 0%, rgba(14,34,62,0.16) 42%, rgba(8,20,38,0) 70%), radial-gradient(95% 88% at 30% 12%, rgba(66,120,194,0.14) 0%, rgba(8,20,38,0.03) 58%, rgba(8,20,38,0) 78%), linear-gradient(180deg, rgba(7,22,42,0.985) 0%, rgba(4,14,28,0.985) 100%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -26px 76px rgba(1,9,20,0.5), 0 16px 34px rgba(1,8,18,0.5)" }}>
-          <div style={{ fontSize: "11px", fontWeight: 800, letterSpacing: "0.09em", textTransform: "uppercase", color: "#93c5fd", display: "inline-flex", alignItems: "center", gap: "8px" }}>
-            <span className="ccc-mode-beacon" />
-            Live Market Intelligence
-          </div>
-          <div style={{ marginTop: "4px", fontSize: "38px", fontWeight: 850, color: "#f8fbff", lineHeight: 1.04 }}>US Capital Markets Conference Activity</div>
-          <div style={{ marginTop: "6px", color: "#c7dcf6", maxWidth: "840px", lineHeight: 1.42, fontSize: "15px" }}>Real-time intelligence on investor conferences, issuer access, and industry gatherings.</div>
-          <div className="hero-stats-compact" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "8px", marginTop: "10px", minWidth: 0, maxWidth: "100%" }}>
-            {[
-              { label: "Total Conferences", value: events.length, sub: "↑ 12% vs prior 30 days", icon: "total" as const },
-              { label: "Active Cities", value: unique(events.map((e) => [e.city, e.state].filter(Boolean).join(", "))).length, sub: "↑ 5 new", icon: "cities" as const },
-              { label: "Events Next 30 Days", value: events.filter((e) => new Date(`${e.startDate}T00:00:00Z`) <= new Date(Date.now() + 30 * 86400000)).length, sub: "↑ 18% vs prior 30 days", icon: "next30" as const },
-              { label: "High-Intensity Weeks", value: 2, sub: "May 11–17, May 25–31", icon: "hot" as const },
-            ].map((item) => (
-              <div className="stat-card" key={item.label} style={{ border: "1px solid rgba(147,197,253,0.14)", borderRadius: "12px", padding: "10px 11px", background: "linear-gradient(180deg, rgba(7,24,44,0.9) 0%, rgba(6,20,38,0.92) 100%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", alignItems: "center", columnGap: "10px" }}>
-                  <span
-                    style={{
-                      width: "20px",
-                      height: "20px",
-                      borderRadius: "8px",
-                      background: "rgba(76,29,149,0.46)",
-                      border: "1px solid rgba(167,139,250,0.55)",
-                      boxShadow: "0 0 10px rgba(109,40,217,0.35)",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <StatGlyph kind={item.icon} />
-                  </span>
-                  <div>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: "7px" }}>
-                      <span style={{ fontSize: "24px", color: "#f8fbff", fontWeight: 850, lineHeight: 1 }}>{item.value}</span>
-                      <span style={{ fontSize: "12px", color: "#d9e8fb", fontWeight: 700 }}>{item.label}</span>
-                    </div>
-                    <div style={{ marginTop: "3px", fontSize: "11px", color: item.sub.startsWith("↑") ? "#4ade80" : "#9fc0df", fontWeight: item.sub.startsWith("↑") ? 700 : 600, lineHeight: 1.25 }}>{item.sub}</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div style={{ marginTop: "9px" }}>
-            <div style={{ color: "#e2ecff", fontSize: "13px", fontWeight: 800, marginBottom: "6px" }}>Quick Views</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-              {[
-                { key: "most-active-cities", label: "Most Active Cities", accent: "#38bdf8", icon: "city" as const },
-                { key: "institutional-investor-events", label: "Institutional Investor Events", accent: "#8b5cf6", icon: "investor" as const },
-                { key: "healthcare-conferences", label: "Healthcare Conferences", accent: "#22c55e", icon: "health" as const },
-                { key: "private-markets", label: "Private Markets", accent: "#f59e0b", icon: "private" as const },
-                { key: "tech-ai", label: "Tech & AI", accent: "#a78bfa", icon: "tech" as const },
-                { key: "investor-conferences", label: "Investor Conferences", accent: "#c084fc", icon: "investor" as const },
-                { key: "upcoming-30-days", label: "Upcoming 30 Days", accent: "#60a5fa", icon: "next30" as const },
-                { key: "upcoming-60-days", label: "Upcoming 60 Days", accent: "#0ea5e9", icon: "next60" as const },
-                { key: "u-s-markets", label: "U.S. Markets", accent: "#93c5fd", icon: "region" as const },
-                { key: "canada-events", label: "Canada Events", accent: "#2dd4bf", icon: "canada" as const },
-                { key: "west-coast", label: "West Coast", accent: "#fb7185", icon: "city" as const },
-              ].map((chip) => {
-                const isActive = activeQuickView === chip.key;
-                return (
-                  <button
-                    key={chip.label}
-                    onClick={() => applyHeroQuickView(chip.key)}
-                    style={{
-                      border: isActive ? `1px solid ${chip.accent}` : "1px solid rgba(147,197,253,0.24)",
-                      background: isActive ? "rgba(30,64,175,0.28)" : "rgba(12,40,72,0.66)",
-                      color: "#dbeafe",
-                      borderRadius: "999px",
-                      padding: "6px 10px",
-                      fontSize: "12px",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      boxShadow: isActive ? `0 0 14px ${chip.accent}44` : "none",
-                    }}
-                  >
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                      <span
-                        style={{
-                          width: "18px",
-                          height: "18px",
-                          borderRadius: "6px",
-                          background: `${chip.accent}30`,
-                          border: `1px solid ${chip.accent}66`,
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <QuickViewGlyph kind={chip.icon} />
-                      </span>
-                      {chip.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        <div style={{ border: "1px solid rgba(96,165,250,0.2)", borderRadius: "14px", padding: "14px", background: "radial-gradient(120% 110% at 22% 6%, rgba(58,106,188,0.14) 0%, rgba(13,32,55,0.03) 48%, rgba(13,32,55,0) 72%), linear-gradient(180deg, rgba(9,30,54,0.86) 0%, rgba(7,24,44,0.82) 100%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)" }}>
-          <div style={{ marginBottom: "10px" }}>
-            <div style={{ color: "#e5f0ff", fontSize: "17px", fontWeight: 800 }}>Market Concentration Windows</div>
-            <div style={{ color: "#9fb8d8", fontSize: "12px", marginTop: "2px" }}>
-              High-activity conference weeks and same-city event clusters based on the current dataset.
-            </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "12px" }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "8px", marginBottom: "10px" }}>
-                <div style={{ color: "#e5f0ff", fontSize: "16px", fontWeight: 800 }}>Across All Events</div>
-                <div style={{ color: "#9fb8d8", fontSize: "12px" }}>Top concentration windows across the full database.</div>
-              </div>
-              {allConcentrationCards.length ? (
-                <ConcentrationStrip items={allConcentrationCards} onSelect={applyConcentrationItem} />
-              ) : (
-                <div style={{ color: "#9fb8d8", fontSize: "12px", padding: "8px 4px" }}>
-                  <div style={{ color: "#dbeafe", fontWeight: 700, marginBottom: "4px" }}>No concentration windows detected.</div>
-                  <div>Try expanding the date range or removing filters.</div>
-                </div>
-              )}
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "8px", marginBottom: "10px" }}>
-                <div style={{ color: "#e5f0ff", fontSize: "16px", fontWeight: 800 }}>In My View</div>
-                <div style={{ color: "#9fb8d8", fontSize: "12px" }}>Concentration windows matching the current filters.</div>
-              </div>
-              {viewConcentrationCards.length ? (
-                <ConcentrationStrip items={viewConcentrationCards} onSelect={applyConcentrationItem} />
-              ) : (
-                <div style={{ color: "#9fb8d8", fontSize: "12px", padding: "8px 4px" }}>
-                  <div style={{ color: "#dbeafe", fontWeight: 700, marginBottom: "4px" }}>No concentration windows detected.</div>
-                  <div>Try expanding the date range or removing filters.</div>
-                </div>
-              )}
-            </div>
-          </div>
-          <div style={{ color: "#9fb8d8", fontSize: "12px", marginTop: "10px" }}>
-            Hot Weeks show monthly activity spikes. Clusters show 3+ events in the same city within five days.
-          </div>
-        </div>
-        </div>
-        ) : (
-        <div style={{ border: "1px solid rgba(110,160,255,.16)", borderRadius: "24px", padding: "18px 22px", minHeight: "0", overflow: "visible", background: "linear-gradient(135deg, rgba(7,24,52,0.96) 0%, rgba(3,16,36,0.98) 45%, rgba(2,10,24,1) 100%)", boxShadow: "0 0 18px rgba(35,98,255,.06), inset 0 1px 0 rgba(255,255,255,0.04), inset 0 -20px 46px rgba(1,9,20,0.42)", animation: "cccDeckReveal 180ms ease-out", position: "relative" }}>
-          <div style={{ position: "absolute", left: "72px", top: "24px", width: "420px", height: "150px", borderRadius: "999px", background: "radial-gradient(circle, rgba(99,164,255,0.16) 0%, rgba(99,164,255,0.05) 42%, rgba(99,164,255,0) 74%)", pointerEvents: "none" }} />
-          <div style={{ position: "absolute", right: "24px", top: "56px", width: "200px", height: "104px", borderRadius: "999px", background: "radial-gradient(circle, rgba(78,227,193,0.13) 0%, rgba(78,227,193,0.04) 44%, rgba(78,227,193,0) 74%)", pointerEvents: "none" }} />
-          <div
+        {renderPrimaryModeNav("top")}
+        {dashboardMode === "getstarted" ? (
+        <div
+          key="mode-getstarted"
+          style={{
+            width: "100%",
+            maxWidth: "1080px",
+            margin: "0 auto",
+            padding: "28px 18px 72px",
+            background: "linear-gradient(180deg, #edf5ff 0%, #dfeaf7 100%)",
+            borderRadius: "28px",
+            boxShadow: "0 18px 48px rgba(28, 64, 108, 0.12)",
+            display: "grid",
+            gap: "26px",
+            overflow: "hidden",
+          }}
+        >
+          <section
             style={{
-              position: "absolute",
-              right: "48px",
-              top: "22px",
-              width: "260px",
-              height: "170px",
-              borderRadius: "999px",
-              pointerEvents: "none",
-              opacity: 0.36,
-              background:
-                "radial-gradient(circle at 70% 30%, rgba(96,165,250,0.45) 0%, rgba(96,165,250,0.18) 28%, rgba(96,165,250,0) 62%), repeating-radial-gradient(circle at 70% 34%, rgba(140,190,255,0.22) 0 1px, transparent 1px 14px)",
-              filter: "blur(.2px)",
-            }}
-          />
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: 0.08, backgroundImage: "radial-gradient(circle at 82% 12%, rgba(159,214,255,0.8) 0 1px, transparent 1.5px), linear-gradient(120deg, rgba(96,165,250,0.34) 1px, transparent 1px), linear-gradient(160deg, rgba(96,165,250,0.2) 1px, transparent 1px)", backgroundSize: "100% 100%, 180px 120px, 220px 140px", backgroundPosition: "0 0, 78% 0%, 82% 8%" }} />
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: 0.035, mixBlendMode: "screen", backgroundImage: "radial-gradient(rgba(170,195,230,0.38) 0.6px, transparent 0.7px)", backgroundSize: "2px 2px" }} />
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(140% 120% at 50% 45%, rgba(0,0,0,0) 46%, rgba(0,0,0,0.24) 100%)" }} />
-          <button
-            type="button"
-            aria-label="market activity"
-            style={{
-              position: "absolute",
-              top: "12px",
-              right: "12px",
-              zIndex: 5,
-              width: "34px",
-              height: "34px",
-              borderRadius: "11px",
-              border: "1px solid rgba(140,190,255,.4)",
-              background: "linear-gradient(180deg, rgba(16,45,86,.9), rgba(10,30,58,.92))",
-              color: "#dbeafe",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0 0 16px rgba(96,165,250,.22), inset 0 1px 0 rgba(255,255,255,.08)",
-              pointerEvents: "none",
+              background: "linear-gradient(135deg, rgba(255,255,255,0.94), rgba(224,239,255,0.86))",
+              border: "1px solid rgba(120,150,190,0.24)",
+              borderRadius: "30px",
+              padding: "42px",
+              boxShadow: "0 24px 60px rgba(28,64,108,0.14)",
+              display: "grid",
+              gridTemplateColumns: "1fr",
+              gap: "24px",
+              alignItems: "start",
             }}
           >
-            <span style={{ display: "inline-flex", gap: "2px", alignItems: "flex-end", height: "12px" }}>
-              <span style={{ width: "3px", height: "6px", borderRadius: "2px", background: "#93c5fd" }} />
-              <span style={{ width: "3px", height: "10px", borderRadius: "2px", background: "#93c5fd" }} />
-              <span style={{ width: "3px", height: "8px", borderRadius: "2px", background: "#93c5fd" }} />
-            </span>
-          </button>
-          <div style={{ display: "grid", gridTemplateColumns: "62% 38%", gap: "16px", marginBottom: "8px", position: "relative", zIndex: 1 }}>
-            <div>
-              <div style={{ fontSize: "14px", fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "#7EA8FF", display: "inline-flex", alignItems: "center", gap: "10px" }}>
-                <span className="ccc-mode-beacon" />
-                {dashboardMode === "contact" ? "Contact Mode" : dashboardMode === "subscribe" ? "Subscribe Mode" : dashboardMode === "submit" ? "Submit Mode" : "About Mode"}
+            <div style={{ display: "grid", gap: "16px", minWidth: 0 }}>
+              <div style={{ fontSize: "11px", fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase", color: "#2f6ff3" }}>
+                Private Beta · Capital Markets Conference Intelligence
               </div>
-              <div
-                style={{
-                  color: "#ffffff",
-                  fontSize: dashboardMode === "contact" ? "36px" : dashboardMode === "subscribe" ? "32px" : "44px",
-                  fontWeight: 750,
-                  lineHeight: 0.96,
-                  letterSpacing: "-0.02em",
-                  marginTop: "8px",
-                  maxWidth: "680px",
-                }}
-              >
-                {dashboardMode === "contact"
-                  ? "Contact Capital Conference Calendar"
-                  : dashboardMode === "subscribe"
-                    ? "Subscribe to Conference Updates"
-                    : dashboardMode === "submit"
-                      ? "Submit a Conference"
-                      : "Capital Conference Calendar"}
-              </div>
-              <div style={{ color: "rgba(220,230,255,.88)", marginTop: "8px", fontSize: "16px", lineHeight: 1.38, maxWidth: "700px" }}>
-                {dashboardMode === "contact"
-                  ? "Connect with the Capital Conference Calendar team for platform support, conference submissions, data questions, workflow assistance, and partnership inquiries."
-                  : dashboardMode === "subscribe"
-                    ? "Receive curated updates on upcoming capital markets conferences, investor events, active market weeks, and new conference coverage."
-                    : dashboardMode === "submit"
-                      ? "Share a conference URL for review, verification, and potential inclusion in Capital Conference Calendar."
-                  : "A live intelligence workspace for capital markets conferences, investor events, and market activity across North America."}
-              </div>
-              <div style={{ color: "rgba(170,190,225,.82)", marginTop: "6px", fontSize: "14px", lineHeight: 1.42, maxWidth: "700px" }}>
-                {dashboardMode === "contact"
-                  ? "We respond to most inquiries within 24 hours and support conference organizers, investors, public companies, IR professionals, and capital markets service providers."
-                  : dashboardMode === "subscribe"
-                    ? "Use the weekly briefing to monitor events, discover market concentration windows, and stay informed as new conferences are added to the calendar."
-                    : dashboardMode === "submit"
-                      ? "Only the conference URL is required. Optional details help us review the event faster."
-                  : "Track conference activity, market concentration, organizer density, and live calendar workflows from structured event data."}
-              </div>
-              <div style={{ marginTop: "14px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                {(dashboardMode === "contact"
-                  ? ["SUPPORT ONLINE", "24 HOUR RESPONSE", "NEW YORK BASED"]
-                  : dashboardMode === "subscribe"
-                    ? ["WEEKLY BRIEFING", "MARKET ACTIVITY UPDATES", "FREE SUBSCRIPTION"]
-                    : dashboardMode === "submit"
-                      ? ["URL REQUIRED", "REVIEWED BY CCC", "COVERAGE EXPANDING"]
-                    : ["LIVE INDEX", "FEED SYSTEM ONLINE", "COVERAGE EXPANDING"]).map((pill) => (
-                  <span key={pill} style={{ height: "36px", padding: "0 14px", borderRadius: "999px", background: "rgba(9,25,55,.78)", border: "1px solid rgba(110,160,255,.20)", fontSize: "12px", fontWeight: 700, letterSpacing: ".06em", color: "#ffffff", display: "inline-flex", alignItems: "center", gap: "7px" }}>
-                    <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: "#63A4FF" }} />
-                    {pill}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <div style={{ background: "linear-gradient(180deg, rgba(10,24,52,.96) 0%, rgba(4,14,34,.98) 100%)", border: "1px solid rgba(130,180,255,.12)", borderRadius: "24px", padding: "16px", backdropFilter: "blur(14px)", boxShadow: "0 20px 50px rgba(0,0,0,.42), 0 0 0 1px rgba(110,160,255,.12), 0 0 30px rgba(80,120,255,.06), inset 0 1px 0 rgba(255,255,255,.05)", position: "relative", overflow: "hidden" }}>
-              <div style={{ position: "absolute", top: "-40px", left: "16px", right: "16px", height: "120px", opacity: 0.18, filter: "blur(60px)", background: "#3B82F6", pointerEvents: "none" }} />
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                <div style={{ fontSize: "15px", fontWeight: 800, letterSpacing: ".12em", color: "rgba(220,230,255,.95)", textTransform: "uppercase" }}>
-                  {dashboardMode === "contact" ? "Contact Snapshot" : dashboardMode === "subscribe" ? "Briefing Snapshot" : dashboardMode === "submit" ? "Submission Snapshot" : "Collapsed Market Snapshot"}
+              <div style={{ display: "grid", gap: "10px", maxWidth: "760px" }}>
+                <div style={{ fontSize: "clamp(34px, 3.4vw, 42px)", lineHeight: 1.03, fontWeight: 950, letterSpacing: "-0.035em", color: "#071a33", textWrap: "balance" as any }}>
+                  Capital markets conference intelligence, all in one place.
                 </div>
+                <div style={{ fontSize: "19px", lineHeight: 1.35, fontWeight: 700, color: "#17345a", maxWidth: "640px" }}>
+                  Track, analyze, sync, and share the conferences that matter to you.
+                </div>
+                <div style={{ fontSize: "clamp(24px, 2.2vw, 30px)", lineHeight: 1.15, fontWeight: 900, letterSpacing: "-0.025em", color: "#071a33" }}>
+                  Find the right conferences.
+                  <br />
+                  Sync them to your calendar.
+                  <br />
+                  Act before the window closes.
+                </div>
+              </div>
+              <div style={{ fontSize: "17px", lineHeight: 1.45, fontWeight: 500, color: "#415d7d", maxWidth: "700px" }}>
+                Capital Conference Calendar helps investors, issuers, sponsors, advisors, and service providers discover relevant capital markets events, save filtered market views, build shareable conference lists, and identify high-density activity windows before planning outreach, travel, sponsorship, or meetings.
+              </div>
+              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
                 <button
                   type="button"
-                  onClick={() => setDashboardMode("market")}
-                  style={{ height: "36px", padding: "0 14px", background: "rgba(70,110,190,.20)", border: "1px solid rgba(130,180,255,.24)", borderRadius: "12px", fontWeight: 700, fontSize: "12px", color: "#dbeafe", cursor: "pointer", whiteSpace: "nowrap" }}
+                  onClick={() => {
+                    setDashboardMode("market");
+                    setWorkspaceViewMode("database");
+                  }}
+                  style={{
+                    height: "46px",
+                    padding: "0 22px",
+                    background: "linear-gradient(180deg, #3b82f6, #2563eb)",
+                    color: "#ffffff",
+                    borderRadius: "12px",
+                    border: "1px solid rgba(47,111,243,0.3)",
+                    fontSize: "14px",
+                    fontWeight: 900,
+                    cursor: "pointer",
+                    boxShadow: "0 12px 28px rgba(47,111,243,0.24)",
+                  }}
                 >
-                  {dashboardMode === "contact" ? "Support Center" : dashboardMode === "subscribe" ? "Weekly Updates" : dashboardMode === "submit" ? "Submission Queue" : "Market Intelligence"}
+                  Enter Discovery
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDashboardMode("marketview");
+                    setWorkspaceViewMode("database");
+                  }}
+                  style={{
+                    height: "46px",
+                    padding: "0 22px",
+                    background: "rgba(255,255,255,0.86)",
+                    color: "#0d2748",
+                    border: "1px solid rgba(120,150,190,0.32)",
+                    borderRadius: "12px",
+                    fontSize: "14px",
+                    fontWeight: 900,
+                    cursor: "pointer",
+                  }}
+                >
+                  Explore Market View
+                </button>
+                <button
+                  type="button"
+                  onClick={() => centerWorkspaceRef.current?.scrollTo({ top: centerWorkspaceRef.current.scrollHeight, behavior: "smooth" })}
+                  style={{ border: "none", background: "transparent", color: "#2f6ff3", fontSize: "14px", fontWeight: 900, cursor: "pointer" }}
+                >
+                  Request Access →
                 </button>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "10px", position: "relative", zIndex: 1 }}>
-                {(dashboardMode === "contact"
-                  ? [
-                      { label: "Response Time", value: "24h", kind: "calendar" as const, accent: "#63A4FF" },
-                      { label: "Coverage", value: "North America", kind: "globe" as const, accent: "#4EE3C1" },
-                      { label: "Support Types", value: "6", kind: "layers" as const, accent: "#A77DFF" },
-                      { label: "Inbox Status", value: "Active", kind: "messages" as const, accent: "#22c55e" },
-                    ]
-                  : dashboardMode === "subscribe"
-                    ? [
-                        { label: "Upcoming Events", value: events.filter((e) => new Date(`${e.startDate}T00:00:00Z`) <= new Date(Date.now() + 30 * 86400000)).length, kind: "mail" as const, accent: "#63A4FF" },
-                        { label: "Active Cities", value: unique(events.map((e) => [e.city, e.state].filter(Boolean).join(", "))).length, kind: "globe" as const, accent: "#4EE3C1" },
-                        { label: "Hot Weeks", value: allConcentrationCards.filter((x) => x.type === "hotweek").length, kind: "zap" as const, accent: "#FFB357" },
-                        { label: "Clusters", value: allConcentrationCards.filter((x) => x.type === "cluster").length, kind: "layers" as const, accent: "#A77DFF" },
-                      ]
-                    : dashboardMode === "submit"
-                      ? [
-                          { label: "Required Fields", value: "1", kind: "mail" as const, accent: "#63A4FF" },
-                          { label: "Review Status", value: "Pending", kind: "calendar" as const, accent: "#A77DFF" },
-                          { label: "Coverage", value: "North America", kind: "globe" as const, accent: "#4EE3C1" },
-                          { label: "Submission Type", value: "Conference URL", kind: "layers" as const, accent: "#22c55e" },
-                        ]
-                  : [
-                      { label: "Conferences Tracked", value: events.length, kind: "radar" as const, accent: "#63A4FF" },
-                      { label: "Active Cities", value: unique(events.map((e) => [e.city, e.state].filter(Boolean).join(", "))).length, kind: "globe" as const, accent: "#4EE3C1" },
-                      { label: "Hot Weeks", value: allConcentrationCards.filter((x) => x.type === "hotweek").length, kind: "zap" as const, accent: "#FFB357" },
-                      { label: "Clusters", value: allConcentrationCards.filter((x) => x.type === "cluster").length, kind: "layers" as const, accent: "#FF5E7A" },
-                    ]).map((item) => (
-                  <div key={item.label} style={{ height: "76px", padding: "10px 12px", background: "rgba(5,20,44,.92)", border: "1px solid rgba(120,160,255,.16)", borderRadius: "16px", display: "grid", alignContent: "center" }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "52px 1fr", alignItems: "center", columnGap: "10px" }}>
-                      <span style={{ width: "52px", height: "52px", borderRadius: "16px", background: "linear-gradient(180deg, rgba(80,120,255,.24), rgba(28,48,110,.16))", border: "1px solid rgba(160,200,255,.18)", boxShadow: `0 0 24px ${item.accent}29, inset 0 1px 0 rgba(255,255,255,.08)`, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                        <AboutIcon kind={item.kind} color={item.accent} />
-                      </span>
-                      <div style={{ display: "grid", rowGap: "3px" }}>
-                        <div
-                          style={{
-                            color: "#ffffff",
-                            fontSize:
-                              dashboardMode === "submit"
-                                ? "14px"
-                                : dashboardMode === "contact" && item.label === "Coverage"
-                                  ? "10px"
-                                  : "19px",
-                            fontWeight: dashboardMode === "submit" ? 700 : 760,
-                            lineHeight: dashboardMode === "contact" && item.label === "Coverage" ? 1.12 : 1.1,
-                            whiteSpace: dashboardMode === "contact" && item.label === "Coverage" ? "normal" : "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            maxWidth: dashboardMode === "contact" && item.label === "Coverage" ? "70px" : "none",
-                          }}
-                        >
-                          {dashboardMode === "contact" && item.label === "Coverage" ? (
-                            <>
-                              North
-                              <br />
-                              America
-                            </>
-                          ) : (
-                            item.value
-                          )}
-                        </div>
-                        <div style={{ color: "#9ec4e9", fontSize: "10px", fontWeight: 600, lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {item.label}
-                        </div>
+            </div>
+
+            <div
+              style={{
+                minWidth: 0,
+                maxWidth: isMobileViewport ? "100%" : "980px",
+                justifySelf: "start",
+                borderRadius: "0px",
+                overflow: "hidden",
+              }}
+            >
+              <img
+                src="/onboarding/get-started-hero-reference.png"
+                alt="Capital Conference Calendar workspace preview"
+                style={{ display: "block", width: "100%", height: "auto" }}
+              />
+            </div>
+          </section>
+
+          <section style={{ display: "grid", gap: "16px" }}>
+            <div style={{ fontSize: "34px", lineHeight: 1.05, fontWeight: 900, letterSpacing: "-0.035em", color: "#071a33" }}>What CCC helps you do</div>
+            <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : isTabletViewport ? "1fr 1fr" : "repeat(3, minmax(0, 1fr))", gap: "18px" }}>
+              {[
+                {
+                  title: "Sync the conferences that matter",
+                  copy: "Create live calendar feeds from the events, cities, sectors, organizers, and market views your team cares about.",
+                  bullets: ["Google, Apple, and Outlook", "Live ICS subscription feeds", "Updates as events are added or reclassified"],
+                  accent: "#2f6ff3",
+                  icon: "sync" as const,
+                },
+                {
+                  title: "Build lists your team can act on",
+                  copy: "Save selected conferences into named lists for coverage planning, outreach, sponsorship, travel, or client targeting.",
+                  bullets: ["Save selected events", "Name and manage lists", "Share by email"],
+                  accent: "#06b6d4",
+                  icon: "lists" as const,
+                },
+                {
+                  title: "Find the market before the meeting",
+                  copy: "Use Market View to identify hot weeks, city clusters, audience concentration, organizer activity, and market focus trends.",
+                  bullets: ["Hot weeks", "City clusters", "Audience and market focus signals"],
+                  accent: "#f59e0b",
+                  icon: "status" as const,
+                },
+              ].map((card) => (
+                <div key={card.title} style={{ background: "rgba(255,255,255,0.78)", border: "1px solid rgba(120,150,190,0.24)", borderRadius: "22px", padding: "24px", minHeight: "240px", boxShadow: "0 16px 42px rgba(28,64,108,0.10)", display: "grid", alignContent: "start", gap: "14px" }}>
+                  <div style={{ width: "48px", height: "48px", borderRadius: "16px", background: `${card.accent}18`, color: card.accent, display: "grid", placeItems: "center" }}>
+                    <RightRailSectionIcon kind={card.icon} />
+                  </div>
+                  <div style={{ fontSize: "22px", lineHeight: 1.1, fontWeight: 900, color: "#071a33" }}>{card.title}</div>
+                  <div style={{ fontSize: "15.5px", lineHeight: 1.45, color: "#415d7d" }}>{card.copy}</div>
+                  <div style={{ display: "grid", gap: "8px" }}>
+                    {card.bullets.map((bullet) => (
+                      <div key={bullet} style={{ display: "flex", alignItems: "center", gap: "8px", color: "#415d7d", fontSize: "14px", lineHeight: 1.4 }}>
+                        <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: card.accent, flex: "0 0 auto" }} />
+                        <span>{bullet}</span>
                       </div>
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: "8px", marginBottom: "8px", position: "relative" }}>
-            <div style={{ position: "absolute", inset: "-12px -8px", pointerEvents: "none", opacity: 0.08, background: "radial-gradient(72% 68% at 42% 40%, rgba(75,137,250,0.22) 0%, rgba(75,137,250,0.04) 52%, rgba(0,0,0,0) 82%)" }} />
-            {(dashboardMode === "contact"
-              ? [
-                  { t: "Technical & Platform Support", b: "Get help with calendar feeds, filters, dashboard tools, subscriptions, exports, and platform workflows.", f: "Live workspace support", kind: "headset" as const, accent: "#6EA8FF" },
-                  { t: "Organizer & Company Inquiries", b: "Conference organizers, public companies, IR teams, and service providers can contact us regarding coverage, submissions, and platform visibility.", f: "Coverage & organizer support", kind: "building" as const, accent: "#A77DFF" },
-                  { t: "Market & Data Questions", b: "Reach out with questions regarding event classification, market tracking, conference clustering, or platform data coverage.", f: "Market intelligence support", kind: "messages" as const, accent: "#53E0C1" },
-                ]
-              : dashboardMode === "subscribe"
-                ? [
-                    { t: "Weekly Conference Briefing", b: "A curated weekly summary of notable upcoming conferences, investor events, and market activity.", f: "Delivered by email", kind: "mail" as const, accent: "#6EA8FF" },
-                    { t: "Market Activity Highlights", b: "Track hot weeks, active cities, clusters, and new periods of elevated conference concentration.", f: "Market intelligence updates", kind: "zap" as const, accent: "#FFB357" },
-                    { t: "Coverage Updates", b: "Stay informed as new conferences, organizers, sectors, and regions are added to the platform.", f: "Expanding event coverage", kind: "layers" as const, accent: "#53E0C1" },
-                  ]
-              : dashboardMode === "submit"
-                ? [
-                    { t: "Submit the Event URL", b: "Paste the conference website link so CCC can review the event details, organizer, dates, location, and fit.", f: "URL-first submission", kind: "mail" as const, accent: "#6EA8FF" },
-                    { t: "Reviewed Before Inclusion", b: "Submitted conferences are reviewed before they are added to protect data quality and user trust.", f: "Verification workflow", kind: "calendar" as const, accent: "#A77DFF" },
-                    { t: "Added to Market Coverage", b: "Qualified events may be added to the database, market views, concentration windows, and calendar feeds.", f: "Coverage expansion", kind: "layers" as const, accent: "#53E0C1" },
-                  ]
-              : [
-                  { t: "Market Intelligence", b: "Track density, active cities, hot weeks, clusters, and participation trends.", f: "Live analysis layer", kind: "radar" as const, accent: "#6EA8FF" },
-                  { t: "Live Calendar Feeds", b: "Turn filtered market views into continuously updating calendar feeds.", f: "Google · Apple · Outlook", kind: "calendar" as const, accent: "#A77DFF" },
-                  { t: "Workflow Infrastructure", b: "Built for investors, IR teams, public companies, and capital markets workflows.", f: "Workspace tools", kind: "layers" as const, accent: "#53E0C1" },
-                ]).map((card) => (
-              <div key={card.t} className="ccc-about-feature" style={{ height: "145px", borderRadius: "22px", background: "rgba(4,14,32,.92)", border: "1px solid rgba(110,160,255,.12)", padding: "11px", boxShadow: "0 8px 18px rgba(3,10,24,0.3)", position: "relative", zIndex: 1, display: "grid", gridTemplateRows: "auto auto 1fr auto", rowGap: "4px", overflow: "hidden" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "48px 1fr", gap: "10px", alignItems: "start", marginBottom: "2px" }}>
-                  <span style={{ width: "52px", height: "52px", borderRadius: "16px", background: "linear-gradient(180deg, rgba(80,120,255,.24), rgba(28,48,110,.16))", border: "1px solid rgba(160,200,255,.18)", boxShadow: `0 0 24px ${card.accent}, inset 0 1px 0 rgba(255,255,255,.08)`, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                    <AboutIcon kind={card.kind} color={card.accent} />
-                  </span>
-                  <div style={{ color: "#ffffff", fontSize: "16px", fontWeight: 700, marginTop: "4px", lineHeight: 1.12, textShadow: "0 1px 8px rgba(255,255,255,0.05)" }}>{card.t}</div>
-                </div>
-                <div style={{ fontSize: "12px", lineHeight: 1.3, color: "rgba(190,205,230,.72)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{card.b}</div>
-                <div style={{ height: "1px", background: "rgba(110,160,255,.16)", marginTop: "6px" }} />
-                <div style={{ fontSize: "11px", fontWeight: 500, color: "rgba(120,150,190,.65)", marginTop: "auto", paddingTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{card.f}</div>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ border: "1px solid rgba(147,197,253,0.1)", borderRadius: "18px", background: "rgba(4,14,32,.92)", padding: "12px", display: "grid", gridTemplateColumns: "minmax(0,1fr) 420px", gap: "12px", marginBottom: "10px", boxShadow: "0 8px 20px rgba(2,9,20,0.28)" }}>
-            <div>
-              <div style={{ color: "#e7f1ff", fontWeight: 760, fontSize: "14px", marginBottom: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
-                <span style={{ width: "16px", height: "16px", borderRadius: "999px", background: "rgba(45,212,191,0.24)", border: "1px solid rgba(45,212,191,0.4)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "10px" }}>◈</span>
-                {dashboardMode === "contact" ? "Support Categories" : dashboardMode === "subscribe" ? "Subscribe to Weekly Briefing" : dashboardMode === "submit" ? "Submit Conference URL" : "Conference Coverage"}
-              </div>
-              <div style={{ color: "#a9c4e2", fontSize: "11px", marginBottom: "7px" }}>
-                {dashboardMode === "contact"
-                  ? "CCC supports platform users, conference organizers, investors, and market participants across multiple workflows."
-                  : dashboardMode === "subscribe"
-                    ? "Enter your email to receive conference updates and market activity highlights."
-                    : dashboardMode === "submit"
-                      ? "Submit a conference website link for review, verification, and potential inclusion in the platform."
-                  : "CCC tracks investor and capital markets activity across public and private markets."}
-              </div>
-              {dashboardMode === "subscribe" ? (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (subscribeEmailRef.current) subscribeEmailRef.current.focus();
-                  }}
-                  style={{ display: "grid", gap: "8px" }}
-                >
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
-                    <input type="text" placeholder="First Name" style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }} />
-                    <input type="text" placeholder="Last Name" style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }} />
-                  </div>
-                  <input ref={subscribeEmailRef} type="email" placeholder="Email Address" style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }} />
-                  <input type="text" placeholder="Company (optional)" style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }} />
-                  <input type="text" placeholder="Role (optional)" style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }} />
-                  <button type="submit" style={{ height: "36px", borderRadius: "9px", border: "1px solid rgba(96,165,250,0.45)", background: "linear-gradient(180deg, rgba(44,107,255,0.92), rgba(36,88,216,0.92))", color: "#fff", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>
-                    Subscribe to Weekly Briefing
-                  </button>
-                  <div style={{ color: "#8fb3d7", fontSize: "10px" }}>No spam. Unsubscribe anytime.</div>
-                </form>
-              ) : dashboardMode === "submit" ? (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleSubmitConferenceUrl();
-                  }}
-                  style={{ display: "grid", gap: "8px" }}
-                >
-                  <input
-                    ref={submitUrlRef}
-                    type="url"
-                    value={submitForm.url}
-                    onChange={(e) => {
-                      setSubmitForm((prev) => ({ ...prev, url: e.target.value }));
-                      if (submitFormMessage) setSubmitFormMessage(null);
-                    }}
-                    placeholder="Conference URL (required)"
-                    style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }}
-                  />
-                  <input type="email" value={submitForm.email} onChange={(e) => setSubmitForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="Submitter Email (optional)" style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }} />
-                  <input type="text" value={submitForm.conferenceName} onChange={(e) => setSubmitForm((prev) => ({ ...prev, conferenceName: e.target.value }))} placeholder="Conference Name (optional)" style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }} />
-                  <input type="text" value={submitForm.organizer} onChange={(e) => setSubmitForm((prev) => ({ ...prev, organizer: e.target.value }))} placeholder="Organizer (optional)" style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }} />
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
-                    <input type="date" value={submitForm.startDate} onChange={(e) => setSubmitForm((prev) => ({ ...prev, startDate: e.target.value }))} aria-label="Conference Start Date" style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }} />
-                    <input type="date" value={submitForm.endDate} onChange={(e) => setSubmitForm((prev) => ({ ...prev, endDate: e.target.value }))} aria-label="Conference End Date" style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }} />
-                  </div>
-                  <input type="text" value={submitForm.location} onChange={(e) => setSubmitForm((prev) => ({ ...prev, location: e.target.value }))} placeholder="Location (optional)" style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }} />
-                  <textarea value={submitForm.notes} onChange={(e) => setSubmitForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Notes (optional)" style={{ minHeight: "62px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "8px 10px", fontSize: "12px", outline: "none", resize: "vertical" }} />
-                  <button type="submit" style={{ height: "36px", borderRadius: "9px", border: "1px solid rgba(96,165,250,0.45)", background: "linear-gradient(180deg, rgba(44,107,255,0.92), rgba(36,88,216,0.92))", color: "#fff", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>
-                    Submit Conference
-                  </button>
-                  <div style={{ color: submitFormMessage?.type === "error" ? "#fca5a5" : submitFormMessage?.type === "success" ? "#86efac" : "#8fb3d7", fontSize: "10px", minHeight: "14px" }}>
-                    {submitFormMessage?.text || "Submitting a URL does not guarantee inclusion. CCC reviews events for relevance, accuracy, and coverage fit."}
-                  </div>
-                </form>
-              ) : (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                {(dashboardMode === "contact"
-                  ? [
-                      { label: "Conference submissions", dot: "rgba(96,165,250,0.95)" },
-                      { label: "Calendar feed support", dot: "rgba(251,191,36,0.95)" },
-                      { label: "Platform questions", dot: "rgba(167,139,250,0.95)" },
-                      { label: "Investor workflows", dot: "rgba(45,212,191,0.95)" },
-                      { label: "Organizer support", dot: "rgba(99,102,241,0.95)" },
-                      { label: "Market data questions", dot: "rgba(96,165,250,0.95)" },
-                    ]
-                  : [
-                      { label: "Investor conferences", dot: "rgba(96,165,250,0.95)" },
-                      { label: "Roadshows", dot: "rgba(251,191,36,0.95)" },
-                      { label: "Public company events", dot: "rgba(167,139,250,0.95)" },
-                      { label: "Private market gatherings", dot: "rgba(45,212,191,0.95)" },
-                      { label: "Industry conferences", dot: "rgba(99,102,241,0.95)" },
-                      { label: "Capital markets events", dot: "rgba(96,165,250,0.95)" },
-                    ]).map((chip) => (
-                  <span key={chip.label} style={{ height: "36px", padding: "0 14px", borderRadius: "999px", background: "rgba(8,22,48,.72)", border: "1px solid rgba(120,160,255,.16)", fontSize: "12px", fontWeight: 600, color: "#d6e7fb", display: "inline-flex", alignItems: "center", gap: "8px", transition: "all 150ms ease" }}>
-                    <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: chip.dot }} />
-                    {chip.label}
-                  </span>
-                ))}
-              </div>
-              )}
-            </div>
-            <div>
-              <div style={{ color: "#e7f1ff", fontWeight: 760, fontSize: "14px", marginBottom: "6px", display: "flex", alignItems: "center", gap: "6px" }}>
-                <span style={{ width: "16px", height: "16px", borderRadius: "999px", background: "rgba(96,165,250,0.22)", border: "1px solid rgba(96,165,250,0.4)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "10px" }}>▣</span>
-                {dashboardMode === "contact" ? "Office & Response Snapshot" : dashboardMode === "subscribe" ? "What You'll Receive" : dashboardMode === "submit" ? "What qualifies?" : "Coverage Snapshot"}
-              </div>
-              {(dashboardMode === "contact"
-                ? [
-                    { label: "Location", value: "New York, NY" },
-                    { label: "Coverage", value: "United States & Canada" },
-                    { label: "Typical Response", value: "Within 24 Hours" },
-                    { label: "Support Availability", value: "Business Days" },
-                  ]
-                : dashboardMode === "subscribe"
-                  ? [
-                      { label: "Upcoming Conferences", value: "Notable events coming up across capital markets." },
-                      { label: "Hot Weeks & Clusters", value: "Periods of elevated activity and overlapping events." },
-                      { label: "New Coverage", value: "Recently added conferences, organizers, and sectors." },
-                      { label: "Calendar Workflow Tips", value: "Practical ways to build and maintain live conference feeds." },
-                    ]
-                : dashboardMode === "submit"
-                  ? [
-                      { label: "Investor conferences", value: "" },
-                      { label: "Industry conferences", value: "" },
-                      { label: "Roadshows and investor access events", value: "" },
-                      { label: "Private market gatherings", value: "" },
-                      { label: "Public company investor events", value: "" },
-                      { label: "Capital markets events", value: "" },
-                    ]
-                : [
-                    { label: "United States", value: 78 },
-                    { label: "Canada", value: 22 },
-                  ]).map((row) => (
-                <div key={row.label} style={{ marginBottom: "6px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", color: "#cde0f4", fontSize: "15px", marginBottom: "4px" }}>
-                    <span>{row.label}</span>
-                    <span>{dashboardMode === "contact" || dashboardMode === "submit" ? row.value : `${row.value}%`}</span>
-                  </div>
-                  {dashboardMode === "contact" || dashboardMode === "submit" ? (
-                    <div style={{ height: "6px", borderRadius: "999px", background: "rgba(12,34,56,0.5)", border: "1px solid rgba(147,197,253,0.08)" }}>
-                      <div style={{ width: dashboardMode === "submit" ? "16%" : "24%", height: "100%", borderRadius: "999px", boxShadow: "0 0 10px rgba(59,130,246,0.24)", background: "linear-gradient(90deg, rgba(45,212,191,0.6), rgba(96,165,250,0.72))" }} />
-                    </div>
-                  ) : (
-                    <div style={{ height: "6px", borderRadius: "999px", background: "rgba(12,34,56,0.78)", border: "1px solid rgba(147,197,253,0.12)" }}>
-                      <div style={{ width: `${row.value}%`, height: "100%", borderRadius: "999px", boxShadow: "0 0 10px rgba(59,130,246,0.34)", background: "linear-gradient(90deg, rgba(45,212,191,0.82), rgba(96,165,250,0.92))" }} />
-                    </div>
-                  )}
                 </div>
               ))}
-              <div style={{ color: "#8fb3d7", fontSize: "10px", lineHeight: 1.3, marginTop: "2px" }}>
-                {dashboardMode === "contact"
-                  ? "Support availability reflects business-day operations with fast response coverage."
-                  : dashboardMode === "subscribe"
-                    ? "Weekly briefings and market updates are designed for practical conference planning workflows."
-                    : dashboardMode === "submit"
-                      ? "Submissions are reviewed before any event is added to market coverage."
-                  : "Coverage expands through ongoing research, organizer discovery, and submitted conference URLs."}
+            </div>
+          </section>
+
+          <section style={{ display: "grid", gap: "16px" }}>
+            <div style={{ fontSize: "34px", lineHeight: 1.05, fontWeight: 900, letterSpacing: "-0.035em", color: "#071a33" }}>How the workspace is organized</div>
+            <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "minmax(0, 1fr) 48px minmax(0, 1.2fr) 48px minmax(0, 1fr)", gap: "0", alignItems: "center" }}>
+              <div style={{ background: "rgba(255,255,255,0.84)", border: "1px solid rgba(120,150,190,0.24)", borderRadius: "22px", padding: "22px", display: "grid", gap: "12px", minHeight: "180px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#2f6ff3" }}>
+                  <FilterSectionIcon kind="date" />
+                  <div style={{ fontSize: "11px", fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase" }}>Left Rail</div>
+                </div>
+                <div style={{ fontSize: "22px", lineHeight: 1.1, fontWeight: 900, color: "#071a33" }}>Refine</div>
+                <div style={{ fontSize: "15px", lineHeight: 1.45, color: "#415d7d" }}>
+                  Filter by date, location, market segment, participation, organizer, and quick-feed presets.
+                </div>
               </div>
+              {!isMobileViewport ? <div style={{ color: "#5d93e8", fontSize: "28px", fontWeight: 900, textAlign: "center" }}>→</div> : null}
+              <div style={{ background: "#061c33", border: "1px solid rgba(120,150,190,0.24)", borderRadius: "24px", padding: "24px", display: "grid", gap: "14px", minHeight: "200px", boxShadow: "0 18px 42px rgba(10,24,42,0.24)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#8fc0ff" }}>
+                  <WorkspaceViewIcon kind="database" />
+                  <div style={{ fontSize: "11px", fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase" }}>Center Workspace</div>
+                </div>
+                <div style={{ fontSize: "24px", lineHeight: 1.08, fontWeight: 900, color: "#ffffff" }}>Discover + Analyze</div>
+                <div style={{ fontSize: "15px", lineHeight: 1.45, color: "#c6d7ea" }}>
+                  Browse conferences in Discovery, review calendar/map views, and use Market View to analyze activity.
+                </div>
+              </div>
+              {!isMobileViewport ? <div style={{ color: "#5d93e8", fontSize: "28px", fontWeight: 900, textAlign: "center" }}>→</div> : null}
+              <div style={{ background: "rgba(255,255,255,0.84)", border: "1px solid rgba(120,150,190,0.24)", borderRadius: "22px", padding: "22px", display: "grid", gap: "12px", minHeight: "180px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#06b6d4" }}>
+                  <RightRailSectionIcon kind="actions" />
+                  <div style={{ fontSize: "11px", fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase" }}>Right Control Panel</div>
+                </div>
+                <div style={{ fontSize: "22px", lineHeight: 1.1, fontWeight: 900, color: "#071a33" }}>Act</div>
+                <div style={{ fontSize: "15px", lineHeight: 1.45, color: "#415d7d" }}>
+                  Sync calendars, save lists, save market views, and share selected events.
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section style={{ display: "grid", gap: "22px" }}>
+            <section>
+              <img
+                src="/onboarding/get-started-refine-reference.png"
+                alt="Refine the conference market preview"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  height: "auto",
+                  borderRadius: "24px",
+                  boxShadow: "0 18px 42px rgba(10,24,42,0.18)",
+                }}
+              />
+            </section>
+
+            <section>
+              <img
+                src="/onboarding/get-started-calendar-reference.png"
+                alt="Live calendar workflow preview"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  height: "auto",
+                  borderRadius: "24px",
+                  boxShadow: "0 18px 42px rgba(10,24,42,0.18)",
+                }}
+              />
+            </section>
+
+            <section>
+              <img
+                src="/onboarding/get-started-lists-reference.png"
+                alt="Build and share lists preview"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  height: "auto",
+                  borderRadius: "24px",
+                  boxShadow: "0 18px 42px rgba(10,24,42,0.18)",
+                }}
+              />
+            </section>
+
+            <section style={{ display: "grid", gap: "20px" }}>
+              <img
+                src="/onboarding/get-started-marketview-reference-1.png"
+                alt="Market View analytics preview"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  height: "auto",
+                  borderRadius: "24px",
+                  boxShadow: "0 18px 42px rgba(10,24,42,0.18)",
+                }}
+              />
+              <img
+                src="/onboarding/get-started-marketview-reference-2.png"
+                alt="Market View intelligence preview"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  height: "auto",
+                  borderRadius: "24px",
+                  boxShadow: "0 18px 42px rgba(10,24,42,0.18)",
+                }}
+              />
+            </section>
+          </section>
+
+          <section>
+            <img
+              src="/onboarding/get-started-living-index-reference.png"
+              alt="Living conference index preview"
+              style={{
+                display: "block",
+                width: "100%",
+                height: "auto",
+                borderRadius: "24px",
+                boxShadow: "0 18px 42px rgba(10,24,42,0.18)",
+              }}
+            />
+          </section>
+
+        </div>
+        ) : dashboardMode === "market" ? (
+        <div style={{ display: "grid", gap: "0", paddingBottom: compactSingleResultLayout ? "0" : "2px", marginTop: compactSingleResultLayout ? "2px" : "4px" }}>
+          {previewContext ? (
+            <div
+              style={{
+                display: "grid",
+                gap: "10px",
+                padding: "12px 14px",
+                borderRadius: "14px",
+                marginBottom: "12px",
+                background:
+                  "linear-gradient(180deg, rgba(8,30,52,0.7), rgba(5,21,38,0.78))",
+                border: "1px solid rgba(96,165,250,0.18)",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  gap: "8px 12px",
+                  color: "#dbeafe",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "10px",
+                    fontWeight: 900,
+                    letterSpacing: ".14em",
+                    textTransform: "uppercase",
+                    color: "#8bbcff",
+                  }}
+                >
+                  Preview Dataset Context
+                </span>
+                <span style={{ fontSize: "13px", color: "#cfe2f8" }}>
+                  Public intelligence uses approved, website-visible records only.
+                </span>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "8px",
+                }}
+              >
+                {[
+                  { label: "Total", value: previewContext.publicCounts.totalRecords, tone: "#9fb6cf" },
+                  { label: "Approved", value: previewContext.publicCounts.approvedVisibleRecords, tone: "#dbeafe" },
+                  { label: "Verified", value: previewContext.publicCounts.verifiedApprovedRecords, tone: "#53e0c1" },
+                  { label: "Pending", value: previewContext.publicCounts.pendingApprovalRecords, tone: "#fbbf24" },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "7px",
+                      height: "28px",
+                      padding: "0 10px",
+                      borderRadius: "999px",
+                      background: "rgba(8, 24, 42, 0.72)",
+                      border: "1px solid rgba(96,165,250,0.16)",
+                      color: item.tone,
+                      fontSize: "12px",
+                      fontWeight: 800,
+                    }}
+                  >
+                    <span style={{ color: "#8fa8c3", fontWeight: 700 }}>{item.label}</span>
+                    <span style={{ color: item.tone, fontWeight: 900 }}>{item.value}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "14px 18px",
+                  fontSize: "12px",
+                  color: "#9fb6d4",
+                  lineHeight: 1.45,
+                }}
+              >
+                <span>
+                  Freshness:{" "}
+                  <strong style={{ color: "#dbeafe", fontWeight: 800 }}>
+                    {formatPreviewDate(previewContext.freshness.latestVerifiedDate)}
+                  </strong>
+                </span>
+                <span>
+                  Verified stamp coverage:{" "}
+                  <strong style={{ color: "#dbeafe", fontWeight: 800 }}>
+                    {previewContext.freshness.approvedRecordsWithVerificationStamp}
+                  </strong>
+                  {" "}of{" "}
+                  <strong style={{ color: "#dbeafe", fontWeight: 800 }}>
+                    {previewContext.publicCounts.approvedVisibleRecords}
+                  </strong>
+                </span>
+                <span>
+                  Coverage window:{" "}
+                  <strong style={{ color: "#dbeafe", fontWeight: 800 }}>
+                    {previewContext.approvedCoverage.earliestDate
+                      ? `${previewContext.approvedCoverage.earliestDate} to ${previewContext.approvedCoverage.latestDate}`
+                      : "No approved date range"}
+                  </strong>
+                </span>
+                <span>
+                  Strongest continuous run:{" "}
+                  <strong style={{ color: "#dbeafe", fontWeight: 800 }}>
+                    {previewContext.approvedCoverage.strongestConsecutiveRun.length > 0
+                      ? `${previewContext.approvedCoverage.strongestConsecutiveRun.startMonth} – ${previewContext.approvedCoverage.strongestConsecutiveRun.endMonth} (${previewContext.approvedCoverage.strongestConsecutiveRun.length} months)`
+                      : "Insufficient coverage"}
+                  </strong>
+                </span>
+              </div>
+            </div>
+          ) : null}
+          <div style={{ display: "grid", gap: compactSingleResultLayout ? "4px" : "6px", paddingTop: compactSingleResultLayout ? "4px" : "8px" }}>
+            <div style={{ color: "#8bbcff", fontSize: "12px", fontWeight: 900, letterSpacing: ".14em", textTransform: "uppercase" }}>Live Conference Index</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: compactSingleResultLayout ? "16px" : "20px", alignItems: "center", marginTop: compactSingleResultLayout ? "4px" : "8px", color: "#c8d8ea", fontSize: "17px", fontWeight: 650 }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}><DiscoveryStatIcon kind="conferences" /><strong style={{ color: "#ffffff", fontWeight: 900 }}>{discoveryStats.events}</strong> Conferences</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}><DiscoveryStatIcon kind="organizers" /><strong style={{ color: "#ffffff", fontWeight: 900 }}>{discoveryStats.organizers}</strong> Organizers</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}><DiscoveryStatIcon kind="cities" /><strong style={{ color: "#ffffff", fontWeight: 900 }}>{discoveryStats.cities}</strong> Cities</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}><DiscoveryStatIcon kind="states" /><strong style={{ color: "#ffffff", fontWeight: 900 }}>{discoveryStats.states}</strong> States</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}><DiscoveryStatIcon kind="themes" /><strong style={{ color: "#ffffff", fontWeight: 900 }}>{discoveryStats.themes}</strong> Themes</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                <span style={{ width: "18px", height: "18px", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7fb4ff" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M8 14c0-2 1.2-3.6 2.9-5.3 1.2-1.2 1.8-2.4 1.8-3.7 2.8 1.3 4.8 4 4.8 7.1A5.5 5.5 0 0 1 12 17.6 5.4 5.4 0 0 1 8 14Z" />
+                    <path d="M10.4 15.8c0-1.3.7-2.3 1.8-3.4.6-.6 1-1.2 1.1-1.9 1.4.8 2.3 2.2 2.3 3.9A3.7 3.7 0 0 1 12 18.1a3.7 3.7 0 0 1-1.6-2.3Z" />
+                  </svg>
+                </span>
+                <strong style={{ color: "#ffffff", fontWeight: 900 }}>{discoveryStats.hotWeeks}</strong> Hot Weeks
+              </span>
             </div>
           </div>
 
-          <div style={{ height: "88px", borderRadius: "22px", padding: "0 20px", background: "rgba(4,14,32,.92)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "40px 1fr", alignItems: "center", columnGap: "10px" }}>
-              <span style={{ width: "40px", height: "40px", borderRadius: "999px", background: "rgba(70,120,255,.18)", color: "#FFCC66", boxShadow: "0 0 14px rgba(255,200,90,.28)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "15px" }}>{dashboardMode === "contact" ? "✉" : dashboardMode === "subscribe" ? "🔔" : dashboardMode === "submit" ? "📝" : "⚡"}</span>
-              <div>
-                <div style={{ color: "#ffffff", fontWeight: 700, fontSize: "13px" }}>{dashboardMode === "contact" ? "Contact the CCC Team" : dashboardMode === "subscribe" ? "Stay Connected to the Market Calendar" : dashboardMode === "submit" ? "Help Expand Conference Coverage" : "Build Your Live Conference Calendar"}</div>
-                <div style={{ color: "#a6c3e2", fontSize: "10px", marginTop: "1px" }}>{dashboardMode === "contact" ? "Questions, support requests, submissions, and platform inquiries." : dashboardMode === "subscribe" ? "Subscribe for weekly updates or build a live calendar feed from your current market view." : dashboardMode === "submit" ? "Submit conference URLs so CCC can review and expand the market calendar over time." : "Create a filtered view and subscribe to it as a live feed."}</div>
-              </div>
+          <div style={{ display: "flex", justifyContent: "flex-start", marginTop: compactSingleResultLayout ? "6px" : "10px", marginBottom: "0" }}>
+            <div style={{ display: "inline-flex", gap: "6px" }}>
+              {[
+                { key: "database" as const, label: "DATABASE", icon: "database" as const },
+                { key: "calendar" as const, label: "CALENDAR", icon: "calendar" as const },
+              ].map((mode) => (
+                <button
+                  key={mode.key}
+                  type="button"
+                  onClick={() => setWorkspaceViewMode(mode.key)}
+                  style={{
+                    height: "36px",
+                    padding: "0 14px",
+                    borderRadius: "10px",
+                    border: workspaceViewMode === mode.key ? "1px solid #78aaff" : "1px solid rgba(82, 123, 174, .38)",
+                    background: workspaceViewMode === mode.key ? "linear-gradient(180deg, #2b6af2, #164aaf)" : "rgba(8, 26, 46, .72)",
+                    color: workspaceViewMode === mode.key ? "#eef6ff" : "#aec8e6",
+                    fontSize: "13px",
+                    fontWeight: 900,
+                    letterSpacing: "0.10em",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "7px",
+                    boxShadow: workspaceViewMode === mode.key ? "0 0 14px rgba(59,130,246,0.24)" : "none",
+                  }}
+                >
+                  <span style={{ width: "14px", height: "14px", color: workspaceViewMode === mode.key ? "#cfe4ff" : "#7ea7d2", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                    <WorkspaceViewIcon kind={mode.icon} />
+                  </span>
+                  {mode.label}
+                </button>
+              ))}
             </div>
-            <div style={{ display: "flex", gap: "10px", alignItems: "center", borderLeft: "1px solid rgba(110,160,255,.16)", paddingLeft: "14px" }}>
-              {dashboardMode === "contact" ? (
-                <>
-                  <a href="mailto:info@capitalconferencecalendar.com" style={{ height: "48px", padding: "0 18px", background: "linear-gradient(180deg, #2C6BFF, #2458D8)", color: "#fff", fontWeight: 700, borderRadius: "14px", boxShadow: "0 0 18px rgba(70,120,255,.18)", border: "1px solid rgba(96,165,250,0.44)", fontSize: "14px", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Send Email</a>
-                  <a href="/submit" style={{ height: "48px", padding: "0 18px", background: "rgba(7,20,44,.88)", border: "1px solid rgba(120,160,255,.18)", color: "#fff", borderRadius: "14px", fontSize: "14px", fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Conference Submissions</a>
-                </>
-              ) : dashboardMode === "subscribe" ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => subscribeEmailRef.current?.focus()}
-                    style={{ height: "48px", padding: "0 18px", background: "linear-gradient(180deg, #2C6BFF, #2458D8)", color: "#fff", fontWeight: 700, borderRadius: "14px", boxShadow: "0 0 18px rgba(70,120,255,.18)", border: "1px solid rgba(96,165,250,0.44)", fontSize: "14px", cursor: "pointer" }}
-                  >
-                    Subscribe
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDashboardMode("market")}
-                    style={{ height: "48px", padding: "0 18px", background: "rgba(7,20,44,.88)", border: "1px solid rgba(120,160,255,.18)", color: "#fff", borderRadius: "14px", fontSize: "14px", fontWeight: 700, cursor: "pointer" }}
-                  >
-                    Build Live Calendar Feed
-                  </button>
-                </>
-              ) : dashboardMode === "submit" ? (
-                <>
+          </div>
+          <div style={{ marginTop: compactSingleResultLayout ? "4px" : "8px", color: "#9fb6d4", fontSize: "14px" }}>
+            {workspaceViewMode === "database"
+              ? "Browse and filter every conference record in the database."
+              : workspaceViewMode === "calendar"
+                ? "View conference timing, overlap, and activity windows."
+                : "Explore conference activity geographically."}
+          </div>
+        </div>
+        ) : dashboardMode === "submit" ? (
+          <div
+            style={{
+              padding: "32px 24px 72px",
+              maxWidth: "1180px",
+              margin: "0 auto",
+              display: "grid",
+              gap: "24px",
+              position: "relative",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(0, 1.25fr) minmax(320px, 0.75fr)",
+                gap: "28px",
+                alignItems: "center",
+                padding: "28px",
+                borderRadius: "28px",
+                background: "radial-gradient(circle at 18% 0%, rgba(59,130,246,0.18), transparent 36%), radial-gradient(circle at 82% 18%, rgba(45,212,191,0.08), transparent 28%), linear-gradient(135deg, rgba(8,31,55,0.96), rgba(5,20,36,0.98))",
+                border: "1px solid rgba(107,157,210,0.28)",
+                boxShadow: "0 20px 50px rgba(0,0,0,0.22)",
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: "11px", fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase", color: "#8fb8ff", marginBottom: "12px" }}>
+                  Submit Mode · Conference Coverage
+                </div>
+                <div
+                  style={{
+                    color: "#ffffff",
+                    fontSize: "48px",
+                    lineHeight: 1,
+                    fontWeight: 950,
+                    letterSpacing: "-0.045em",
+                    maxWidth: "760px",
+                  }}
+                >
+                  Submit a conference for review.
+                </div>
+                <div style={{ color: "#d9e8fb", fontSize: "19px", lineHeight: 1.4, fontWeight: 650, maxWidth: "760px", marginTop: "14px" }}>
+                  Share a capital markets conference, investor event, roadshow, or industry gathering for potential inclusion in Capital Conference Calendar.
+                </div>
+                <div style={{ color: "#a9bfd8", fontSize: "15px", lineHeight: 1.5, maxWidth: "760px", marginTop: "12px" }}>
+                  Every submission is reviewed before it is added to the index. Qualified events may appear in Discovery, Market View, live calendar feeds, saved market views, and conference intelligence signals.
+                </div>
+                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginTop: "22px" }}>
                   <button
                     type="button"
                     onClick={() => submitUrlRef.current?.focus()}
-                    style={{ height: "48px", padding: "0 18px", background: "linear-gradient(180deg, #2C6BFF, #2458D8)", color: "#fff", fontWeight: 700, borderRadius: "14px", boxShadow: "0 0 18px rgba(70,120,255,.18)", border: "1px solid rgba(96,165,250,0.44)", fontSize: "14px", cursor: "pointer" }}
+                    style={{
+                      height: "46px",
+                      padding: "0 22px",
+                      background: "linear-gradient(180deg, #3b82f6, #2563eb)",
+                      color: "#ffffff",
+                      borderRadius: "12px",
+                      fontSize: "14px",
+                      fontWeight: 900,
+                      border: "1px solid rgba(96,165,250,0.45)",
+                      cursor: "pointer",
+                    }}
                   >
                     Submit Conference URL
                   </button>
                   <button
                     type="button"
-                    onClick={() => setDashboardMode("market")}
-                    style={{ height: "48px", padding: "0 18px", background: "rgba(7,20,44,.88)", border: "1px solid rgba(120,160,255,.18)", color: "#fff", borderRadius: "14px", fontSize: "14px", fontWeight: 700, cursor: "pointer" }}
+                    onClick={() => document.getElementById("submit-qualifies-panel")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                    style={{
+                      height: "46px",
+                      padding: "0 22px",
+                      background: "rgba(255,255,255,0.08)",
+                      color: "#dbeafe",
+                      borderRadius: "12px",
+                      fontSize: "14px",
+                      fontWeight: 900,
+                      border: "1px solid rgba(120,150,190,0.32)",
+                      cursor: "pointer",
+                    }}
                   >
-                    View Market Calendar
+                    What qualifies?
                   </button>
-                </>
-              ) : (
-                <>
+                </div>
+              </div>
+              <div
+                style={{
+                  background: "linear-gradient(135deg, rgba(8,31,55,0.94), rgba(5,20,36,0.98))",
+                  border: "1px solid rgba(107,157,210,0.28)",
+                  borderRadius: "24px",
+                  padding: "28px",
+                  boxShadow: "0 20px 50px rgba(0,0,0,0.22)",
+                }}
+              >
+                <div style={{ color: "#dce9fb", fontSize: "12px", fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "18px" }}>
+                  Submission Review
+                </div>
+                <div style={{ color: "#9fb7d2", fontSize: "13px", lineHeight: 1.4, marginBottom: "16px" }}>
+                  We review each submitted event before adding it to the live conference index.
+                </div>
+                <div style={{ display: "grid", gap: "12px" }}>
+                  {[
+                    { label: "URL submitted", note: "Conference website received", kind: "link" as const, accent: "#3b82f6" },
+                    { label: "Reviewed by CCC", note: "Fit and event relevance checked", kind: "shield" as const, accent: "#22c55e" },
+                    { label: "Classified", note: "Tagged by focus, audience, and type", kind: "layers" as const, accent: "#f59e0b" },
+                    { label: "Added to coverage", note: "May appear in calendar workflows", kind: "calendar" as const, accent: "#2dd4bf" },
+                  ].map((step, index, arr) => (
+                    <div key={step.label} style={{ display: "grid", gridTemplateColumns: "48px 1fr", gap: "12px", alignItems: "center", position: "relative" }}>
+                      <span
+                        style={{
+                          width: "48px",
+                          height: "48px",
+                          borderRadius: "16px",
+                          background: "linear-gradient(180deg, rgba(80,120,255,.24), rgba(28,48,110,.16))",
+                          border: "1px solid rgba(160,200,255,.18)",
+                          boxShadow: `0 0 24px ${step.accent}24`,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <AboutIcon kind={step.kind} color={step.accent} />
+                      </span>
+                      <div>
+                        <div style={{ color: "#ffffff", fontSize: "16px", fontWeight: 800 }}>{step.label}</div>
+                        <div style={{ color: "#9fb7d2", fontSize: "13px", lineHeight: 1.35 }}>{step.note}</div>
+                      </div>
+                      {index < arr.length - 1 ? (
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: "23px",
+                            top: "48px",
+                            width: "2px",
+                            height: "20px",
+                            background: "linear-gradient(180deg, rgba(59,130,246,0.6), rgba(45,212,191,0.18))",
+                          }}
+                        />
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div style={{ color: "#8fb8ff", fontSize: "11px", fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "8px" }}>
+                Benefits of submitting
+              </div>
+              <div style={{ color: "#ffffff", fontSize: "26px", lineHeight: 1.1, fontWeight: 900, marginBottom: "6px" }}>Why submit your event?</div>
+              <div style={{ color: "#c8d8ec", fontSize: "14.5px", lineHeight: 1.45, maxWidth: "860px" }}>
+                Qualified events can become part of a searchable conference intelligence workflow used to discover, track, save, sync, and analyze capital markets activity.
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "16px" }}>
+              {[
+                {
+                  title: "Be discoverable",
+                  body: "Help investors, issuers, advisors, sponsors, and service providers find your event through searchable conference records.",
+                  icon: "database" as const,
+                  accent: "#3b82f6",
+                },
+                {
+                  title: "Reach calendar workflows",
+                  body: "Qualified events may appear in calendar feeds and saved market views that users sync to Google, Apple, and Outlook.",
+                  icon: "calendar" as const,
+                  accent: "#2dd4bf",
+                },
+                {
+                  title: "Support market intelligence",
+                  body: "Your event can help power market signals around hot weeks, city clusters, organizer activity, market focus, and audience concentration.",
+                  icon: "radar" as const,
+                  accent: "#f59e0b",
+                },
+                {
+                  title: "Improve event accuracy",
+                  body: "Submission details help CCC verify dates, location, organizer, website, participation type, and classification tags.",
+                  icon: "shield" as const,
+                  accent: "#22c55e",
+                },
+              ].map((card) => (
+                <div
+                  key={card.title}
+                  style={{
+                    background: "rgba(8,31,55,0.82)",
+                    border: "1px solid rgba(107,157,210,0.22)",
+                    borderRadius: "18px",
+                    padding: "20px",
+                    minHeight: "180px",
+                    boxShadow: "0 14px 34px rgba(8,20,36,0.16)",
+                    display: "grid",
+                    alignContent: "start",
+                    gap: "12px",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: "48px",
+                      height: "48px",
+                      borderRadius: "14px",
+                      background: "linear-gradient(180deg, rgba(80,120,255,.24), rgba(28,48,110,.16))",
+                      border: "1px solid rgba(160,200,255,.18)",
+                      boxShadow: `0 0 22px ${card.accent}24`,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <AboutIcon kind={card.icon} color={card.accent} />
+                  </span>
+                  <div style={{ color: "#ffffff", fontSize: "18px", fontWeight: 900 }}>{card.title}</div>
+                  <div style={{ color: "#c8d8ec", fontSize: "14.5px", lineHeight: 1.45 }}>{card.body}</div>
+                </div>
+              ))}
+            </div>
+
+            <div>
+              <div style={{ color: "#8fb8ff", fontSize: "11px", fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "8px" }}>
+                Review workflow
+              </div>
+              <div style={{ color: "#ffffff", fontSize: "26px", lineHeight: 1.1, fontWeight: 900, marginBottom: "14px" }}>How the review process works</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "14px" }}>
+                {[
+                  ["01", "Submit the URL", "Only the conference website link is required."],
+                  ["02", "CCC reviews the event", "We check whether the event fits the capital markets conference index."],
+                  ["03", "Details are verified and classified", "Dates, location, organizer, format, participation type, market focus, and event category are reviewed."],
+                  ["04", "Qualified events are added", "Approved events may appear in Discovery, Market View, calendar feeds, and market intelligence signals."],
+                ].map(([num, title, body], index) => (
+                  <div
+                    key={num}
+                    style={{
+                      position: "relative",
+                      background: "rgba(8,31,55,0.62)",
+                      border: "1px solid rgba(107,157,210,0.18)",
+                      borderRadius: "18px",
+                      padding: "18px",
+                      display: "grid",
+                      gap: "10px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: "40px",
+                        height: "40px",
+                        borderRadius: "999px",
+                        background: "linear-gradient(180deg, rgba(59,130,246,0.22), rgba(45,212,191,0.12))",
+                        border: "1px solid rgba(96,165,250,0.34)",
+                        color: "#dbeafe",
+                        fontSize: "14px",
+                        fontWeight: 900,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {num}
+                    </span>
+                    <div style={{ color: "#ffffff", fontSize: "18px", fontWeight: 900, lineHeight: 1.15 }}>{title}</div>
+                    <div style={{ color: "#c8d8ec", fontSize: "14px", lineHeight: 1.45 }}>{body}</div>
+                    {index < 3 ? (
+                      <div style={{ position: "absolute", top: "38px", right: "-10px", width: "20px", height: "2px", background: "linear-gradient(90deg, rgba(59,130,246,0.55), rgba(45,212,191,0.45))" }} />
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.35fr) minmax(320px, 0.65fr)", gap: "24px" }}>
+              <div
+                style={{
+                  background: "linear-gradient(180deg, rgba(8,31,55,0.96), rgba(5,20,36,0.98))",
+                  border: "1px solid rgba(107,157,210,0.24)",
+                  borderRadius: "22px",
+                  padding: "24px",
+                }}
+              >
+                <div style={{ color: "#ffffff", fontSize: "26px", lineHeight: 1.1, fontWeight: 900, marginBottom: "6px" }}>Submit Conference URL</div>
+                <div style={{ color: "#c8d8ec", fontSize: "14.5px", lineHeight: 1.45, marginBottom: "18px" }}>
+                  Start with the event website. Optional details help us review and classify the event faster.
+                </div>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleSubmitConferenceUrl();
+                  }}
+                  style={{ display: "grid", gap: "12px" }}
+                >
+                  <div>
+                    <div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 800, marginBottom: "6px" }}>Conference URL</div>
+                    <div style={{ position: "relative" }}>
+                      <span style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", opacity: 0.9 }}>
+                        <AboutIcon kind="link" color="#63A4FF" />
+                      </span>
+                      <input
+                        ref={submitUrlRef}
+                        type="url"
+                        value={submitForm.url}
+                        onChange={(e) => {
+                          setSubmitForm((prev) => ({ ...prev, url: e.target.value }));
+                          if (submitFormMessage) setSubmitFormMessage(null);
+                        }}
+                        placeholder="Conference website URL — required"
+                        style={{
+                          height: "48px",
+                          width: "100%",
+                          borderRadius: "12px",
+                          border: "1px solid rgba(96,165,250,0.4)",
+                          background: "rgba(8,22,48,0.88)",
+                          color: "#dbeafe",
+                          padding: "0 14px 0 44px",
+                          fontSize: "15px",
+                          outline: "none",
+                          boxSizing: "border-box",
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "12px" }}>
+                    <div>
+                      <div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 800, marginBottom: "6px" }}>Submitter Email</div>
+                      <input type="email" value={submitForm.email} onChange={(e) => setSubmitForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="Optional" style={{ height: "42px", width: "100%", borderRadius: "10px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 12px", fontSize: "15px", outline: "none", boxSizing: "border-box" }} />
+                    </div>
+                    <div>
+                      <div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 800, marginBottom: "6px" }}>Conference Name</div>
+                      <input type="text" value={submitForm.conferenceName} onChange={(e) => setSubmitForm((prev) => ({ ...prev, conferenceName: e.target.value }))} placeholder="Optional" style={{ height: "42px", width: "100%", borderRadius: "10px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 12px", fontSize: "15px", outline: "none", boxSizing: "border-box" }} />
+                    </div>
+                    <div>
+                      <div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 800, marginBottom: "6px" }}>Organizer</div>
+                      <input type="text" value={submitForm.organizer} onChange={(e) => setSubmitForm((prev) => ({ ...prev, organizer: e.target.value }))} placeholder="Optional" style={{ height: "42px", width: "100%", borderRadius: "10px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 12px", fontSize: "15px", outline: "none", boxSizing: "border-box" }} />
+                    </div>
+                    <div>
+                      <div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 800, marginBottom: "6px" }}>Location</div>
+                      <input type="text" value={submitForm.location} onChange={(e) => setSubmitForm((prev) => ({ ...prev, location: e.target.value }))} placeholder="Optional" style={{ height: "42px", width: "100%", borderRadius: "10px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 12px", fontSize: "15px", outline: "none", boxSizing: "border-box" }} />
+                    </div>
+                    <div>
+                      <div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 800, marginBottom: "6px" }}>Start Date</div>
+                      <input type="date" value={submitForm.startDate} onChange={(e) => setSubmitForm((prev) => ({ ...prev, startDate: e.target.value }))} aria-label="Conference Start Date" style={{ height: "42px", width: "100%", borderRadius: "10px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 12px", fontSize: "15px", outline: "none", boxSizing: "border-box" }} />
+                    </div>
+                    <div>
+                      <div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 800, marginBottom: "6px" }}>End Date</div>
+                      <input type="date" value={submitForm.endDate} onChange={(e) => setSubmitForm((prev) => ({ ...prev, endDate: e.target.value }))} aria-label="Conference End Date" style={{ height: "42px", width: "100%", borderRadius: "10px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 12px", fontSize: "15px", outline: "none", boxSizing: "border-box" }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 800, marginBottom: "6px" }}>Notes</div>
+                    <textarea value={submitForm.notes} onChange={(e) => setSubmitForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Optional notes that help us review the event faster" style={{ minHeight: "86px", width: "100%", borderRadius: "12px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "10px 12px", fontSize: "15px", outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+                  </div>
+                  <button
+                    type="submit"
+                    style={{
+                      height: "48px",
+                      background: "linear-gradient(180deg, #3b82f6, #2563eb)",
+                      color: "#ffffff",
+                      borderRadius: "12px",
+                      fontWeight: 900,
+                      fontSize: "15px",
+                      border: "1px solid rgba(96,165,250,0.45)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Submit Conference
+                  </button>
+                  <div style={{ color: submitFormMessage?.type === "error" ? "#fca5a5" : submitFormMessage?.type === "success" ? "#86efac" : "#8fb3d7", fontSize: "12px", lineHeight: 1.4, minHeight: "18px" }}>
+                    {submitFormMessage?.text || "Submitting a URL does not guarantee inclusion. CCC reviews submissions before adding events to market coverage."}
+                  </div>
+                </form>
+              </div>
+
+              <div
+                id="submit-qualifies-panel"
+                style={{
+                  background: "linear-gradient(180deg, rgba(12,39,67,0.96), rgba(8,29,50,0.96))",
+                  border: "1px solid rgba(107,157,210,0.24)",
+                  borderRadius: "22px",
+                  padding: "22px",
+                  display: "grid",
+                  gap: "16px",
+                  alignContent: "start",
+                  boxShadow: "0 18px 36px rgba(0,0,0,0.14)",
+                }}
+              >
+                <div>
+                  <div style={{ color: "#ffffff", fontSize: "22px", fontWeight: 900, lineHeight: 1.1, marginBottom: "8px" }}>What qualifies?</div>
+                  <div style={{ color: "#c8d8ec", fontSize: "14.5px", lineHeight: 1.45 }}>
+                    CCC focuses on capital markets conferences and investor-facing events across North America.
+                  </div>
+                </div>
+                <div style={{ display: "grid", gap: "10px" }}>
+                  {[
+                    "Investor conferences",
+                    "Public company investor events",
+                    "Roadshows and investor access events",
+                    "Industry conferences with capital markets relevance",
+                    "Private markets gatherings",
+                    "Sector conferences with investor, issuer, sponsor, or advisor participation",
+                    "Capital markets service provider events",
+                  ].map((item) => (
+                    <div key={item} style={{ display: "grid", gridTemplateColumns: "18px 1fr", gap: "10px", alignItems: "start", color: "#dbeafe", fontSize: "14px", lineHeight: 1.4 }}>
+                      <span style={{ width: "18px", height: "18px", borderRadius: "999px", background: "rgba(34,197,94,0.16)", border: "1px solid rgba(34,197,94,0.4)", color: "#86efac", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "11px", marginTop: "1px" }}>✓</span>
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ height: "1px", background: "rgba(107,157,210,0.18)" }} />
+                <div>
+                  <div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "10px" }}>
+                    Best submissions include
+                  </div>
+                  <div style={{ display: "grid", gap: "8px" }}>
+                    {[
+                      "Official event website",
+                      "Event dates",
+                      "Organizer name",
+                      "City and venue",
+                      "Audience or participation type",
+                      "Market focus or sector theme",
+                    ].map((item) => (
+                      <div key={item} style={{ color: "#c8d8ec", fontSize: "14px", lineHeight: 1.4, display: "grid", gridTemplateColumns: "16px 1fr", gap: "10px" }}>
+                        <span style={{ color: "#63A4FF", fontWeight: 900 }}>•</span>
+                        <span>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                borderRadius: "18px",
+                background: "rgba(4,14,32,0.86)",
+                border: "1px solid rgba(107,157,210,0.18)",
+                padding: "18px 20px",
+                display: "grid",
+                gap: "10px",
+                boxShadow: "0 16px 28px rgba(0,0,0,0.12)",
+              }}
+            >
+              <div style={{ color: "#ffffff", fontSize: "18px", fontWeight: 900 }}>Reviewed before inclusion</div>
+              <div style={{ color: "#c8d8ec", fontSize: "14.5px", lineHeight: 1.45, maxWidth: "980px" }}>
+                Capital Conference Calendar is a curated conference index. Submissions are reviewed for fit, accuracy, and classification before they are added to the database, calendar feeds, or Market View intelligence.
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+                {["URL-first submission", "Reviewed by CCC", "Coverage expanding"].map((badge) => (
+                  <span key={badge} style={{ height: "34px", padding: "0 14px", borderRadius: "999px", background: "rgba(9,25,55,.78)", border: "1px solid rgba(110,160,255,.20)", fontSize: "12px", fontWeight: 700, letterSpacing: ".06em", color: "#ffffff", display: "inline-flex", alignItems: "center", gap: "7px" }}>
+                    <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: "#63A4FF" }} />
+                    {badge}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : dashboardMode === "about" || dashboardMode === "contact" || dashboardMode === "subscribe" ? (
+          <div
+            style={{
+              padding: "0",
+              position: "relative",
+              overflow: "hidden",
+            }}
+          >
+            <button
+              type="button"
+              style={{
+                position: "absolute",
+                top: "12px",
+                right: "12px",
+                zIndex: 5,
+                width: "34px",
+                height: "34px",
+                borderRadius: "11px",
+                border: "1px solid rgba(140,190,255,.4)",
+                background: "linear-gradient(180deg, rgba(16,45,86,.9), rgba(10,30,58,.92))",
+                color: "#dbeafe",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 0 16px rgba(96,165,250,.22), inset 0 1px 0 rgba(255,255,255,.08)",
+                pointerEvents: "none",
+              }}
+            >
+              <span style={{ display: "inline-flex", gap: "2px", alignItems: "flex-end", height: "12px" }}>
+                <span style={{ width: "3px", height: "6px", borderRadius: "2px", background: "#93c5fd" }} />
+                <span style={{ width: "3px", height: "10px", borderRadius: "2px", background: "#93c5fd" }} />
+                <span style={{ width: "3px", height: "8px", borderRadius: "2px", background: "#93c5fd" }} />
+              </span>
+            </button>
+            <div style={{ display: "grid", gridTemplateColumns: "62% 38%", gap: "16px", marginBottom: "8px", position: "relative", zIndex: 1 }}>
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "#7EA8FF", display: "inline-flex", alignItems: "center", gap: "10px" }}>
+                  <span className="ccc-mode-beacon" />
+                  {dashboardMode === "contact" ? "Contact Mode" : dashboardMode === "subscribe" ? "Subscribe Mode" : "About Mode"}
+                </div>
+                <div
+                  style={{
+                    color: "#ffffff",
+                    fontSize: dashboardMode === "contact" ? "36px" : dashboardMode === "subscribe" ? "32px" : "44px",
+                    fontWeight: 750,
+                    lineHeight: 0.96,
+                    letterSpacing: "-0.02em",
+                    marginTop: "8px",
+                    maxWidth: "680px",
+                  }}
+                >
+                  {dashboardMode === "contact"
+                    ? "Contact Capital Conference Calendar"
+                    : dashboardMode === "subscribe"
+                      ? "Subscribe to Conference Updates"
+                      : "Capital Conference Calendar"}
+                </div>
+                <div style={{ color: "rgba(220,230,255,.88)", marginTop: "8px", fontSize: "16px", lineHeight: 1.38, maxWidth: "700px" }}>
+                  {dashboardMode === "contact"
+                    ? "Connect with the Capital Conference Calendar team for platform support, conference submissions, data questions, workflow assistance, and partnership inquiries."
+                    : dashboardMode === "subscribe"
+                      ? "Receive curated updates on upcoming capital markets conferences, investor events, active market weeks, and new conference coverage."
+                      : "A live intelligence workspace for capital markets conferences, investor events, and market activity across North America."}
+                </div>
+                <div style={{ color: "rgba(170,190,225,.82)", marginTop: "6px", fontSize: "14px", lineHeight: 1.42, maxWidth: "700px" }}>
+                  {dashboardMode === "contact"
+                    ? "We respond to most inquiries within 24 hours and support conference organizers, investors, public companies, IR professionals, and capital markets service providers."
+                    : dashboardMode === "subscribe"
+                      ? "Use the weekly briefing to monitor events, discover market concentration windows, and stay informed as new conferences are added to the calendar."
+                      : infoDashboardMode === "submit"
+                        ? "Only the conference URL is required. Optional details help us review the event faster."
+                      : "Track conference activity, market concentration, organizer density, and live calendar workflows from structured event data."}
+                </div>
+                <div style={{ marginTop: "14px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                  {(dashboardMode === "contact"
+                    ? ["SUPPORT ONLINE", "24 HOUR RESPONSE", "NEW YORK BASED"]
+                    : dashboardMode === "subscribe"
+                      ? ["WEEKLY BRIEFING", "MARKET ACTIVITY UPDATES", "FREE SUBSCRIPTION"]
+                      : infoDashboardMode === "submit"
+                        ? ["URL REQUIRED", "REVIEWED BY CCC", "COVERAGE EXPANDING"]
+                        : ["LIVE INDEX", "FEED SYSTEM ONLINE", "COVERAGE EXPANDING"]).map((pill) => (
+                    <span key={pill} style={{ height: "36px", padding: "0 14px", borderRadius: "999px", background: "rgba(9,25,55,.78)", border: "1px solid rgba(110,160,255,.20)", fontSize: "12px", fontWeight: 700, letterSpacing: ".06em", color: "#ffffff", display: "inline-flex", alignItems: "center", gap: "7px" }}>
+                      <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: "#63A4FF" }} />
+                      {pill}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div style={{ background: "linear-gradient(180deg, rgba(10,24,52,.96) 0%, rgba(4,14,34,.98) 100%)", border: "1px solid rgba(130,180,255,.12)", borderRadius: "24px", padding: "16px", backdropFilter: "blur(14px)", boxShadow: "0 20px 50px rgba(0,0,0,.42), 0 0 0 1px rgba(110,160,255,.12), 0 0 30px rgba(80,120,255,.06), inset 0 1px 0 rgba(255,255,255,.05)", position: "relative", overflow: "hidden" }}>
+                <div style={{ position: "absolute", top: "-40px", left: "16px", right: "16px", height: "120px", opacity: 0.18, filter: "blur(60px)", background: "#3B82F6", pointerEvents: "none" }} />
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                  <div style={{ fontSize: "15px", fontWeight: 800, letterSpacing: ".12em", color: "rgba(220,230,255,.95)", textTransform: "uppercase" }}>
+                    {dashboardMode === "contact" ? "Contact Snapshot" : dashboardMode === "subscribe" ? "Briefing Snapshot" : infoDashboardMode === "submit" ? "Submission Snapshot" : "Collapsed Market Snapshot"}
+                  </div>
                   <button
                     type="button"
                     onClick={() => setDashboardMode("market")}
-                    style={{ height: "48px", padding: "0 18px", background: "linear-gradient(180deg, #2C6BFF, #2458D8)", color: "#fff", fontWeight: 700, borderRadius: "14px", boxShadow: "0 0 18px rgba(70,120,255,.18)", border: "1px solid rgba(96,165,250,0.44)", fontSize: "14px", cursor: "pointer" }}
+                    style={{ height: "36px", padding: "0 14px", background: "rgba(70,110,190,.20)", border: "1px solid rgba(130,180,255,.24)", borderRadius: "12px", fontWeight: 700, fontSize: "12px", color: "#dbeafe", cursor: "pointer", whiteSpace: "nowrap" }}
                   >
-                    Open Calendar Feed Builder
+                    {dashboardMode === "contact" ? "Support Center" : dashboardMode === "subscribe" ? "Weekly Updates" : infoDashboardMode === "submit" ? "Submission Queue" : "Market Intelligence"}
                   </button>
-                  <a href="/submit" style={{ height: "48px", padding: "0 18px", background: "rgba(7,20,44,.88)", border: "1px solid rgba(120,160,255,.18)", color: "#fff", borderRadius: "14px", fontSize: "14px", fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
-                    Submit a Conference
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "10px", position: "relative", zIndex: 1 }}>
+                  {(dashboardMode === "contact"
+                    ? [
+                        { label: "Response Time", value: "24h", kind: "calendar" as const, accent: "#63A4FF" },
+                        { label: "Coverage", value: "North America", kind: "globe" as const, accent: "#4EE3C1" },
+                        { label: "Support Types", value: "6", kind: "layers" as const, accent: "#A77DFF" },
+                        { label: "Inbox Status", value: "Active", kind: "messages" as const, accent: "#22c55e" },
+                      ]
+                    : dashboardMode === "subscribe"
+                      ? [
+                          { label: "Upcoming Events", value: events.filter((e) => new Date(`${e.startDate}T00:00:00Z`) <= new Date(Date.now() + 30 * 86400000)).length, kind: "mail" as const, accent: "#63A4FF" },
+                          { label: "Active Cities", value: unique(events.map((e) => [e.city, e.state].filter(Boolean).join(", "))).length, kind: "globe" as const, accent: "#4EE3C1" },
+                          { label: "Hot Weeks", value: allConcentrationCards.filter((x) => x.type === "hotweek").length, kind: "zap" as const, accent: "#FFB357" },
+                          { label: "Clusters", value: allConcentrationCards.filter((x) => x.type === "cluster").length, kind: "layers" as const, accent: "#A77DFF" },
+                        ]
+                      : infoDashboardMode === "submit"
+                        ? [
+                            { label: "Required Fields", value: "1", kind: "mail" as const, accent: "#63A4FF" },
+                            { label: "Review Status", value: "Pending", kind: "calendar" as const, accent: "#A77DFF" },
+                            { label: "Coverage", value: "North America", kind: "globe" as const, accent: "#4EE3C1" },
+                            { label: "Submission Type", value: "Conference URL", kind: "layers" as const, accent: "#22c55e" },
+                          ]
+                        : [
+                            { label: "Conferences Tracked", value: events.length, kind: "radar" as const, accent: "#63A4FF" },
+                            { label: "Active Cities", value: unique(events.map((e) => [e.city, e.state].filter(Boolean).join(", "))).length, kind: "globe" as const, accent: "#4EE3C1" },
+                            { label: "Hot Weeks", value: allConcentrationCards.filter((x) => x.type === "hotweek").length, kind: "zap" as const, accent: "#FFB357" },
+                            { label: "Clusters", value: allConcentrationCards.filter((x) => x.type === "cluster").length, kind: "layers" as const, accent: "#FF5E7A" },
+                          ]).map((item) => (
+                    <div key={item.label} style={{ height: "76px", padding: "10px 12px", background: "rgba(5,20,44,.92)", border: "1px solid rgba(120,160,255,.16)", borderRadius: "16px", display: "grid", alignContent: "center" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "52px 1fr", alignItems: "center", columnGap: "10px" }}>
+                        <span style={{ width: "52px", height: "52px", borderRadius: "16px", background: "linear-gradient(180deg, rgba(80,120,255,.24), rgba(28,48,110,.16))", border: "1px solid rgba(160,200,255,.18)", boxShadow: `0 0 24px ${item.accent}29, inset 0 1px 0 rgba(255,255,255,.08)`, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                          <AboutIcon kind={item.kind} color={item.accent} />
+                        </span>
+                        <div style={{ display: "grid", rowGap: "3px" }}>
+                          <div
+                            style={{
+                              color: "#ffffff",
+                              fontSize:
+                                infoDashboardMode === "submit"
+                                  ? "14px"
+                                  : dashboardMode === "contact" && item.label === "Coverage"
+                                    ? "10px"
+                                    : "19px",
+                              fontWeight: infoDashboardMode === "submit" ? 700 : 760,
+                              lineHeight: dashboardMode === "contact" && item.label === "Coverage" ? 1.12 : 1.1,
+                              whiteSpace: dashboardMode === "contact" && item.label === "Coverage" ? "normal" : "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              maxWidth: dashboardMode === "contact" && item.label === "Coverage" ? "70px" : "none",
+                            }}
+                          >
+                            {dashboardMode === "contact" && item.label === "Coverage" ? (
+                              <>
+                                North
+                                <br />
+                                America
+                              </>
+                            ) : (
+                              item.value
+                            )}
+                          </div>
+                          <div style={{ color: "#9ec4e9", fontSize: "10px", fontWeight: 600, lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {item.label}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: "8px", marginBottom: "8px", position: "relative" }}>
+              <div style={{ position: "absolute", inset: "-12px -8px", pointerEvents: "none", opacity: 0.08, background: "radial-gradient(72% 68% at 42% 40%, rgba(75,137,250,0.22) 0%, rgba(75,137,250,0.04) 52%, rgba(0,0,0,0) 82%)" }} />
+              {(dashboardMode === "contact"
+                ? [
+                    { t: "Technical & Platform Support", b: "Get help with calendar feeds, filters, dashboard tools, subscriptions, exports, and platform workflows.", f: "Live workspace support", kind: "headset" as const, accent: "#6EA8FF" },
+                    { t: "Organizer & Company Inquiries", b: "Conference organizers, public companies, IR teams, and service providers can contact us regarding coverage, submissions, and platform visibility.", f: "Coverage & organizer support", kind: "building" as const, accent: "#A77DFF" },
+                    { t: "Market & Data Questions", b: "Reach out with questions regarding event classification, market tracking, conference clustering, or platform data coverage.", f: "Market intelligence support", kind: "messages" as const, accent: "#53E0C1" },
+                  ]
+                : dashboardMode === "subscribe"
+                  ? [
+                      { t: "Weekly Conference Briefing", b: "A curated weekly summary of notable upcoming conferences, investor events, and market activity.", f: "Delivered by email", kind: "mail" as const, accent: "#6EA8FF" },
+                      { t: "Market Activity Highlights", b: "Track hot weeks, active cities, clusters, and new periods of elevated conference concentration.", f: "Market intelligence updates", kind: "zap" as const, accent: "#FFB357" },
+                      { t: "Coverage Updates", b: "Stay informed as new conferences, organizers, sectors, and regions are added to the platform.", f: "Expanding event coverage", kind: "layers" as const, accent: "#53E0C1" },
+                    ]
+                  : infoDashboardMode === "submit"
+                    ? [
+                        { t: "Submit the Event URL", b: "Paste the conference website link so CCC can review the event details, organizer, dates, location, and fit.", f: "URL-first submission", kind: "mail" as const, accent: "#6EA8FF" },
+                        { t: "Reviewed Before Inclusion", b: "Submitted conferences are reviewed before they are added to protect data quality and user trust.", f: "Verification workflow", kind: "calendar" as const, accent: "#A77DFF" },
+                        { t: "Added to Market Coverage", b: "Qualified events may be added to the database, market views, concentration windows, and calendar feeds.", f: "Coverage expansion", kind: "layers" as const, accent: "#53E0C1" },
+                      ]
+                    : [
+                        { t: "Market Intelligence", b: "Track density, active cities, hot weeks, clusters, and participation trends.", f: "Live analysis layer", kind: "radar" as const, accent: "#6EA8FF" },
+                        { t: "Live Calendar Feeds", b: "Turn filtered market views into continuously updating calendar feeds.", f: "Google · Apple · Outlook", kind: "calendar" as const, accent: "#A77DFF" },
+                        { t: "Workflow Infrastructure", b: "Built for investors, IR teams, public companies, and capital markets workflows.", f: "Workspace tools", kind: "layers" as const, accent: "#53E0C1" },
+                      ]).map((card) => (
+                <div key={card.t} className="ccc-about-feature" style={{ height: "145px", borderRadius: "22px", background: "rgba(4,14,32,.92)", border: "1px solid rgba(110,160,255,.12)", padding: "11px", boxShadow: "0 8px 18px rgba(3,10,24,0.3)", position: "relative", zIndex: 1, display: "grid", gridTemplateRows: "auto auto 1fr auto", rowGap: "4px", overflow: "hidden" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "48px 1fr", gap: "10px", alignItems: "start", marginBottom: "2px" }}>
+                    <span style={{ width: "52px", height: "52px", borderRadius: "16px", background: "linear-gradient(180deg, rgba(80,120,255,.24), rgba(28,48,110,.16))", border: "1px solid rgba(160,200,255,.18)", boxShadow: `0 0 24px ${card.accent}, inset 0 1px 0 rgba(255,255,255,.08)`, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                      <AboutIcon kind={card.kind} color={card.accent} />
+                    </span>
+                    <div style={{ color: "#ffffff", fontSize: "16px", fontWeight: 700, marginTop: "4px", lineHeight: 1.12, textShadow: "0 1px 8px rgba(255,255,255,0.05)" }}>{card.t}</div>
+                  </div>
+                  <div style={{ fontSize: "12px", lineHeight: 1.3, color: "rgba(190,205,230,.72)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{card.b}</div>
+                  <div style={{ height: "1px", background: "rgba(110,160,255,.16)", marginTop: "6px" }} />
+                  <div style={{ fontSize: "11px", fontWeight: 500, color: "rgba(120,150,190,.65)", marginTop: "auto", paddingTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{card.f}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ border: "1px solid rgba(147,197,253,0.1)", borderRadius: "18px", background: "rgba(4,14,32,.92)", padding: "12px", display: "grid", gridTemplateColumns: "minmax(0,1fr) 420px", gap: "12px", marginBottom: "10px", boxShadow: "0 8px 20px rgba(2,9,20,0.28)" }}>
+              <div>
+                <div style={{ color: "#e7f1ff", fontWeight: 760, fontSize: "14px", marginBottom: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ width: "16px", height: "16px", borderRadius: "999px", background: "rgba(45,212,191,0.24)", border: "1px solid rgba(45,212,191,0.4)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "10px" }}>◈</span>
+                  {dashboardMode === "contact" ? "Support Categories" : dashboardMode === "subscribe" ? "Subscribe to Weekly Briefing" : infoDashboardMode === "submit" ? "Submit Conference URL" : "Conference Coverage"}
+                </div>
+                <div style={{ color: "#a9c4e2", fontSize: "11px", marginBottom: "7px" }}>
+                  {dashboardMode === "contact"
+                    ? "CCC supports platform users, conference organizers, investors, and market participants across multiple workflows."
+                    : dashboardMode === "subscribe"
+                      ? "Enter your email to receive conference updates and market activity highlights."
+                      : infoDashboardMode === "submit"
+                        ? "Submit a conference website link for review, verification, and potential inclusion in the platform."
+                        : "CCC tracks investor and capital markets activity across public and private markets."}
+                </div>
+                {dashboardMode === "subscribe" ? (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (subscribeEmailRef.current) subscribeEmailRef.current.focus();
+                    }}
+                    style={{ display: "grid", gap: "8px" }}
+                  >
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
+                      <input type="text" placeholder="First Name" style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }} />
+                      <input type="text" placeholder="Last Name" style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }} />
+                    </div>
+                    <input ref={subscribeEmailRef} type="email" placeholder="Email Address" style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }} />
+                    <input type="text" placeholder="Company (optional)" style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }} />
+                    <input type="text" placeholder="Role (optional)" style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }} />
+                    <button type="submit" style={{ height: "36px", borderRadius: "9px", border: "1px solid rgba(96,165,250,0.45)", background: "linear-gradient(180deg, rgba(44,107,255,0.92), rgba(36,88,216,0.92))", color: "#fff", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>
+                      Subscribe to Weekly Briefing
+                    </button>
+                    <div style={{ color: "#8fb3d7", fontSize: "10px" }}>No spam. Unsubscribe anytime.</div>
+                  </form>
+                ) : infoDashboardMode === "submit" ? (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSubmitConferenceUrl();
+                    }}
+                    style={{ display: "grid", gap: "8px" }}
+                  >
+                    <input
+                      ref={submitUrlRef}
+                      type="url"
+                      value={submitForm.url}
+                      onChange={(e) => {
+                        setSubmitForm((prev) => ({ ...prev, url: e.target.value }));
+                        if (submitFormMessage) setSubmitFormMessage(null);
+                      }}
+                      placeholder="Conference URL (required)"
+                      style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }}
+                    />
+                    <input type="email" value={submitForm.email} onChange={(e) => setSubmitForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="Submitter Email (optional)" style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }} />
+                    <input type="text" value={submitForm.conferenceName} onChange={(e) => setSubmitForm((prev) => ({ ...prev, conferenceName: e.target.value }))} placeholder="Conference Name (optional)" style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }} />
+                    <input type="text" value={submitForm.organizer} onChange={(e) => setSubmitForm((prev) => ({ ...prev, organizer: e.target.value }))} placeholder="Organizer (optional)" style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }} />
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
+                      <input type="date" value={submitForm.startDate} onChange={(e) => setSubmitForm((prev) => ({ ...prev, startDate: e.target.value }))} aria-label="Conference Start Date" style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }} />
+                      <input type="date" value={submitForm.endDate} onChange={(e) => setSubmitForm((prev) => ({ ...prev, endDate: e.target.value }))} aria-label="Conference End Date" style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }} />
+                    </div>
+                    <input type="text" value={submitForm.location} onChange={(e) => setSubmitForm((prev) => ({ ...prev, location: e.target.value }))} placeholder="Location (optional)" style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "0 10px", fontSize: "12px", outline: "none" }} />
+                    <textarea value={submitForm.notes} onChange={(e) => setSubmitForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Notes (optional)" style={{ minHeight: "62px", borderRadius: "8px", border: "1px solid rgba(120,160,255,.22)", background: "rgba(8,22,48,.72)", color: "#dbeafe", padding: "8px 10px", fontSize: "12px", outline: "none", resize: "vertical" }} />
+                    <button type="submit" style={{ height: "36px", borderRadius: "9px", border: "1px solid rgba(96,165,250,0.45)", background: "linear-gradient(180deg, rgba(44,107,255,0.92), rgba(36,88,216,0.92))", color: "#fff", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>
+                      Submit Conference
+                    </button>
+                    <div style={{ color: submitFormMessage?.type === "error" ? "#fca5a5" : submitFormMessage?.type === "success" ? "#86efac" : "#8fb3d7", fontSize: "10px", minHeight: "14px" }}>
+                      {submitFormMessage?.text || "Submitting a URL does not guarantee inclusion. CCC reviews events for relevance, accuracy, and coverage fit."}
+                    </div>
+                  </form>
+                ) : (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                    {(dashboardMode === "contact"
+                      ? [
+                          { label: "Conference submissions", dot: "rgba(96,165,250,0.95)" },
+                          { label: "Calendar feed support", dot: "rgba(251,191,36,0.95)" },
+                          { label: "Platform questions", dot: "rgba(167,139,250,0.95)" },
+                          { label: "Investor workflows", dot: "rgba(45,212,191,0.95)" },
+                          { label: "Organizer support", dot: "rgba(99,102,241,0.95)" },
+                          { label: "Market data questions", dot: "rgba(96,165,250,0.95)" },
+                        ]
+                      : [
+                          { label: "Investor conferences", dot: "rgba(96,165,250,0.95)" },
+                          { label: "Roadshows", dot: "rgba(251,191,36,0.95)" },
+                          { label: "Public company events", dot: "rgba(167,139,250,0.95)" },
+                          { label: "Private market gatherings", dot: "rgba(45,212,191,0.95)" },
+                          { label: "Industry conferences", dot: "rgba(99,102,241,0.95)" },
+                          { label: "Capital markets events", dot: "rgba(96,165,250,0.95)" },
+                        ]).map((chip) => (
+                      <span key={chip.label} style={{ height: "36px", padding: "0 14px", borderRadius: "999px", background: "rgba(8,22,48,.72)", border: "1px solid rgba(120,160,255,.16)", fontSize: "12px", fontWeight: 600, color: "#d6e7fb", display: "inline-flex", alignItems: "center", gap: "8px", transition: "all 150ms ease" }}>
+                        <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: chip.dot }} />
+                        {chip.label}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div>
+                <div style={{ color: "#e7f1ff", fontWeight: 760, fontSize: "14px", marginBottom: "6px", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ width: "16px", height: "16px", borderRadius: "999px", background: "rgba(96,165,250,0.22)", border: "1px solid rgba(96,165,250,0.4)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "10px" }}>▣</span>
+                  {dashboardMode === "contact" ? "Office & Response Snapshot" : dashboardMode === "subscribe" ? "What You'll Receive" : infoDashboardMode === "submit" ? "What qualifies?" : "Coverage Snapshot"}
+                </div>
+                {(dashboardMode === "contact"
+                  ? [
+                      { label: "Location", value: "New York, NY" },
+                      { label: "Coverage", value: "United States & Canada" },
+                      { label: "Typical Response", value: "Within 24 Hours" },
+                      { label: "Support Availability", value: "Business Days" },
+                    ]
+                  : dashboardMode === "subscribe"
+                    ? [
+                        { label: "Upcoming Conferences", value: "Notable events coming up across capital markets." },
+                        { label: "Hot Weeks & Clusters", value: "Periods of elevated activity and overlapping events." },
+                        { label: "New Coverage", value: "Recently added conferences, organizers, and sectors." },
+                        { label: "Calendar Workflow Tips", value: "Practical ways to build and maintain live conference feeds." },
+                      ]
+                    : infoDashboardMode === "submit"
+                      ? [
+                          { label: "Investor conferences", value: "" },
+                          { label: "Industry conferences", value: "" },
+                          { label: "Roadshows and investor access events", value: "" },
+                          { label: "Private market gatherings", value: "" },
+                          { label: "Public company investor events", value: "" },
+                          { label: "Capital markets events", value: "" },
+                        ]
+                      : [
+                          { label: "United States", value: 78 },
+                          { label: "Canada", value: 22 },
+                        ]).map((row) => (
+                  <div key={row.label} style={{ marginBottom: "6px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", color: "#cde0f4", fontSize: "15px", marginBottom: "4px" }}>
+                      <span>{row.label}</span>
+                      <span>{dashboardMode === "contact" || infoDashboardMode === "submit" ? row.value : `${row.value}%`}</span>
+                    </div>
+                    {dashboardMode === "contact" || infoDashboardMode === "submit" ? (
+                      <div style={{ height: "6px", borderRadius: "999px", background: "rgba(12,34,56,0.5)", border: "1px solid rgba(147,197,253,0.08)" }}>
+                        <div style={{ width: infoDashboardMode === "submit" ? "16%" : "24%", height: "100%", borderRadius: "999px", boxShadow: "0 0 10px rgba(59,130,246,0.24)", background: "linear-gradient(90deg, rgba(45,212,191,0.6), rgba(96,165,250,0.72))" }} />
+                      </div>
+                    ) : (
+                      <div style={{ height: "6px", borderRadius: "999px", background: "rgba(12,34,56,0.78)", border: "1px solid rgba(147,197,253,0.12)" }}>
+                        <div style={{ width: `${row.value}%`, height: "100%", borderRadius: "999px", boxShadow: "0 0 10px rgba(59,130,246,0.34)", background: "linear-gradient(90deg, rgba(45,212,191,0.82), rgba(96,165,250,0.92))" }} />
+                      </div>
+                    )}
+                  </div>
+                ))}
+                <div style={{ color: "#8fb3d7", fontSize: "10px", lineHeight: 1.3, marginTop: "2px" }}>
+                  {dashboardMode === "contact"
+                    ? "Support availability reflects business-day operations with fast response coverage."
+                    : dashboardMode === "subscribe"
+                      ? "Weekly briefings and market updates are designed for practical conference planning workflows."
+                      : infoDashboardMode === "submit"
+                        ? "Submissions are reviewed before any event is added to market coverage."
+                        : "Coverage expands through ongoing research, organizer discovery, and submitted conference URLs."}
+                </div>
+              </div>
+            </div>
+
+          </div>
+        ) : dashboardMode === "legal" ? (
+          <div
+            style={{
+              padding: "0",
+              display: "grid",
+              gap: "10px",
+              position: "relative",
+              overflow: "hidden",
+            }}
+          >
+            <div style={{ display: "grid", gridTemplateColumns: "62% 38%", gap: "16px", marginBottom: "8px", position: "relative", zIndex: 1 }}>
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "#7EA8FF", display: "inline-flex", alignItems: "center", gap: "10px" }}>
+                  <span className="ccc-mode-beacon" />
+                  Legal Mode
+                </div>
+                <div
+                  style={{
+                    color: "#ffffff",
+                    fontSize: "38px",
+                    fontWeight: 760,
+                    lineHeight: 0.96,
+                    letterSpacing: "-0.02em",
+                    marginTop: "8px",
+                    maxWidth: "720px",
+                  }}
+                >
+                  Legal & Information Disclaimer
+                </div>
+                <div style={{ color: "rgba(220,230,255,.88)", marginTop: "8px", fontSize: "16px", lineHeight: 1.38, maxWidth: "720px" }}>
+                  Capital Conference Calendar aggregates conference information from public and third-party sources. Users should independently verify all conference details directly with event organizers before making travel, lodging, registration, or business decisions.
+                </div>
+                <div style={{ color: "rgba(170,190,225,.82)", marginTop: "6px", fontSize: "14px", lineHeight: 1.42, maxWidth: "720px" }}>
+                  Conference schedules, locations, speakers, and registration details can change without notice.
+                </div>
+                <div style={{ marginTop: "14px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                  {["VERIFY WITH ORGANIZERS", "NO FINANCIAL ADVICE", "THIRD-PARTY SOURCES"].map((pill) => (
+                    <span key={pill} style={{ height: "36px", padding: "0 14px", borderRadius: "999px", background: "rgba(9,25,55,.78)", border: "1px solid rgba(110,160,255,.20)", fontSize: "12px", fontWeight: 700, letterSpacing: ".06em", color: "#ffffff", display: "inline-flex", alignItems: "center", gap: "7px" }}>
+                      <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: "#63A4FF" }} />
+                      {pill}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ background: "linear-gradient(180deg, rgba(10,24,52,.96) 0%, rgba(4,14,34,.98) 100%)", border: "1px solid rgba(130,180,255,.12)", borderRadius: "24px", padding: "14px", backdropFilter: "blur(14px)", boxShadow: "0 20px 50px rgba(0,0,0,.42), 0 0 0 1px rgba(110,160,255,.12), inset 0 1px 0 rgba(255,255,255,.05)", position: "relative", overflow: "hidden" }}>
+                <div style={{ position: "absolute", top: "-40px", left: "16px", right: "16px", height: "120px", opacity: 0.18, filter: "blur(60px)", background: "#3B82F6", pointerEvents: "none" }} />
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                  <div style={{ fontSize: "14px", fontWeight: 800, letterSpacing: ".12em", color: "rgba(220,230,255,.95)", textTransform: "uppercase" }}>
+                    Legal Snapshot
+                  </div>
+                  <a
+                    href="mailto:info@capitalconferencecalendar.com"
+                    style={{ height: "32px", padding: "0 12px", background: "rgba(70,110,190,.20)", border: "1px solid rgba(130,180,255,.24)", borderRadius: "10px", fontWeight: 700, fontSize: "11px", color: "#dbeafe", textDecoration: "none", display: "inline-flex", alignItems: "center", whiteSpace: "nowrap", flexShrink: 0 }}
+                  >
+                    Contact
                   </a>
-                </>
-              )}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px", position: "relative", zIndex: 1 }}>
+                  {[
+                    { label: "Important Notice", value: "Verify first", kind: "warning" as const, accent: "#63A4FF" },
+                    { label: "Information Sources", value: "Public & third-party", kind: "globe" as const, accent: "#4EE3C1" },
+                    { label: "Financial Advice", value: "None provided", kind: "radar" as const, accent: "#FFB357" },
+                    { label: "Liability", value: "Use at your own risk", kind: "layers" as const, accent: "#A77DFF" },
+                  ].map((item) => (
+                    <div key={item.label} style={{ minHeight: "74px", padding: "10px", background: "rgba(5,20,44,.92)", border: "1px solid rgba(120,160,255,.16)", borderRadius: "16px", display: "grid", alignContent: "center" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "44px 1fr", alignItems: "center", columnGap: "10px" }}>
+                        <span style={{ width: "44px", height: "44px", borderRadius: "14px", background: "linear-gradient(180deg, rgba(80,120,255,.24), rgba(28,48,110,.16))", border: "1px solid rgba(160,200,255,.18)", boxShadow: `0 0 24px ${item.accent}29, inset 0 1px 0 rgba(255,255,255,.08)`, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                          <AboutIcon kind={item.kind} color={item.accent} />
+                        </span>
+                        <div style={{ display: "grid", rowGap: "4px", minWidth: 0 }}>
+                          <div
+                            title={item.value}
+                            style={{
+                              color: "#ffffff",
+                              fontSize: "14px",
+                              fontWeight: 760,
+                              lineHeight: 1.15,
+                              whiteSpace: "normal",
+                              overflow: "hidden",
+                              display: "-webkit-box",
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: "vertical",
+                            }}
+                          >
+                            {item.value}
+                          </div>
+                          <div
+                            title={item.label}
+                            style={{
+                              color: "#9ec4e9",
+                              fontSize: "10px",
+                              fontWeight: 600,
+                              lineHeight: 1.2,
+                              whiteSpace: "normal",
+                              overflow: "hidden",
+                              display: "-webkit-box",
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: "vertical",
+                            }}
+                          >
+                            {item.label}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ border: "1px solid rgba(147,197,253,0.1)", borderRadius: "18px", background: "rgba(4,14,32,.92)", padding: "12px", display: "grid", gridTemplateColumns: "260px minmax(0,1fr)", gap: "12px", marginBottom: "10px", boxShadow: "0 8px 20px rgba(2,9,20,0.28)" }}>
+              <div>
+                <div style={{ color: "#e7f1ff", fontWeight: 760, fontSize: "14px", marginBottom: "8px" }}>On This Page</div>
+                <div style={{ display: "grid", gap: "6px" }}>
+                  {[
+                    "Important Notice",
+                    "Information Sources",
+                    "No Guarantee of Accuracy",
+                    "No Financial Advice",
+                    "Third-Party Websites",
+                    "Limitation of Liability",
+                    "Contact",
+                  ].map((item) => (
+                    <div key={item} style={{ color: "#cde0f4", fontSize: "12px", padding: "8px 10px", borderRadius: "12px", background: "rgba(8,22,48,.68)", border: "1px solid rgba(120,160,255,.14)" }}>
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: "grid", gap: "10px" }}>
+                {[
+                  {
+                    title: "Always Verify Event Information",
+                    body:
+                      "Conference schedules, locations, speakers, registration details, and event formats can change without notice. Before booking flights, hotels, transportation, conference registration, or meetings, users should confirm all event details directly through the official conference website or organizer.",
+                  },
+                  {
+                    title: "Information Sources",
+                    body:
+                      "Conference information displayed on Capital Conference Calendar may be collected from public conference websites, organizer announcements, press releases, public filings, marketing materials, third-party sources, and community submissions. While we attempt to maintain accurate and current information, conference details may change, become outdated, or contain errors.",
+                  },
+                  {
+                    title: "No Guarantee of Accuracy",
+                    body:
+                      "Capital Conference Calendar makes no representations or warranties regarding event accuracy, event timing, conference availability, registration status, speaker participation, venue information, livestream availability, sponsorship participation, or meeting access. Users assume full responsibility for independently verifying all conference information before taking action.",
+                  },
+                  {
+                    title: "No Financial Advice",
+                    body:
+                      "Capital Conference Calendar does not provide investment advice, securities recommendations, financial analysis, trading guidance, or investment solicitation. Conference listings do not imply endorsement, recommendation, or evaluation of any company, organizer, investment opportunity, or security.",
+                  },
+                  {
+                    title: "Third-Party Websites",
+                    body:
+                      "The platform may contain links to third-party conference websites and external resources. Capital Conference Calendar is not responsible for third-party content, registration systems, payment processing, website availability, external privacy practices, or event organizer conduct.",
+                  },
+                  {
+                    title: "Limitation of Liability",
+                    body:
+                      "To the maximum extent permitted by law, Capital Conference Calendar shall not be liable for travel expenses, hotel expenses, registration fees, business interruption, missed meetings, lost opportunities, scheduling conflicts, event cancellations, event modifications, or reliance on displayed information. Use of the platform is at the user’s own discretion and risk.",
+                  },
+                ].map((section) => (
+                  <div key={section.title} style={{ padding: "12px 14px", borderRadius: "16px", background: "rgba(8,22,48,.68)", border: "1px solid rgba(120,160,255,.14)" }}>
+                    <div style={{ color: "#ffffff", fontSize: "15px", fontWeight: 700, marginBottom: "6px" }}>{section.title}</div>
+                    <div style={{ color: "#a9c4e2", fontSize: "12px", lineHeight: 1.5 }}>{section.body}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ height: "88px", borderRadius: "22px", padding: "0 20px", background: "rgba(4,14,32,.92)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "40px 1fr", alignItems: "center", columnGap: "10px" }}>
+                <span style={{ width: "40px", height: "40px", borderRadius: "999px", background: "rgba(70,120,255,.18)", color: "#FFCC66", boxShadow: "0 0 14px rgba(255,200,90,.28)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "15px" }}>i</span>
+                <div>
+                  <div style={{ color: "#ffffff", fontWeight: 700, fontSize: "13px" }}>Contact</div>
+                  <div style={{ color: "#a6c3e2", fontSize: "10px", marginTop: "1px" }}>Questions regarding this page may be directed to info@capitalconferencecalendar.com.</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "10px", alignItems: "center", borderLeft: "1px solid rgba(110,160,255,.16)", paddingLeft: "14px" }}>
+                <a
+                  href="mailto:info@capitalconferencecalendar.com"
+                  style={{ height: "48px", padding: "0 18px", background: "linear-gradient(180deg, #2C6BFF, #2458D8)", color: "#fff", fontWeight: 700, borderRadius: "14px", boxShadow: "0 0 18px rgba(70,120,255,.18)", border: "1px solid rgba(96,165,250,0.44)", fontSize: "14px", textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+                >
+                  Email CCC
+                </a>
+              </div>
             </div>
           </div>
+        ) : null}
         </div>
-        )}
-        </div>
-
-        <div ref={resultsAnchorRef} style={{ marginTop: "8px", border: "1px solid rgba(96,165,250,0.16)", borderRadius: "14px", background: "linear-gradient(180deg, rgba(8,30,53,0.84) 0%, rgba(7,26,47,0.82) 100%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
-          <div style={{ padding: "12px", borderBottom: "1px solid rgba(96,165,250,0.16)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px", width: "100%", maxWidth: "100%", overflow: "visible", position: "relative", zIndex: 8 }}>
+        <div
+          ref={resultsAnchorRef}
+          style={
+            dashboardMode === "market" || dashboardMode === "marketview"
+              ? { marginTop: "0", border: "none", borderRadius: 0, background: "transparent", boxShadow: "none" }
+              : { marginTop: "8px", border: "1px solid rgba(96,165,250,0.16)", borderRadius: "14px", background: "linear-gradient(180deg, rgba(8,30,53,0.84) 0%, rgba(7,26,47,0.82) 100%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }
+          }
+        >
+          <div
+            style={{
+              padding: dashboardMode === "marketview" ? "0" : "12px",
+              borderBottom: "1px solid rgba(96,165,250,0.16)",
+              display: dashboardMode === "market" || dashboardMode === "marketview" ? "none" : "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "8px",
+              width: "100%",
+              maxWidth: "100%",
+              overflow: "visible",
+              position: "relative",
+              zIndex: 8,
+            }}
+          >
             <div style={{ color: "#dbeafe", fontWeight: 700 }}>{selectedEvents.length ? `${selectedEvents.length} selected` : `Showing ${filteredEvents.length} of ${events.length} conferences`}</div>
-            <div style={{ display: "grid", gap: "6px" }}>
+            <div style={{ display: "none", gap: "6px" }}>
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               <button
                 onClick={() => {
@@ -2492,36 +5579,2313 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
             </div>
           </div>
 
-          {dashboardMode === "market" ? (
-          <div style={{ padding: "12px", borderBottom: "1px solid rgba(96,165,250,0.16)" }}>
-            <div style={{ color: "#f8fbff", fontSize: "18px", fontWeight: 750, letterSpacing: "0.01em", marginBottom: "8px" }}>Market View Analysis</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "10px", minWidth: 0, maxWidth: "100%" }}>
-              {analysisCards.map((card) => (
-                <button key={card.t} onClick={() => applyAnalysisView(card.action)} style={{ textAlign: "left", border: "1px solid rgba(147,197,253,0.2)", borderRadius: "10px", background: "rgba(12,36,61,0.65)", color: "#dbeafe", padding: "10px", cursor: "pointer" }}>
-                  <div style={{ fontSize: "13px", lineHeight: 1.35, fontWeight: 700, letterSpacing: "0.005em", marginBottom: "5px", color: "#dbeafe" }}>{card.t}</div>
-                  <div style={{ fontSize: "11px", lineHeight: 1.45, color: "#9ec4e9", fontWeight: 500 }}>{card.b}</div>
-                </button>
+          <div
+            style={{
+              padding: "12px 16px",
+              marginBottom: "14px",
+              borderRadius: "14px",
+              background: "rgba(8,38,64,0.34)",
+              border: "1px solid rgba(107,157,210,0.14)",
+              display: dashboardMode === "market" && workspaceViewMode === "database" ? "grid" : "none",
+              gap: "6px",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: "6px 10px",
+                minWidth: 0,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 900,
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                  color: "#8fbfff",
+                }}
+              >
+                DISCOVERY DATABASE
+              </span>
+              <span style={{ color: "rgba(147,197,253,0.35)", fontSize: "12px" }}>·</span>
+              <span style={{ fontSize: "15px", fontWeight: 850, color: "#ffffff" }}>
+                {filteredEvents.length} conferences shown
+              </span>
+              {[
+                `${inViewStats.states} states`,
+                `${inViewStats.cities} cities`,
+                `${inViewStats.themes} themes`,
+                `${inViewStats.focus} focus areas`,
+                `${inViewStats.organizers} organizers`,
+              ].map((label) => (
+                <Fragment key={label}>
+                  <span style={{ color: "rgba(147,197,253,0.35)", fontSize: "12px" }}>·</span>
+                  <span style={{ fontSize: "13px", fontWeight: 750, color: "#c8d8ec" }}>{label}</span>
+                </Fragment>
               ))}
             </div>
-          </div>
-          ) : null}
-
-          <div style={{ padding: "18px 12px 16px", borderBottom: "1px solid rgba(96,165,250,0.2)", borderTop: "1px solid rgba(76,144,255,0.18)", background: "linear-gradient(180deg, rgba(10,34,58,0.68) 0%, rgba(8,28,49,0.58) 100%)", boxShadow: "inset 0 1px 0 rgba(147,197,253,0.08), 0 0 18px rgba(37,99,235,0.08)" }}>
-            <div style={{ color: "#8fb6df", fontSize: "10px", fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "8px" }}>Live Event Workspace</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "14px 20px", color: "#c3d7ee", fontSize: "14px", lineHeight: 1.45, alignItems: "baseline" }}>
-              <span style={{ color: "#e2efff", fontSize: "18px", fontWeight: 760, marginRight: "6px" }}>Operational Layer</span>
-              <span><strong style={{ color: "#f8fbff", fontSize: "16px", fontWeight: 700 }}>{inViewStats.events}</strong> events</span>
-              <span><strong style={{ color: "#f8fbff", fontSize: "16px", fontWeight: 700 }}>{inViewStats.organizers}</strong> organizers</span>
-              <span><strong style={{ color: "#f8fbff", fontSize: "16px", fontWeight: 700 }}>{inViewStats.states}</strong> states</span>
-              <span><strong style={{ color: "#f8fbff", fontSize: "16px", fontWeight: 700 }}>{inViewStats.cities}</strong> cities</span>
-              <span><strong style={{ color: "#f8fbff", fontSize: "16px", fontWeight: 700 }}>{inViewStats.themes}</strong> themes</span>
-              <span><strong style={{ color: "#f8fbff", fontSize: "16px", fontWeight: 700 }}>{inViewStats.focus}</strong> market focus areas</span>
+            <div style={{ fontSize: "13px", fontWeight: 500, lineHeight: 1.3, color: "#91a7bf" }}>
+              {activeFilterChips.length
+                ? "Browse and act on records matching your current filters."
+                : "Browse and act on every conference record in the database."}
             </div>
           </div>
+          <div style={{ padding: dashboardMode === "market" || dashboardMode === "marketview" || dashboardMode === "getstarted" ? "0" : filteredEvents.length === 1 ? "8px 12px 10px" : "12px 12px 14px", marginTop: compactSingleResultLayout ? "-2px" : "0", background: dashboardMode === "market" || dashboardMode === "marketview" || dashboardMode === "getstarted" ? "transparent" : "linear-gradient(180deg, rgba(7,23,39,0.72) 0%, rgba(6,20,35,0.84) 100%)" }}>
+            {activeFilterChips.length && dashboardMode !== "marketview" ? (
+              <div style={{ marginBottom: compactSingleResultLayout ? "4px" : filteredEvents.length === 1 ? "6px" : "10px", display: "flex", flexWrap: "wrap", gap: compactSingleResultLayout ? "6px" : "8px" }}>
+                {activeFilterChips.map((chip) => {
+                  const chipIconKind: "date" | "location" | "theme" | "participation" | "organizer" =
+                    chip.key === "dateRange" || chip.key === "dateWindow"
+                      ? "date"
+                      : chip.key === "country" || chip.key === "region" || chip.key === "state" || chip.key === "city"
+                        ? "location"
+                        : chip.key === "theme" || chip.key === "type" || chip.key === "focus"
+                          ? "theme"
+                          : chip.key === "issuer"
+                            ? "participation"
+                            : "organizer";
+                  return (
+                  <button
+                    key={chip.key}
+                    type="button"
+                    onClick={chip.clear}
+                    style={{
+                      height: "34px",
+                      padding: "0 14px",
+                      borderRadius: "999px",
+                      border: "1px solid rgba(117,169,255,0.38)",
+                      background: "rgba(10,33,58,0.78)",
+                      color: "#d9e8fb",
+                      fontSize: "14px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <FilterChipIcon kind={chipIconKind} />
+                    {chip.label} ×
+                  </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={clearWorkspaceView}
+                  style={{
+                    height: "34px",
+                    padding: "0 14px",
+                    borderRadius: "999px",
+                    border: "1px solid rgba(117,169,255,0.28)",
+                    background: "rgba(8,28,49,0.6)",
+                    color: "#93c5fd",
+                    fontSize: "14px",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                  }}
+                >
+                  Clear all
+                </button>
+              </div>
+            ) : null}
+            {dashboardMode === "market" && workspaceViewMode === "map" ? (
+              <div style={{ border: "1px solid rgba(96,165,250,0.18)", borderRadius: "14px", background: "linear-gradient(180deg, rgba(8,25,44,0.82), rgba(6,18,33,0.9))", padding: "16px", display: "grid", gap: "10px" }}>
+                <div style={{ color: "#e5f0ff", fontSize: "18px", fontWeight: 780 }}>Map</div>
+                <div style={{ color: "#9fc0df", fontSize: "12px", lineHeight: 1.45, maxWidth: "760px" }}>
+                  Market Map is reserved for geographic visualization. For now, use Database and Calendar in Discovery, or switch to Market View for analytics and concentration insights.
+                </div>
+              </div>
+            ) : null}
+            {dashboardMode === "marketview" ? (
+              <div
+                style={{
+                  width: "100%",
+                  maxWidth: "100%",
+                  margin: "0 auto",
+                  padding: "24px 0 64px",
+                  display: "grid",
+                  gap: "14px",
+                  boxSizing: "border-box",
+                  overflowX: "hidden",
+                }}
+              >
+                {(() => {
+                  const source = marketViewDataset === "all" ? events : filteredEvents;
+                  const mv = marketViewDataset === "all" ? allMarketAnalytics : filteredMarketAnalytics;
+                  const countRanked = (items: string[]) =>
+                    Array.from(
+                      items.reduce((map, item) => {
+                        const key = item.trim();
+                        if (!key) return map;
+                        map.set(key, (map.get(key) || 0) + 1);
+                        return map;
+                      }, new Map<string, number>())
+                    ).sort((a, b) => b[1] - a[1]);
 
-          <div style={{ padding: "26px 12px 14px", background: "linear-gradient(180deg, rgba(7,23,39,0.72) 0%, rgba(6,20,35,0.84) 100%)" }}>
-            <div className="event-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: "12px", width: "100%", maxWidth: "100%", minWidth: 0 }}>
-          {filteredEvents.map((e) => {
+                  const focusCountsRaw = getMarketFocusCounts(source);
+                  const categoryCounts = countRanked(source.map((event) => event.primaryCategory)).slice(0, 7);
+                  const formatCounts = countRanked(source.map((event) => event.format)).slice(0, 6);
+                  const sectorCountsRaw = getSectorCounts(source);
+                  const audienceCounts = getAudienceCounts(source);
+                  const eventCharacterCounts = getEventCharacterCounts(source);
+                  const issuerParticipationCounts = getIssuerParticipationCounts(source);
+                  const focusTotal = focusCountsRaw.reduce((sum, [, count]) => sum + count, 0) || 1;
+                  const focusCounts =
+                    focusCountsRaw.length > 6
+                      ? [...focusCountsRaw.slice(0, 6), ["Other", focusCountsRaw.slice(6).reduce((sum, [, count]) => sum + count, 0)] as [string, number]]
+                      : focusCountsRaw;
+
+                  const statesCount = new Set(source.map((e) => e.state).filter(Boolean)).size;
+                  const citiesCount = new Set(source.map((e) => [e.city, e.state].filter(Boolean).join(", ")).filter(Boolean)).size;
+                  const organizersCount = new Set(source.map((e) => e.organizer).filter(Boolean)).size;
+                  const themesCount = unique(source.flatMap((e) => splitCsv(e.sectorThemes)).filter(Boolean)).length;
+                  const issuerAccessEvents = source.filter(hasIssuerAccess);
+                  const noIssuerEvents = source.filter(hasNoIssuerParticipation);
+                  const institutionalEvents = source.filter(isInvestorHeavy);
+                  const mixedEvents = source.filter(isMixedParticipation);
+                  const presentationEvents = source.filter(eventHasPresentations);
+                  const oneOnOneEvents = source.filter(eventHasOneOnOneAccess);
+
+                  const issuerWindow = buildWindowStats(issuerAccessEvents);
+                  const institutionalWindow = buildWindowStats(institutionalEvents);
+                  const sectorWindows = buildSectorOpportunityWindows(source);
+
+                  const participationBuckets = [
+                    { label: "Issuer Access", count: issuerAccessEvents.filter((event) => !isInvestorHeavy(event)).length, color: "#8b5cf6" },
+                    { label: "Mixed", count: mixedEvents.length, color: "#2dd4bf" },
+                    { label: "Investor Heavy", count: institutionalEvents.filter((event) => !hasIssuerAccess(event)).length, color: "#22c55e" },
+                  ];
+                  const participationTotal = participationBuckets.reduce((sum, item) => sum + item.count, 0) || 1;
+                  const participationTrendCounts = issuerParticipationCounts.slice(0, 7);
+
+                  const rangeDays = marketViewRange === "8w" ? 56 : marketViewRange === "30d" ? 30 : 90;
+                  const todayIso = new Date().toISOString().slice(0, 10);
+                  const rangeEndIso = addDaysISO(todayIso, rangeDays);
+                  const futureWeeks = mv.weekCounts.filter((item) => item.weekStart >= todayIso);
+                  const sortedFutureWeeks = [...futureWeeks].sort((a, b) => (b.count === a.count ? a.weekStart.localeCompare(b.weekStart) : b.count - a.count));
+                  const timelineWeeks = mv.weekCounts.filter((item) => item.weekStart >= todayIso && item.weekStart <= rangeEndIso);
+                  const timelineSource = timelineWeeks.length ? timelineWeeks : mv.weekCounts.slice(0, marketViewRange === "8w" ? 8 : 12);
+                  const timelinePeak = timelineSource.reduce((max, item) => (item.count > max ? item.count : max), 1);
+                  const sortedTimeline = [...timelineSource].sort((a, b) => b.count - a.count);
+                  const peakWeek = sortedFutureWeeks[0] || sortedTimeline[0] || { weekStart: "", count: 0 };
+                  const nextHighestWeek = sortedFutureWeeks[1] || sortedTimeline[1] || { weekStart: "", count: 0 };
+                  const upcomingHighWeek = sortedFutureWeeks[2] || sortedTimeline[2] || { weekStart: "", count: 0 };
+                  const nextUpcomingWeek = sortedFutureWeeks[0] || upcomingHighWeek;
+                  const avgPerWeek = timelineSource.length ? (timelineSource.reduce((sum, item) => sum + item.count, 0) / timelineSource.length).toFixed(1) : "0.0";
+                  const topMarketFocus = focusCounts[0];
+                  const topSectorSignal = sectorCountsRaw[0] || mv.themeCounts[0];
+                  const topPrimaryCategory = categoryCounts[0];
+                  const topFormat = formatCounts[0];
+                  const focusIntelligenceRows = focusCountsRaw.slice(0, 5).map(([label, count]) => {
+                    const matchingEvents = source.filter((event) => {
+                      const focus = splitCsv(event.marketFocus);
+                      return focus.length ? focus.includes(label) : getSectorLabels(event).includes(label);
+                    });
+                    const cityCounts = getTopByCount(matchingEvents.map(getCityValue));
+                    const focusPeakWeek = buildWindowStats(matchingEvents).bestWeek;
+                    return {
+                      label,
+                      count,
+                      share: Math.round((count / focusTotal) * 100),
+                      topCity: cityCounts[0]?.[0] || "N/A",
+                      peakWeek: focusPeakWeek.weekStart ? formatWeekLabel(focusPeakWeek.weekStart) : "N/A",
+                      issuerAccessCount: matchingEvents.filter(hasIssuerAccess).length,
+                    };
+                  });
+                  const issuerCityLabel = issuerWindow.bestWeekCity.city !== "N/A" ? issuerWindow.bestWeekCity.city : "Insufficient data";
+                  const institutionalCityLabel = institutionalWindow.bestWeekCity.city !== "N/A" ? institutionalWindow.bestWeekCity.city : "Insufficient data";
+                  const topCityCount = mv.cityCounts[0];
+                  const topCities = mv.cityCounts.slice(0, 3);
+                  const topCitiesLabel = topCities.length ? topCities.map(([city]) => city).join(" · ") : "Insufficient data";
+                  const topCitiesSupport = topCities.length
+                    ? topCities.map(([, count]) => `${count}`).join(" / ") + " conferences"
+                    : "Insufficient data";
+                  const topOrganizer = mv.organizerCounts[0];
+                  const topParticipationTrend = participationTrendCounts[0];
+                  const dominantAudience = audienceCounts[0] || topMarketFocus;
+                  const dominantTheme = sectorCountsRaw[0] || mv.themeCounts[0];
+                  const dominantIssuerParticipation = participationTrendCounts[0];
+                  const dominantAudienceLabel =
+                    [dominantAudience?.[0], dominantTheme?.[0], dominantIssuerParticipation?.[0]]
+                      .filter(Boolean)
+                      .slice(0, 3)
+                      .join(" · ") || "Insufficient data";
+                  const dominantAudienceSupport =
+                    [
+                      dominantAudience ? `${dominantAudience[1]} events` : "",
+                      dominantTheme ? `${dominantTheme[0]} theme` : "",
+                      dominantIssuerParticipation ? `${dominantIssuerParticipation[0]} participation` : "",
+                    ]
+                      .filter(Boolean)
+                      .slice(0, 2)
+                      .join(" · ") || "Awaiting classification";
+                  const lightWeek = [...futureWeeks]
+                    .filter((week) => week.count > 0)
+                    .sort((a, b) => a.count - b.count || a.weekStart.localeCompare(b.weekStart))[0] || { weekStart: "", count: 0 };
+                  const crowdedWeek = peakWeek;
+                  const cityCountsByIssuerAccess = getTopByCount(issuerAccessEvents.map(getCityValue));
+                  const cityCountsByInvestorHeavy = getTopByCount(institutionalEvents.map(getCityValue));
+                  const topIssuerCity = cityCountsByIssuerAccess[0];
+                  const topInvestorCity = cityCountsByInvestorHeavy[0];
+                  const topRegion = getTopByCount(source.map((event) => event.region))[0];
+                  const canadaCount = source.filter((event) => /canada/i.test(event.country)).length;
+                  const usCount = source.filter((event) => /united states|usa|us/i.test(event.country) || (!event.country && event.state)).length;
+                  const organizerInvestorHeavy = getTopByCount(institutionalEvents.map(getOrganizerValue))[0];
+                  const organizerIssuerAccess = getTopByCount(issuerAccessEvents.map(getOrganizerValue))[0];
+                  const organizerConcentration = Math.round(((mv.organizerCounts.slice(0, 5).reduce((sum, [, count]) => sum + count, 0) || 0) / Math.max(1, mv.total)) * 100);
+                  const organizerCitySpread = Array.from(
+                    source.reduce((map, event) => {
+                      const organizer = getOrganizerValue(event);
+                      const city = getCityValue(event);
+                      if (!organizer || !city) return map;
+                      if (!map.has(organizer)) map.set(organizer, new Set<string>());
+                      map.get(organizer)?.add(city);
+                      return map;
+                    }, new Map<string, Set<string>>())
+                  )
+                    .map(([organizer, cities]) => [organizer, cities.size] as const)
+                    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+                  const mostGeographicOrganizer = organizerCitySpread[0];
+                  const verifiedCount = source.filter((event) => /verified|approved|reviewed/i.test(event.verificationStatus || "")).length;
+                  const websiteApprovedCount = source.filter((event) => /approved/i.test(event.websiteApproval || "")).length;
+                  const verificationStatusCounts = countRanked(source.map((event) => event.verificationStatus || "")).slice(0, 4);
+                  const eventCharacterCoverage = source.filter((event) => getEventCharacterValues(event).length > 0).length;
+                  const eventCharacterCoverageShare = source.length ? Math.round((eventCharacterCoverage / source.length) * 100) : 0;
+                  const topEventCharacter = eventCharacterCounts[0];
+                  const buildWeekInsight = (weekStart: string) => {
+                    const weekEvents = source.filter((event) => getWeekStart(event.startDate) === weekStart);
+                    const weekAudience = getAudienceCounts(weekEvents)[0];
+                    const weekFocus = getMarketFocusCounts(weekEvents)[0] || getSectorCounts(weekEvents)[0] || getTopByCount(weekEvents.flatMap((event) => getThemeValues(event)))[0];
+                    const weekIssuerParticipation = getIssuerParticipationCounts(weekEvents)[0];
+                    const weekCities = getTopByCount(weekEvents.map(getCityValue));
+                    const weekOrganizers = getTopByCount(weekEvents.map(getOrganizerValue));
+                    const topCity = weekCities[0]?.[0] || "N/A";
+                    const topCities = weekCities.slice(0, 3).map(([city]) => city);
+                    const investorHeavyCount = weekEvents.filter((event) => isInvestorHeavy(event)).length;
+                    const issuerHeavyCount = weekEvents.filter((event) => isIssuerHeavy(event)).length;
+                    const cityCluster = weekCities.find(([, count]) => count >= 2) || null;
+                    const organizerActivity = weekOrganizers.find(([, count]) => count >= 2) || null;
+                    let typeLabel = "Active week";
+                    if (investorHeavyCount > issuerHeavyCount && investorHeavyCount > 0) {
+                      typeLabel = "Investor-heavy";
+                    } else if (issuerHeavyCount > 0) {
+                      typeLabel = "Issuer-heavy";
+                    } else if (cityCluster) {
+                      typeLabel = `${cityCluster[0].split(",")[0]} cluster`;
+                    } else if (organizerActivity) {
+                      typeLabel = "Organizer concentration";
+                    } else if (weekFocus?.[0]) {
+                      typeLabel = `${weekFocus[0]} focus`;
+                    }
+
+                    let actionLine = "Use this week to plan outreach, travel, and meeting density.";
+                    if (investorHeavyCount > 0 && topCity !== "N/A") {
+                      actionLine = `${weekAudience?.[0] || "Investor"} activity is clustering across ${topCities.join(", ")}.`;
+                    } else if (issuerHeavyCount > 0 && topCity !== "N/A") {
+                      actionLine = `Issuer-access activity is strongest across ${topCities.join(", ")}.`;
+                    } else if (weekFocus?.[0] && topCity !== "N/A") {
+                      actionLine = `${weekFocus[0]} activity is clustering across ${topCities.join(", ")}.`;
+                    } else if (topCity !== "N/A") {
+                      actionLine = `Conference activity is concentrated across ${topCities.join(", ")}.`;
+                    }
+
+                    return {
+                      topAudience: weekAudience?.[0] || "",
+                      topFocus: weekFocus?.[0] || "",
+                      topIssuerParticipation: weekIssuerParticipation?.[0] || "",
+                      topCity,
+                      topCities,
+                      investorHeavyCount,
+                      issuerHeavyCount,
+                      typeLabel,
+                      actionLine,
+                    };
+                  };
+                  const weekInsights = new Map(
+                    [...new Set(source.map((event) => getWeekStart(event.startDate)).filter(Boolean))].map((weekStart) => [weekStart, buildWeekInsight(weekStart)] as const)
+                  );
+                  const coverageMetrics = [
+                    { label: "Market focus tagged", count: source.filter((event) => splitCsv(event.marketFocus).length > 0).length },
+                    { label: "Sector tagged", count: source.filter((event) => getSectorLabels(event).length > 0).length },
+                    { label: "Issuer tagged", count: source.filter((event) => splitCsv(event.issuerParticipation).length > 0 || Boolean(event.issuerParticipation.trim())).length },
+                    { label: "Format tagged", count: source.filter((event) => Boolean(event.format.trim())).length },
+                    { label: "Character tagged", count: eventCharacterCoverage },
+                    { label: "Venue listed", count: source.filter((event) => Boolean(event.venue.trim())).length },
+                    { label: "Event link live", count: source.filter((event) => Boolean(buildEventLink(event))).length },
+                    { label: "Verified / reviewed", count: verifiedCount },
+                    { label: "Website approved", count: websiteApprovedCount },
+                  ];
+                  const coverageAverage =
+                    coverageMetrics.length && source.length
+                      ? Math.round(
+                          coverageMetrics.reduce((sum, item) => sum + item.count / Math.max(1, source.length), 0) /
+                            coverageMetrics.length *
+                            100
+                        )
+                      : 0;
+
+                  const signalRows = [
+                    {
+                      color: "#f59e0b",
+                      icon: "flame" as const,
+                      title: "Hot Week Detected",
+                      text: nextUpcomingWeek.weekStart
+                        ? `${formatWeekLabel(nextUpcomingWeek.weekStart)} shows the highest upcoming conference density with ${nextUpcomingWeek.count} events.`
+                        : "No upcoming hot week detected yet.",
+                      action:
+                        nextUpcomingWeek.weekStart
+                          ? {
+                              type: "week" as const,
+                              from: nextUpcomingWeek.weekStart,
+                              to: addDaysISO(nextUpcomingWeek.weekStart, 6),
+                            }
+                          : null,
+                    },
+                    {
+                      color: "#8b5cf6",
+                      icon: "building" as const,
+                      title: "Issuer Access Gap",
+                      text: issuerAccessEvents.length && institutionalEvents.length
+                        ? `Issuer-access activity appears in ${issuerAccessEvents.length} events versus ${institutionalEvents.length} investor-heavy events, making the strongest issuer windows more valuable for outreach planning.`
+                        : "Issuer-access coverage is still too thin to isolate a clear planning gap.",
+                      action:
+                        issuerWindow.bestWeek.weekStart
+                          ? {
+                              type: "week" as const,
+                              from: issuerWindow.bestWeek.weekStart,
+                              to: addDaysISO(issuerWindow.bestWeek.weekStart, 6),
+                            }
+                          : null,
+                    },
+                    {
+                      color: "#22c55e",
+                      icon: "users" as const,
+                      title: "Institutional Audience Concentration",
+                      text: dominantAudience
+                        ? `${dominantAudience[0]} is most often paired with ${dominantTheme?.[0] || "the leading theme"} and ${dominantIssuerParticipation?.[0] || "the leading participation pattern"}, making the audience signal more actionable.`
+                        : "Audience concentration is still building out.",
+                      action: dominantAudience
+                        ? ({ type: "marketFocus", value: dominantAudience[0] } as AnalysisAction)
+                        : null,
+                    },
+                    {
+                      color: "#3b82f6",
+                      icon: "tag" as const,
+                      title: "Primary Category Lead",
+                      text: topPrimaryCategory
+                        ? `${topPrimaryCategory[0]} is the leading event type with ${topPrimaryCategory[1]} conferences in the current view.`
+                        : "Primary category labeling is still building out.",
+                      action: topPrimaryCategory ? ({ type: "conferenceType", value: topPrimaryCategory[0] } as AnalysisAction) : null,
+                    },
+                    {
+                      color: "#8b5cf6",
+                      icon: "target" as const,
+                      title: "Sector Opportunity",
+                      text: topSectorSignal
+                        ? `${topSectorSignal[0]} is showing the strongest sector concentration right now, which may create a tighter outreach and sponsorship window.`
+                        : "Sector opportunity signals are still building out.",
+                      action: topSectorSignal ? ({ type: "sectorTheme", value: topSectorSignal[0] } as AnalysisAction) : null,
+                    },
+                    {
+                      color: "#2dd4bf",
+                      icon: "trend" as const,
+                      title: "Organizer Clustering",
+                      text: `${organizerConcentration}% of conference activity comes from the top five organizers, which suggests a relatively concentrated organizer landscape.`,
+                      action: topOrganizer?.[0] ? ({ type: "organizer", value: topOrganizer[0] } as AnalysisAction) : null,
+                    },
+                  ];
+
+                  const geoPositions: Record<string, { left: string; top: string }> = {
+                    "New York, NY": { left: "77%", top: "40%" },
+                    "Washington, DC": { left: "75%", top: "46%" },
+                    "Boston, MA": { left: "81%", top: "33%" },
+                    "Chicago, IL": { left: "61%", top: "36%" },
+                    "Toronto, ON": { left: "67%", top: "28%" },
+                    "San Francisco, CA": { left: "18%", top: "45%" },
+                    "Las Vegas, NV": { left: "25%", top: "50%" },
+                    "Los Angeles, CA": { left: "16%", top: "57%" },
+                    "Houston, TX": { left: "47%", top: "66%" },
+                    "Miami, FL": { left: "78%", top: "74%" },
+                  };
+
+                  const cardBase: CSSProperties = {
+                    background: "linear-gradient(180deg, rgba(8, 31, 55, 0.96), rgba(5, 20, 36, 0.98))",
+                    border: "1px solid rgba(107, 157, 210, 0.09)",
+                    borderRadius: "16px",
+                    boxShadow: "0 10px 22px rgba(0, 0, 0, 0.12)",
+                    padding: "15px",
+                  };
+                  const planningCardBase: CSSProperties = {
+                    ...cardBase,
+                    background: "linear-gradient(180deg, rgba(9, 35, 61, 0.98), rgba(5, 21, 38, 0.98))",
+                    border: "1px solid rgba(107,157,210,0.1)",
+                    boxShadow: "0 12px 24px rgba(2, 12, 24, 0.16)",
+                  };
+                  const splitSpan = isMobileViewport || isTabletViewport ? "1 / -1" : "span 6 / span 6";
+                  const kpiColumns = isMobileViewport ? "1fr" : isTabletViewport ? "repeat(2, minmax(0, 1fr))" : "repeat(3, minmax(0, 1fr))";
+                  const donutColumns = isMobileViewport ? "1fr" : "220px minmax(0, 1fr)";
+                  const hotWeekColumns = isMobileViewport ? "1fr" : isTabletViewport ? "repeat(2, minmax(0, 1fr))" : "repeat(auto-fit, minmax(240px, 1fr))";
+                  const metricColumns = isMobileViewport ? "1fr" : "repeat(3, minmax(0, 1fr))";
+                  const opportunityColumns = isMobileViewport ? "1fr" : "repeat(2, minmax(0, 1fr))";
+
+                  const ctaStyle: CSSProperties = {
+                    height: "34px",
+                    padding: "0 14px",
+                    borderRadius: "10px",
+                    fontSize: "12px",
+                    fontWeight: 850,
+                    color: "#93c5fd",
+                    background: "rgba(12, 35, 61, 0.7)",
+                    border: "1px solid rgba(96, 165, 250, 0.25)",
+                    cursor: "pointer",
+                  };
+
+                  const summaryItems =
+                    marketViewDataset === "filtered"
+                      ? [
+                          { icon: "calendar" as const, label: `${source.length} in current view` },
+                          { icon: "calendar" as const, label: `${events.length} total conferences` },
+                          { icon: "building" as const, label: `${organizersCount} organizers` },
+                          { icon: "mappin" as const, label: `${citiesCount} cities` },
+                          { icon: "map" as const, label: `${statesCount} states` },
+                          { icon: "tag" as const, label: `${themesCount} themes` },
+                          { icon: "target" as const, label: `${focusCountsRaw.length} market focus areas` },
+                        ]
+                      : [
+                          { icon: "calendar" as const, label: `${source.length} conferences` },
+                          { icon: "building" as const, label: `${organizersCount} organizers` },
+                          { icon: "mappin" as const, label: `${citiesCount} cities` },
+                          { icon: "map" as const, label: `${statesCount} states` },
+                          { icon: "tag" as const, label: `${themesCount} themes` },
+                          { icon: "target" as const, label: `${focusCountsRaw.length} market focus areas` },
+                        ];
+
+                  const kpis = [
+                    {
+                      label: "Top Cities",
+                      value: topCitiesLabel,
+                      support: topCitiesSupport,
+                      icon: "mappin" as const,
+                      color: "#2dd4bf",
+                    },
+                    {
+                      label: "Peak Week",
+                      value: peakWeek.weekStart ? formatWeekLabel(peakWeek.weekStart) : "Insufficient data",
+                      support: `${peakWeek.count} conferences`,
+                      icon: "flame" as const,
+                      color: "#f59e0b",
+                    },
+                    {
+                      label: "Upcoming Hot Week",
+                      value: nextUpcomingWeek.weekStart ? formatWeekLabel(nextUpcomingWeek.weekStart) : "Insufficient data",
+                      support: `${nextUpcomingWeek.count} conferences`,
+                      icon: "calendar" as const,
+                      color: "#3b82f6",
+                    },
+                    {
+                      label: "Issuer Window",
+                      value: issuerWindow.bestWeek.weekStart ? formatWeekLabel(issuerWindow.bestWeek.weekStart) : "Insufficient data",
+                      support: `${issuerWindow.bestWeek.count} issuer-heavy events · ${issuerCityLabel}`,
+                      icon: "building" as const,
+                      color: "#8b5cf6",
+                    },
+                    {
+                      label: "Investor Window",
+                      value: institutionalWindow.bestWeek.weekStart ? formatWeekLabel(institutionalWindow.bestWeek.weekStart) : "Insufficient data",
+                      support: `${institutionalWindow.bestWeek.count} investor-heavy events · ${institutionalCityLabel}`,
+                      icon: "users" as const,
+                      color: "#22c55e",
+                    },
+                    {
+                      label: "Dominant Audience",
+                      value: dominantAudienceLabel,
+                      support: dominantAudienceSupport,
+                      icon: "target" as const,
+                      color: "#8b5cf6",
+                    },
+                  ];
+
+                  return (
+                    <>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(12, minmax(0, 1fr))",
+                          gap: "14px",
+                          width: "100%",
+                          background: "transparent",
+                        }}
+                      >
+                          <div
+                            style={{
+                              gridColumn: "1 / -1",
+                              display: "grid",
+                              gridTemplateColumns: isMobileViewport ? "1fr" : "minmax(0, 1fr) auto",
+                              gap: "18px",
+                              alignItems: "flex-start",
+                              padding: "4px 0 10px 0",
+                              borderBottom: "1px solid rgba(107,157,210,0.08)",
+                              marginBottom: "0",
+                            }}
+                          >
+                            <div style={{ display: "grid", gap: "4px" }}>
+                              <div style={{ color: "#3b82f6", fontSize: "11px", fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase" }}>Market View</div>
+                              <div style={{ color: "#f4f8ff", fontSize: "26px", lineHeight: 1.04, fontWeight: 900, letterSpacing: "-0.035em", maxWidth: "760px" }}>Conference intelligence across market activity.</div>
+                              <div style={{ color: "#b8cce4", fontSize: "13px", lineHeight: 1.35, fontWeight: 500, maxWidth: "820px", marginTop: "4px" }}>Analyze hot weeks, city clusters, audience concentration, sector focus, issuer access, and opportunity windows.</div>
+                              <div style={{ color: "#8fa8c8", fontSize: "10px", fontWeight: 900, letterSpacing: "0.15em", textTransform: "uppercase", marginTop: "5px" }}>MV Analytics Live · v1</div>
+                            </div>
+                          <div
+                            style={{
+                              display: "inline-flex",
+                              maxWidth: "100%",
+                              gap: "4px",
+                              padding: "4px",
+                              borderRadius: "12px",
+                              background: "rgba(4, 18, 34, 0.72)",
+                              border: "1px solid rgba(107,157,210,0.20)",
+                              flexWrap: isMobileViewport ? "wrap" : "nowrap",
+                              justifySelf: isMobileViewport ? "stretch" : "end",
+                              height: isMobileViewport ? "auto" : "36px",
+                            }}
+                          >
+                            {[
+                              { key: "all" as const, label: "All Conferences" },
+                              { key: "filtered" as const, label: "Current Filtered View" },
+                            ].map((option) => (
+                              <button
+                                key={option.key}
+                                type="button"
+                                onClick={() => setMarketViewDataset(option.key)}
+                                style={{
+                                  height: "28px",
+                                  padding: "0 15px",
+                                  borderRadius: "9px",
+                                  border: option.key === marketViewDataset ? "1px solid rgba(125,180,255,0.22)" : "1px solid transparent",
+                                  background: option.key === marketViewDataset ? "linear-gradient(180deg, #2f6ff3, #1f55d8)" : "transparent",
+                                  color: option.key === marketViewDataset ? "#ffffff" : "#a8bdd8",
+                                  boxShadow: option.key === marketViewDataset ? "0 0 0 1px rgba(125,180,255,0.22)" : "none",
+                                  fontSize: "12px",
+                                  fontWeight: 850,
+                                  letterSpacing: "0.03em",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            gridColumn: "1 / -1",
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: "10px 16px",
+                            fontSize: "12px",
+                            fontWeight: 800,
+                            color: "#dbeafe",
+                            marginTop: "8px",
+                            marginBottom: "10px",
+                            paddingBottom: "8px",
+                            paddingTop: "8px",
+                            borderBottom: "1px solid rgba(107,157,210,0.08)",
+                          }}
+                        >
+                          {summaryItems.map((item) => (
+                            <div key={item.label} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              <span style={{ display: "inline-flex", width: "14px", height: "14px", alignItems: "center", justifyContent: "center" }}>
+                                <MarketViewIcon kind={item.icon} color="#93c5fd" />
+                              </span>
+                              <span>{item.label}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div
+                          style={{
+                            gridColumn: "1 / -1",
+                            display: "grid",
+                            gridTemplateColumns: kpiColumns,
+                            gap: "8px",
+                            marginTop: "0",
+                            marginBottom: "12px",
+                          }}
+                        >
+                          {kpis.map((kpi) => (
+                            <div
+                              key={kpi.label}
+                              title={`${kpi.label}: ${kpi.value} — ${kpi.support}`}
+                              style={{
+                                height: "64px",
+                                background: "rgba(8,31,55,0.46)",
+                                border: "1px solid rgba(107,157,210,0.09)",
+                                borderRadius: "12px",
+                                padding: "10px 12px",
+                                display: "grid",
+                                gridTemplateColumns: "26px minmax(0, 1fr)",
+                                gap: "9px",
+                                alignItems: "start",
+                                overflow: "hidden",
+                              }}
+                            >
+                              <div style={{ width: "26px", height: "26px", borderRadius: "8px", display: "grid", placeItems: "center", background: `${kpi.color}18`, color: kpi.color }}>
+                                <MarketViewIcon kind={kpi.icon} color={kpi.color} />
+                              </div>
+                              <div style={{ minWidth: 0, display: "grid", gap: "3px", alignContent: "center" }}>
+                                <div style={{ color: "#91a9c6", fontSize: "8.5px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", lineHeight: 1.08 }}>{kpi.label}</div>
+                                <div style={{ color: "#f4f8ff", fontSize: "16px", lineHeight: 1, fontWeight: 900, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kpi.value}</div>
+                                <div style={{ color: "#a8bdd8", fontSize: "10.5px", lineHeight: 1.15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kpi.support}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div style={{ ...planningCardBase, gridColumn: "1 / -1", display: "grid", gap: "12px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+                            <div>
+                              <div style={{ color: "#f4f8ff", fontSize: "20px", lineHeight: 1.1, fontWeight: 900 }}>Market Intelligence Signals</div>
+                              <div style={{ color: "#b8cce4", fontSize: "14px", lineHeight: 1.35 }}>Actionable takeaways from the current market view.</div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (peakWeek.weekStart) {
+                                  applyAnalysisView({
+                                    type: "week",
+                                    from: peakWeek.weekStart,
+                                    to: addDaysISO(peakWeek.weekStart, 6),
+                                  });
+                                }
+                              }}
+                              style={ctaStyle}
+                            >
+                              View All Signals →
+                            </button>
+                          </div>
+                          <div style={{ display: "grid", gap: "12px" }}>
+                            {signalRows.map((signal, index) => (
+                              <div key={signal.title} style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", gap: "12px", alignItems: "start", padding: index === 0 ? "0 0 12px" : "10px 0 12px", borderBottom: index === signalRows.length - 1 ? "none" : "1px solid rgba(107,157,210,0.12)" }}>
+                                <div style={{ width: "36px", height: "36px", borderRadius: "11px", display: "grid", placeItems: "center", background: `${signal.color}14` }}>
+                                  <MarketViewIcon kind={signal.icon} color={signal.color} />
+                                </div>
+                                <div style={{ display: "grid", gap: "8px" }}>
+                                  <div style={{ color: "#f4f8ff", fontSize: "14px", lineHeight: 1.2, fontWeight: 850 }}>{signal.title}</div>
+                                  <div style={{ color: "#b8cce4", fontSize: "12.5px", lineHeight: 1.4 }}>{signal.text}</div>
+                                  {signal.action ? (
+                                    <div>
+                                      <button
+                                        type="button"
+                                        onClick={() => applyAnalysisView(signal.action as AnalysisAction)}
+                                        style={{
+                                          ...ctaStyle,
+                                          height: "26px",
+                                          padding: "0 10px",
+                                          borderRadius: "8px",
+                                          fontSize: "10.5px",
+                                        }}
+                                      >
+                                        View Dataset
+                                      </button>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div style={{ ...planningCardBase, gridColumn: "1 / -1" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", marginBottom: "14px" }}>
+                            <div>
+                            <div style={{ color: "#f4f8ff", fontSize: "20px", lineHeight: 1.1, fontWeight: 900 }}>Upcoming Hot Weeks</div>
+                              <div style={{ color: "#b8cce4", fontSize: "14px", lineHeight: 1.35 }}>Prepare for high-activity conference windows ahead.</div>
+                            </div>
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: hotWeekColumns, gap: "12px" }}>
+                            {(sortedFutureWeeks.length ? sortedFutureWeeks : sortedTimeline).slice(0, 3).map((week, index) => {
+                              const weekInsight = weekInsights.get(week.weekStart);
+                              const bestCities = weekInsight?.topCities?.length ? weekInsight.topCities.join(" · ") : weekInsight?.topCity || "N/A";
+                              const audienceOrFocus = [weekInsight?.topAudience, weekInsight?.topFocus, weekInsight?.topIssuerParticipation].filter(Boolean).slice(0, 3).join(" · ") || "Market activity";
+                              return (
+                                <div key={week.weekStart} style={{ height: "220px", background: "linear-gradient(180deg, rgba(9,36,61,0.74), rgba(7,28,49,0.88))", borderRadius: "15px", padding: "15px", display: "grid", gap: "8px", alignContent: "start", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+                                  <div style={{ color: index < 2 ? "#f59e0b" : "#c084fc", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>{index < 2 ? "Hot Week" : "Upcoming"}</div>
+                                  <div style={{ color: "#f4f8ff", fontSize: "19px", fontWeight: 900 }}>{formatWeekLabel(week.weekStart)}</div>
+                                  <div style={{ color: "#b8cce4", fontSize: "13px" }}>{week.count} conferences</div>
+                                  <div style={{ color: "#b8cce4", fontSize: "12px" }}>Top Cities: {bestCities}</div>
+                                  <div style={{ color: "#8fd0ff", fontSize: "12px", fontWeight: 700 }}>{audienceOrFocus}</div>
+                                  <div style={{ color: "#a9bdd6", fontSize: "11.5px", lineHeight: 1.35 }}>{weekInsight?.actionLine || "Use this week to plan outreach, travel, and meeting density."}</div>
+                                  <div style={{ display: "grid", gridTemplateColumns: "repeat(8, minmax(0, 1fr))", gap: "3px", alignItems: "end", minHeight: "42px" }}>
+                                    {Array.from({ length: 8 }).map((_, barIndex) => (
+                                      <div key={barIndex} style={{ height: `${8 + Math.round((week.count / Math.max(1, peakWeek.count || 1)) * (barIndex % 2 === 0 ? 22 : 16))}px`, borderRadius: "999px", background: index < 2 ? "linear-gradient(180deg, #f59e0b, #ef4444)" : "linear-gradient(180deg, #8b5cf6, #3b82f6)" }} />
+                                    ))}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      applyAnalysisView({
+                                        type: "week",
+                                        from: week.weekStart,
+                                        to: addDaysISO(week.weekStart, 6),
+                                      })
+                                    }
+                                    style={ctaStyle}
+                                  >
+                                    View Week →
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div style={{ ...cardBase, gridColumn: "1 / -1" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", flexWrap: "wrap", marginBottom: "14px" }}>
+                            <div>
+                              <div style={{ color: "#f4f8ff", fontSize: "20px", lineHeight: 1.1, fontWeight: 900 }}>Hot Weeks / Activity Timeline</div>
+                              <div style={{ color: "#b8cce4", fontSize: "14px", lineHeight: 1.35 }}>Conference volume by week.</div>
+                            </div>
+                            <div style={{ display: "inline-flex", gap: "4px", padding: "4px", borderRadius: "12px", background: "rgba(5,20,36,0.72)", border: "1px solid rgba(107,157,210,0.22)" }}>
+                              {[
+                                { key: "8w" as const, label: "Next 8 Weeks" },
+                                { key: "30d" as const, label: "Next 30 Days" },
+                                { key: "90d" as const, label: "Next 90 Days" },
+                              ].map((option) => (
+                                <button
+                                  key={option.key}
+                                  type="button"
+                                  onClick={() => setMarketViewRange(option.key)}
+                                  style={{
+                                    height: "30px",
+                                    padding: "0 12px",
+                                    borderRadius: "9px",
+                                    border: option.key === marketViewRange ? "1px solid rgba(83,160,255,0.58)" : "1px solid transparent",
+                                    background: option.key === marketViewRange ? "rgba(37,99,235,0.28)" : "transparent",
+                                    color: option.key === marketViewRange ? "#ffffff" : "#a8bdd8",
+                                    fontSize: "12px",
+                                    fontWeight: 850,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  {option.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(timelineSource.length, 1)}, minmax(0, 1fr))`, alignItems: "end", gap: "8px", minHeight: "138px" }}>
+                            {timelineSource.map((week) => {
+                              const isPeak = peakWeek.weekStart === week.weekStart;
+                              const isElevated = week.count >= Math.max(8, Math.round(timelinePeak * 0.85));
+                              const barColor = isPeak ? "linear-gradient(180deg, #ef4444, #f59e0b)" : isElevated ? "linear-gradient(180deg, #60a5fa, #3b82f6)" : "linear-gradient(180deg, #2563eb, #1d4ed8)";
+                              return (
+                                <div key={week.weekStart} style={{ display: "grid", gap: "8px", alignItems: "end" }}>
+                                  <div style={{ color: isPeak ? "#fbbf24" : "#dbeafe", fontSize: "13px", fontWeight: 900, textAlign: "center", minHeight: "18px" }}>{isPeak ? String(week.count) : ""}</div>
+                                  <div style={{ height: `${Math.max(16, Math.round((week.count / timelinePeak) * 82))}px`, borderRadius: "10px 10px 4px 4px", background: barColor, boxShadow: isPeak ? "0 0 24px rgba(245,158,11,0.25)" : "none" }} />
+                                  <div style={{ color: "#9fc0df", fontSize: "10px", lineHeight: 1.15, textAlign: "center" }}>{formatWeekLabel(week.weekStart)}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "10px", marginTop: "12px" }}>
+                            {[
+                              {
+                                label: "Peak Week",
+                                title: peakWeek.weekStart ? formatWeekLabel(peakWeek.weekStart) : "N/A",
+                                body: `${peakWeek.count} conferences${peakWeek.weekStart ? ` · ${weekInsights.get(peakWeek.weekStart)?.typeLabel || "Active week"}` : ""}`,
+                              },
+                              {
+                                label: "Next Highest",
+                                title: nextHighestWeek.weekStart ? formatWeekLabel(nextHighestWeek.weekStart) : "N/A",
+                                body: `${nextHighestWeek.count} conferences${nextHighestWeek.weekStart ? ` · ${weekInsights.get(nextHighestWeek.weekStart)?.typeLabel || "Active week"}` : ""}`,
+                              },
+                              {
+                                label: "Upcoming High",
+                                title: upcomingHighWeek.weekStart ? formatWeekLabel(upcomingHighWeek.weekStart) : "N/A",
+                                body: `${upcomingHighWeek.count} conferences${upcomingHighWeek.weekStart ? ` · ${weekInsights.get(upcomingHighWeek.weekStart)?.typeLabel || "Active week"}` : ""}`,
+                              },
+                              { label: "Avg / Week", title: avgPerWeek, body: "conferences" },
+                            ].map((item) => (
+                              <div key={item.label} style={{ background: "rgba(9,36,61,0.62)", borderRadius: "13px", padding: "12px 13px", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+                                <div style={{ color: "#7f99b8", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>{item.label}</div>
+                                <div style={{ color: "#f4f8ff", fontSize: "18px", fontWeight: 900, marginTop: "6px" }}>{item.title}</div>
+                                <div style={{ color: "#b8cce4", fontSize: "12px", marginTop: "4px" }}>{item.body}</div>
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ marginTop: "12px", borderRadius: "12px", padding: "12px 14px", background: "rgba(9,36,61,0.62)", border: "1px solid rgba(107,157,210,0.14)", color: "#cbe1fb", fontSize: "13px", lineHeight: 1.4 }}>
+                            Plan ahead: target high-density conference weeks for outreach, meetings, sponsorship, and visibility.
+                          </div>
+                        </div>
+
+                        <div style={{ ...planningCardBase, gridColumn: "1 / -1", display: "grid", gap: "14px" }}>
+                          <div>
+                            <div style={{ color: "#f4f8ff", fontSize: "20px", lineHeight: 1.1, fontWeight: 900 }}>Opportunity Windows</div>
+                            <div style={{ color: "#b8cce4", fontSize: "14px", lineHeight: 1.35 }}>Find the best 1–3 day windows to reach the right audience.</div>
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: opportunityColumns, gap: "12px" }}>
+                            {[
+                              {
+                                label: "Issuer Opportunity Window",
+                                copy: issuerWindow.bestWeekCities?.length
+                                  ? `Issuer-access events are concentrated across ${issuerWindow.bestWeekCities.join(", ")} during ${issuerWindow.bestWeek.weekStart ? formatWeekLabel(issuerWindow.bestWeek.weekStart) : "this window"}.`
+                                  : "Not enough filtered data to calculate this signal.",
+                                window: issuerWindow,
+                                color: "#8b5cf6",
+                              },
+                              {
+                                label: "Institutional Investor Window",
+                                copy: institutionalWindow.bestWeekCities?.length
+                                  ? `Investor-heavy activity is strongest across ${institutionalWindow.bestWeekCities.join(", ")} during ${institutionalWindow.bestWeek.weekStart ? formatWeekLabel(institutionalWindow.bestWeek.weekStart) : "this window"}.`
+                                  : "Not enough filtered data to calculate this signal.",
+                                window: institutionalWindow,
+                                color: "#22c55e",
+                              },
+                              {
+                                label: "Light Week Opportunity",
+                                copy: lightWeek.weekStart
+                                  ? `${formatWeekLabel(lightWeek.weekStart)} is a lighter future week with ${lightWeek.count} event${lightWeek.count === 1 ? "" : "s"}, which may create a cleaner outreach or launch window.`
+                                  : "Not enough future activity to identify a lighter planning week yet.",
+                                window: {
+                                  bestWeek: lightWeek,
+                                  bestWeekCity: { city: focusIntelligenceRows[0]?.topCity || "N/A" } as { city: string },
+                                  bestWeekCities: focusIntelligenceRows[0]?.topCity ? [focusIntelligenceRows[0].topCity] : [],
+                                  count: lightWeek.count,
+                                },
+                                color: "#3b82f6",
+                              },
+                              {
+                                label: "Sector Opportunity Window",
+                                copy: sectorWindows[0]?.peakWeek.weekStart
+                                  ? `${sectorWindows[0].sector} is clustering around ${formatWeekLabel(sectorWindows[0].peakWeek.weekStart)} across ${(sectorWindows[0].topCities?.join(", ") || sectorWindows[0].topCity)}, which may tighten sponsor and meeting demand.`
+                                  : "Sector clustering is still too thin to isolate a single window.",
+                                window: {
+                                  bestWeek: sectorWindows[0]?.peakWeek || { weekStart: "", count: 0 },
+                                  bestWeekCity: { city: sectorWindows[0]?.topCity || "N/A" },
+                                  bestWeekCities: sectorWindows[0]?.topCities || [],
+                                  count: sectorWindows[0]?.count || 0,
+                                },
+                                color: "#f59e0b",
+                              },
+                              {
+                                label: "Crowded Week / Piggyback Opportunity",
+                                copy: crowdedWeek.weekStart
+                                  ? `${formatWeekLabel(crowdedWeek.weekStart)} is the densest upcoming week, which may help sponsors, advisors, and service teams piggyback meetings while the target audience is already in market.`
+                                  : "Not enough future activity to isolate a piggyback week yet.",
+                                window: {
+                                  bestWeek: crowdedWeek,
+                                  bestWeekCity: { city: topCityCount?.[0] || "N/A" },
+                                  bestWeekCities: topCities.map(([city]) => city),
+                                  count: crowdedWeek.count,
+                                },
+                                color: "#fb923c",
+                              },
+                            ].map((item) => (
+                              <div key={item.label} style={{ background: `${item.color}10`, borderRadius: "15px", padding: "16px", display: "grid", gap: "8px", alignContent: "start", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)" }}>
+                                <div style={{ color: item.color, fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>{item.label}</div>
+                                <div style={{ color: "#b8cce4", fontSize: "13px", lineHeight: 1.45 }}>{item.copy}</div>
+                                <div style={{ display: "grid", gridTemplateColumns: metricColumns, gap: "10px" }}>
+                                  <div><div style={{ color: "#7f99b8", fontSize: "11px", textTransform: "uppercase", fontWeight: 900 }}>Best Window</div><div style={{ color: "#f4f8ff", fontSize: "17px", lineHeight: 1.15, fontWeight: 900, marginTop: "4px" }}>{item.window.bestWeek.weekStart ? formatWeekLabel(item.window.bestWeek.weekStart) : "N/A"}</div></div>
+                                  <div><div style={{ color: "#7f99b8", fontSize: "11px", textTransform: "uppercase", fontWeight: 900 }}>Events</div><div style={{ color: "#f4f8ff", fontSize: "17px", lineHeight: 1.15, fontWeight: 900, marginTop: "4px" }}>{item.window.bestWeek.count}</div></div>
+                                  <div><div style={{ color: "#7f99b8", fontSize: "11px", textTransform: "uppercase", fontWeight: 900 }}>Top Cities</div><div title={(item.window.bestWeekCities || [item.window.bestWeekCity.city]).join(" · ")} style={{ color: "#f4f8ff", fontSize: "16px", lineHeight: 1.15, fontWeight: 900, marginTop: "4px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{(item.window.bestWeekCities || [item.window.bestWeekCity.city]).join(" · ")}</div></div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (issuerWindow.bestWeek.weekStart) {
+                                  applyAnalysisView({
+                                    type: "week",
+                                    from: issuerWindow.bestWeek.weekStart,
+                                    to: addDaysISO(issuerWindow.bestWeek.weekStart, 6),
+                                  });
+                                }
+                              }}
+                              style={ctaStyle}
+                            >
+                              Explore Opportunity Windows →
+                            </button>
+                          </div>
+                        </div>
+
+                        <div style={{ ...cardBase, gridColumn: splitSpan, minHeight: "420px", display: "grid", alignContent: "start" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", marginBottom: "12px" }}>
+                            <div>
+                              <div style={{ color: "#f4f8ff", fontSize: "20px", lineHeight: 1.1, fontWeight: 900 }}>City Cluster Analytics</div>
+                              <div style={{ color: "#b8cce4", fontSize: "14px", lineHeight: 1.35 }}>Where conference activity is clustering most.</div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (topCityCount?.[0]) {
+                                  applyAnalysisView({ type: "city", value: topCityCount[0] });
+                                }
+                              }}
+                              style={ctaStyle}
+                            >
+                              View All Cities →
+                            </button>
+                          </div>
+                          <div style={{ display: "grid", gap: "10px" }}>
+                            {mv.cityCounts.slice(0, 8).map(([city, count], index) => {
+                              const maxCity = mv.cityCounts[0]?.[1] || 1;
+                              return (
+                                <div key={city} style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr) auto", gap: "10px", alignItems: "center" }}>
+                                  <div style={{ color: "#7f99b8", fontSize: "12px", fontWeight: 900 }}>{index + 1}.</div>
+                                  <div style={{ display: "grid", gap: "6px", minWidth: 0 }}>
+                                    <div title={city} style={{ color: "#f4f8ff", fontSize: "13px", lineHeight: 1.25, fontWeight: 800, whiteSpace: "normal", overflowWrap: "anywhere" }}>{city}</div>
+                                    <div style={{ height: "8px", borderRadius: "999px", background: "rgba(11,42,70,0.82)" }}>
+                                      <div style={{ width: `${Math.max(10, Math.round((count / maxCity) * 100))}%`, height: "100%", borderRadius: "999px", background: "linear-gradient(90deg, #2dd4bf, #60a5fa)" }} />
+                                    </div>
+                                  </div>
+                                  <div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 850 }}>{count}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div style={{ marginTop: "14px", borderRadius: "14px", padding: "14px", background: "rgba(45,212,191,0.08)", color: "#cbe7f6", fontSize: "13px", lineHeight: 1.45 }}>
+                            {mv.cityCounts[0]
+                              ? `${mv.cityCounts[0][0]} leads the current view with ${mv.cityCounts[0][1]} conferences${
+                                  mv.cityCounts[1] ? `, more than ${Math.max(1, Math.round(mv.cityCounts[0][1] / Math.max(1, mv.cityCounts[1][1])))}x ${mv.cityCounts[1][0]}.` : "."
+                                }`
+                              : "Not enough filtered data to calculate this signal."}
+                          </div>
+                        </div>
+
+                        <div style={{ ...cardBase, gridColumn: splitSpan }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", marginBottom: "14px" }}>
+                            <div>
+                              <div style={{ color: "#f4f8ff", fontSize: "20px", lineHeight: 1.1, fontWeight: 900 }}>Market Focus / Sector Intelligence</div>
+                              <div style={{ color: "#b8cce4", fontSize: "14px", lineHeight: 1.35 }}>Which market themes dominate the current view.</div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (topMarketFocus?.[0]) {
+                                  applyAnalysisView({ type: "marketFocus", value: topMarketFocus[0] });
+                                }
+                              }}
+                              style={ctaStyle}
+                            >
+                              View All Market Focus Areas →
+                            </button>
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: donutColumns, gap: "18px", alignItems: "center" }}>
+                            <div style={{ width: "220px", height: "220px", margin: "0 auto", borderRadius: "50%", background: `conic-gradient(
+                              #22c55e 0 ${Math.round(((focusCounts[0]?.[1] || 0) / focusTotal) * 360)}deg,
+                              #06b6d4 ${Math.round(((focusCounts[0]?.[1] || 0) / focusTotal) * 360)}deg ${Math.round((((focusCounts[0]?.[1] || 0) + (focusCounts[1]?.[1] || 0)) / focusTotal) * 360)}deg,
+                              #3b82f6 ${Math.round((((focusCounts[0]?.[1] || 0) + (focusCounts[1]?.[1] || 0)) / focusTotal) * 360)}deg ${Math.round((((focusCounts[0]?.[1] || 0) + (focusCounts[1]?.[1] || 0) + (focusCounts[2]?.[1] || 0)) / focusTotal) * 360)}deg,
+                              #f59e0b ${Math.round((((focusCounts[0]?.[1] || 0) + (focusCounts[1]?.[1] || 0) + (focusCounts[2]?.[1] || 0)) / focusTotal) * 360)}deg ${Math.round((((focusCounts[0]?.[1] || 0) + (focusCounts[1]?.[1] || 0) + (focusCounts[2]?.[1] || 0) + (focusCounts[3]?.[1] || 0)) / focusTotal) * 360)}deg,
+                              #8b5cf6 ${Math.round((((focusCounts[0]?.[1] || 0) + (focusCounts[1]?.[1] || 0) + (focusCounts[2]?.[1] || 0) + (focusCounts[3]?.[1] || 0)) / focusTotal) * 360)}deg ${Math.round((((focusCounts[0]?.[1] || 0) + (focusCounts[1]?.[1] || 0) + (focusCounts[2]?.[1] || 0) + (focusCounts[3]?.[1] || 0) + (focusCounts[4]?.[1] || 0)) / focusTotal) * 360)}deg,
+                              #ef4444 ${Math.round((((focusCounts[0]?.[1] || 0) + (focusCounts[1]?.[1] || 0) + (focusCounts[2]?.[1] || 0) + (focusCounts[3]?.[1] || 0) + (focusCounts[4]?.[1] || 0)) / focusTotal) * 360)}deg ${Math.round((((focusCounts[0]?.[1] || 0) + (focusCounts[1]?.[1] || 0) + (focusCounts[2]?.[1] || 0) + (focusCounts[3]?.[1] || 0) + (focusCounts[4]?.[1] || 0) + (focusCounts[5]?.[1] || 0)) / focusTotal) * 360)}deg,
+                              #64748b ${Math.round((((focusCounts[0]?.[1] || 0) + (focusCounts[1]?.[1] || 0) + (focusCounts[2]?.[1] || 0) + (focusCounts[3]?.[1] || 0) + (focusCounts[4]?.[1] || 0) + (focusCounts[5]?.[1] || 0)) / focusTotal) * 360)}deg 360deg
+                            )`, position: "relative" }}>
+                              <div style={{ position: "absolute", inset: "28px", borderRadius: "50%", background: "#061c33", display: "grid", placeItems: "center", textAlign: "center" }}>
+                                <div>
+                                  <div style={{ color: "#7f99b8", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>Total</div>
+                                  <div style={{ color: "#f4f8ff", fontSize: "30px", fontWeight: 900, marginTop: "6px" }}>{mv.total}</div>
+                                </div>
+                              </div>
+                            </div>
+                            <div style={{ display: "grid", gap: "10px" }}>
+                              {focusCounts.map(([label, count], index) => {
+                                const colors = ["#22c55e", "#06b6d4", "#3b82f6", "#f59e0b", "#8b5cf6", "#ef4444", "#64748b"];
+                                return (
+                                  <div key={label} style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr) auto", gap: "10px", alignItems: "center" }}>
+                                    <div style={{ width: "10px", height: "10px", borderRadius: "999px", background: colors[index] }} />
+                                    <div title={label} style={{ color: "#f4f8ff", fontSize: "13px", lineHeight: 1.25, fontWeight: 800, whiteSpace: "normal", overflowWrap: "anywhere" }}>{label}</div>
+                                    <div style={{ color: "#b8cce4", fontSize: "12px", fontWeight: 800 }}>{count} / {Math.round((count / focusTotal) * 100)}%</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                          <div style={{ display: "grid", gap: "10px", marginTop: "14px" }}>
+                            {focusIntelligenceRows.slice(0, 3).map((row) => (
+                              <div key={row.label} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "10px", padding: "12px 14px", borderRadius: "14px", background: "rgba(9,36,61,0.62)" }}>
+                                <div style={{ display: "grid", gap: "4px" }}>
+                                  <div style={{ color: "#f4f8ff", fontSize: "13px", fontWeight: 850 }}>{row.label}</div>
+                                  <div style={{ color: "#b8cce4", fontSize: "12px", lineHeight: 1.4 }}>
+                                    {row.count} events · {row.share}% · Top cities: {row.topCity} · Peak week: {row.peakWeek}
+                                  </div>
+                                </div>
+                                <div style={{ color: "#8fbfff", fontSize: "12px", fontWeight: 800, whiteSpace: "nowrap" }}>
+                                  {row.issuerAccessCount} issuer-access
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div style={{ ...cardBase, gridColumn: splitSpan, display: "grid", gap: "14px", minHeight: "360px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+                            <div>
+                              <div style={{ color: "#f4f8ff", fontSize: "20px", lineHeight: 1.1, fontWeight: 900 }}>Sector Opportunity Windows</div>
+                              <div style={{ color: "#b8cce4", fontSize: "14px", lineHeight: 1.35 }}>Identify where sector activity, issuer access, and investor attention are concentrating.</div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (sectorWindows[0]?.sector) {
+                                  applyAnalysisView({ type: "sectorTheme", value: sectorWindows[0].sector });
+                                }
+                              }}
+                              style={ctaStyle}
+                            >
+                              View Sector Windows →
+                            </button>
+                          </div>
+                          {sectorWindows.length ? (
+                            <div style={{ display: "grid", gap: "10px" }}>
+                              {sectorWindows.map((row, index) => {
+                                const maxCount = sectorWindows[0]?.count || 1;
+                                return (
+                                  <div key={row.sector} style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr) auto", gap: "10px", alignItems: "start" }}>
+                                    <div style={{ color: "#7f99b8", fontSize: "12px", fontWeight: 900 }}>{index + 1}.</div>
+                                    <div style={{ display: "grid", gap: "6px", minWidth: 0 }}>
+                                      <div title={row.sector} style={{ color: "#f4f8ff", fontSize: "13px", lineHeight: 1.25, fontWeight: 800, whiteSpace: "normal", overflowWrap: "anywhere" }}>{row.sector}</div>
+                                      <div style={{ color: "#b8cce4", fontSize: "12px", lineHeight: 1.35 }}>
+                                        {row.count} events · {row.issuerAccessCount} issuer-access · {row.investorHeavyCount} investor-heavy
+                                      </div>
+                                      <div style={{ color: "#8fbfff", fontSize: "11px", lineHeight: 1.35 }}>
+                                        Top cities: {(row.topCities?.join(" · ") || row.topCity)} · Peak week: {row.peakWeek.weekStart ? formatWeekLabel(row.peakWeek.weekStart) : "N/A"}
+                                      </div>
+                                      <div style={{ height: "8px", borderRadius: "999px", background: "rgba(11,42,70,0.82)" }}>
+                                        <div style={{ width: `${Math.max(10, Math.round((row.count / maxCount) * 100))}%`, height: "100%", borderRadius: "999px", background: "linear-gradient(90deg, #8b5cf6, #f59e0b)" }} />
+                                      </div>
+                                    </div>
+                                    <div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 850 }}>{row.count}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div style={{ color: "#b8cce4", fontSize: "13px", lineHeight: 1.45 }}>Not enough filtered data to isolate sector opportunity windows yet.</div>
+                          )}
+                          <div style={{ marginTop: "2px", borderRadius: "14px", padding: "14px", background: "rgba(9,36,61,0.62)", border: "1px solid rgba(107,157,210,0.14)", color: "#cbe7f6", fontSize: "13px", lineHeight: 1.45 }}>
+                            {sectorWindows[0]
+                              ? `${sectorWindows[0].sector} is the strongest sector window right now, with concentration building around ${sectorWindows[0].topCity} and a peak around ${sectorWindows[0].peakWeek.weekStart ? formatWeekLabel(sectorWindows[0].peakWeek.weekStart) : "this window"}.`
+                              : "Sector opportunity intelligence will appear as sector coverage expands."}
+                          </div>
+                        </div>
+
+                        <div style={{ ...cardBase, gridColumn: splitSpan, display: "grid", gap: "14px", minHeight: "360px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+                            <div>
+                              <div style={{ color: "#f4f8ff", fontSize: "20px", lineHeight: 1.1, fontWeight: 900 }}>Event Character Mix</div>
+                              <div style={{ color: "#b8cce4", fontSize: "14px", lineHeight: 1.35 }}>Understand the style of conference activity in the current view.</div>
+                            </div>
+                            <div style={{ color: "#7f99b8", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>Coverage {eventCharacterCoverageShare}%</div>
+                          </div>
+                          {eventCharacterCounts.length ? (
+                            <>
+                              <div style={{ display: "grid", gap: "10px" }}>
+                                {eventCharacterCounts.slice(0, 5).map(([label, count], index) => {
+                                  const maxCount = eventCharacterCounts[0]?.[1] || 1;
+                                  return (
+                                    <div key={label} style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr) auto", gap: "10px", alignItems: "center" }}>
+                                      <div style={{ color: "#7f99b8", fontSize: "12px", fontWeight: 900 }}>{index + 1}.</div>
+                                      <div style={{ display: "grid", gap: "6px", minWidth: 0 }}>
+                                        <div title={label} style={{ color: "#f4f8ff", fontSize: "13px", lineHeight: 1.25, fontWeight: 800, whiteSpace: "normal", overflowWrap: "anywhere" }}>{label}</div>
+                                        <div style={{ height: "8px", borderRadius: "999px", background: "rgba(11,42,70,0.82)" }}>
+                                          <div style={{ width: `${Math.max(10, Math.round((count / maxCount) * 100))}%`, height: "100%", borderRadius: "999px", background: "linear-gradient(90deg, #6366f1, #3b82f6)" }} />
+                                        </div>
+                                      </div>
+                                      <div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 850 }}>{count} · {Math.round((count / Math.max(1, source.length)) * 100)}%</div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <div style={{ borderRadius: "14px", padding: "14px", background: "rgba(9,36,61,0.62)", border: "1px solid rgba(107,157,210,0.14)", color: "#cbe7f6", fontSize: "13px", lineHeight: 1.45 }}>
+                                {topEventCharacter
+                                  ? `This view is mostly ${topEventCharacter[0].toLowerCase()} activity, which helps frame whether the current market is more presentation-led, networking-driven, or theme-led.`
+                                  : "Event-character coverage is still building out."}
+                              </div>
+                            </>
+                          ) : (
+                            <div style={{ color: "#b8cce4", fontSize: "13px", lineHeight: 1.45 }}>
+                              Event-character data is still too limited to show a reliable mix in this view.
+                            </div>
+                          )}
+                        </div>
+
+                        <div style={{ ...cardBase, gridColumn: splitSpan, display: "grid", gap: "14px", minHeight: "360px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+                            <div>
+                              <div style={{ color: "#f4f8ff", fontSize: "20px", lineHeight: 1.1, fontWeight: 900 }}>Format & Data Readiness</div>
+                              <div style={{ color: "#b8cce4", fontSize: "14px", lineHeight: 1.35 }}>How events are structured and how complete the classification is.</div>
+                            </div>
+                            <div style={{ color: "#7f99b8", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>Coverage {coverageAverage}%</div>
+                          </div>
+                          <div style={{ display: "grid", gap: "10px" }}>
+                            {formatCounts.length ? (
+                              formatCounts.map(([label, count]) => {
+                                const maxCount = formatCounts[0]?.[1] || 1;
+                                return (
+                                  <div key={label} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "10px", alignItems: "center" }}>
+                                    <div style={{ display: "grid", gap: "6px" }}>
+                                      <div title={label} style={{ color: "#f4f8ff", fontSize: "13px", lineHeight: 1.25, fontWeight: 800, whiteSpace: "normal", overflowWrap: "anywhere" }}>{label}</div>
+                                      <div style={{ height: "8px", borderRadius: "999px", background: "rgba(11,42,70,0.82)" }}>
+                                        <div style={{ width: `${Math.max(10, Math.round((count / maxCount) * 100))}%`, height: "100%", borderRadius: "999px", background: "linear-gradient(90deg, #14b8a6, #2dd4bf)" }} />
+                                      </div>
+                                    </div>
+                                    <div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 850 }}>{count}</div>
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <div style={{ color: "#b8cce4", fontSize: "13px", lineHeight: 1.45 }}>Format tags are still filling in across the current view.</div>
+                            )}
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px", marginTop: "2px" }}>
+                            <div style={{ borderRadius: "14px", padding: "14px", background: "rgba(9,36,61,0.62)", border: "1px solid rgba(107,157,210,0.14)", display: "grid", gap: "6px" }}>
+                              <div style={{ color: "#5eead4", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>User-facing structure</div>
+                              <div style={{ color: "#f4f8ff", fontSize: "15px", fontWeight: 850 }}>
+                                {topFormat?.[0] ? `${topFormat[0]} is the dominant format in this view.` : "Format data is still sparse."}
+                              </div>
+                              <div style={{ color: "#b8cce4", fontSize: "12px", lineHeight: 1.45 }}>
+                                {source.filter((event) => Boolean(event.venue.trim())).length} venues listed · {source.filter((event) => Boolean(buildEventLink(event))).length} live event links · {source.filter((event) => Boolean(event.format.trim())).length} format-tagged records
+                              </div>
+                            </div>
+                            <div style={{ borderRadius: "14px", padding: "14px", background: "rgba(9,36,61,0.62)", border: "1px solid rgba(107,157,210,0.14)", display: "grid", gap: "6px" }}>
+                              <div style={{ color: "#93c5fd", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>Readiness snapshot</div>
+                              <div style={{ color: "#f4f8ff", fontSize: "15px", fontWeight: 850 }}>
+                                {websiteApprovedCount} website-approved · {verifiedCount} verified or reviewed
+                              </div>
+                              <div style={{ color: "#b8cce4", fontSize: "12px", lineHeight: 1.45 }}>
+                                {verificationStatusCounts[0]?.[0]
+                                  ? `Most common review state: ${verificationStatusCounts[0][0]}.`
+                                  : "Verification status coverage is still building out."}
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr 1fr" : "repeat(3, minmax(0, 1fr))", gap: "10px", marginTop: "4px" }}>
+                            {coverageMetrics.map((item) => {
+                              const percentage = Math.round((item.count / Math.max(1, source.length)) * 100);
+                              return (
+                                <div key={item.label} style={{ background: "rgba(9,36,61,0.62)", borderRadius: "14px", padding: "12px 13px", display: "grid", gap: "6px", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+                                  <div style={{ color: "#7f99b8", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>{item.label}</div>
+                                  <div style={{ color: "#f4f8ff", fontSize: "18px", fontWeight: 900 }}>{percentage}%</div>
+                                  <div style={{ color: "#b8cce4", fontSize: "12px" }}>{item.count} of {source.length}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div style={{ ...cardBase, gridColumn: splitSpan, display: "grid", gap: "12px", minHeight: "360px" }}>
+                          <div>
+                            <div style={{ color: "#f4f8ff", fontSize: "20px", lineHeight: 1.1, fontWeight: 900 }}>Audience & Issuer Access Intelligence</div>
+                            <div style={{ color: "#b8cce4", fontSize: "14px", lineHeight: 1.35 }}>Understand who the market is serving and where real issuer access exists.</div>
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: metricColumns, gap: "10px" }}>
+                            {[
+                              { label: "Issuer Access Events", value: issuerAccessEvents.length, detail: `${Math.round((issuerAccessEvents.length / Math.max(1, source.length)) * 100)}% of current view` },
+                              { label: "Investor-heavy Events", value: institutionalEvents.length, detail: `${institutionalWindow.bestWeek.count} in best investor window` },
+                              { label: "No Issuer Participation", value: noIssuerEvents.length, detail: `${Math.round((noIssuerEvents.length / Math.max(1, source.length)) * 100)}% explicitly marked` },
+                            ].map((item) => (
+                              <div key={item.label} style={{ height: "96px", background: "rgba(9,36,61,0.62)", borderRadius: "14px", padding: "14px", display: "grid", alignContent: "space-between", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+                                <div style={{ color: "#7f99b8", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>{item.label}</div>
+                                <div style={{ color: "#f4f8ff", fontSize: "22px", fontWeight: 900 }}>{item.value}</div>
+                                <div style={{ color: "#b8cce4", fontSize: "12px" }}>{item.detail}</div>
+                              </div>
+                            ))}
+                          </div>
+                          <div>
+                            <div style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "10px" }}>Issuer Access vs. Audience Balance</div>
+                            <div style={{ display: "flex", height: "18px", borderRadius: "999px", overflow: "hidden", background: "rgba(11,42,70,0.82)" }}>
+                              {participationBuckets.map((bucket) => (
+                                <div key={bucket.label} style={{ width: `${(bucket.count / participationTotal) * 100}%`, background: bucket.color }} />
+                              ))}
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: metricColumns, gap: "10px", marginTop: "18px" }}>
+                              {participationBuckets.map((bucket) => (
+                                <div key={bucket.label} style={{ display: "grid", gap: "4px" }}>
+                                  <div style={{ color: bucket.color, fontSize: "12px", fontWeight: 900 }}>{bucket.label}</div>
+                                  <div style={{ color: "#f4f8ff", fontSize: "18px", fontWeight: 900 }}>{Math.round((bucket.count / participationTotal) * 100)}%</div>
+                                  <div style={{ color: "#b8cce4", fontSize: "12px" }}>{bucket.count} conferences</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <div style={{ display: "grid", gap: "10px" }}>
+                            <div style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>Top Participation Labels</div>
+                            <div style={{ display: "grid", gap: "8px" }}>
+                              {participationTrendCounts.slice(0, 4).map(([label, count]) => (
+                                <div key={label} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "10px", alignItems: "center" }}>
+                                  <div title={label} style={{ color: "#f4f8ff", fontSize: "13px", fontWeight: 800, whiteSpace: "normal", overflowWrap: "anywhere" }}>{label}</div>
+                                  <div style={{ color: "#b8cce4", fontSize: "12px", fontWeight: 800 }}>{count}</div>
+                                </div>
+                              ))}
+                            </div>
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (topParticipationTrend?.[0]) {
+                                    applyAnalysisView({ type: "issuerParticipation", value: topParticipationTrend[0] });
+                                  } else if (institutionalWindow.bestWeek.weekStart) {
+                                    applyAnalysisView({
+                                      type: "week",
+                                      from: institutionalWindow.bestWeek.weekStart,
+                                      to: addDaysISO(institutionalWindow.bestWeek.weekStart, 6),
+                                    });
+                                  }
+                                }}
+                                style={ctaStyle}
+                              >
+                                View Audience Signals →
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ ...cardBase, gridColumn: splitSpan, display: "grid", gap: "14px", minHeight: "360px" }}>
+                          <div>
+                            <div style={{ color: "#f4f8ff", fontSize: "20px", lineHeight: 1.1, fontWeight: 900 }}>Organizer Activity</div>
+                            <div style={{ color: "#b8cce4", fontSize: "14px", lineHeight: 1.35 }}>Which organizers are driving conference volume.</div>
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
+                            {[
+                              {
+                                label: "Top organizer overall",
+                                value: topOrganizer?.[0] || "Insufficient data",
+                                detail: topOrganizer ? `${topOrganizer[1]} events in this view` : "Awaiting organizer data",
+                                tone: "#93c5fd",
+                              },
+                              {
+                                label: "Geographic spread leader",
+                                value: mostGeographicOrganizer?.[0] || "Insufficient data",
+                                detail: mostGeographicOrganizer ? `${mostGeographicOrganizer[1]} active cities` : "Awaiting city spread data",
+                                tone: "#5eead4",
+                              },
+                              {
+                                label: "Investor-heavy lead",
+                                value: organizerInvestorHeavy?.[0] || "Insufficient data",
+                                detail: organizerInvestorHeavy ? "Most active across investor-heavy events" : "Investor-heavy organizer concentration is still building out.",
+                                tone: "#a5b4fc",
+                              },
+                              {
+                                label: "Issuer-access lead",
+                                value: organizerIssuerAccess?.[0] || "Insufficient data",
+                                detail: organizerIssuerAccess ? "Most active across issuer-access events" : "Issuer-access organizer concentration is still building out.",
+                                tone: "#c4b5fd",
+                              },
+                            ].map((item) => (
+                              <div key={item.label} style={{ borderRadius: "14px", padding: "12px 14px", background: "rgba(9,36,61,0.62)", display: "grid", gap: "5px", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+                                <div style={{ color: item.tone, fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>{item.label}</div>
+                                <div title={item.value} style={{ color: "#f4f8ff", fontSize: "15px", lineHeight: 1.25, fontWeight: 850, whiteSpace: "normal", overflowWrap: "anywhere" }}>{item.value}</div>
+                                <div style={{ color: "#b8cce4", fontSize: "12px", lineHeight: 1.4 }}>{item.detail}</div>
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ display: "grid", gap: "10px" }}>
+                            {mv.organizerCounts.slice(0, 6).map(([org, count]) => {
+                              const maxOrganizer = mv.organizerCounts[0]?.[1] || 1;
+                              return (
+                                <div key={org} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "10px", alignItems: "center" }}>
+                                  <div style={{ display: "grid", gap: "6px" }}>
+                                    <div title={org} style={{ color: "#f4f8ff", fontSize: "13px", lineHeight: 1.25, fontWeight: 800, whiteSpace: "normal", overflowWrap: "anywhere" }}>{org}</div>
+                                    <div style={{ height: "8px", borderRadius: "999px", background: "rgba(11,42,70,0.82)" }}>
+                                      <div style={{ width: `${Math.max(10, Math.round((count / maxOrganizer) * 100))}%`, height: "100%", borderRadius: "999px", background: "linear-gradient(90deg, #818cf8, #60a5fa)" }} />
+                                    </div>
+                                  </div>
+                                  <div style={{ color: "#b8cce4", fontSize: "12px", fontWeight: 800 }}>{Math.round((count / Math.max(1, mv.total)) * 100)}%</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
+                            <div style={{ borderRadius: "14px", padding: "12px 14px", background: "rgba(129,140,248,0.08)", color: "#cbe7f6", fontSize: "12px", lineHeight: 1.45 }}>
+                              <div style={{ color: "#a5b4fc", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "5px" }}>Investor-heavy lead</div>
+                              {organizerInvestorHeavy ? `${organizerInvestorHeavy[0]} appears most often in investor-heavy activity.` : "Investor-heavy organizer concentration is still building out."}
+                            </div>
+                            <div style={{ borderRadius: "14px", padding: "12px 14px", background: "rgba(139,92,246,0.08)", color: "#cbe7f6", fontSize: "12px", lineHeight: 1.45 }}>
+                              <div style={{ color: "#c4b5fd", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "5px" }}>Issuer-access lead</div>
+                              {organizerIssuerAccess ? `${organizerIssuerAccess[0]} shows the most issuer-access events in this view.` : "Issuer-access organizer concentration is still building out."}
+                            </div>
+                          </div>
+                          <div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (topOrganizer?.[0]) {
+                                  applyAnalysisView({ type: "organizer", value: topOrganizer[0] });
+                                }
+                              }}
+                              style={ctaStyle}
+                            >
+                              View Full Rankings →
+                            </button>
+                          </div>
+                        </div>
+
+                        <div style={{ ...cardBase, gridColumn: splitSpan, display: "grid", gap: "14px", minHeight: "360px" }}>
+                          <div>
+                            <div style={{ color: "#f4f8ff", fontSize: "20px", lineHeight: 1.1, fontWeight: 900 }}>Issuer Access Index</div>
+                            <div style={{ color: "#b8cce4", fontSize: "14px", lineHeight: 1.35 }}>Show whether the current view contains real company and issuer access.</div>
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: metricColumns, gap: "10px" }}>
+                            {[
+                              { label: "Issuer Access Events", value: issuerAccessEvents.length, detail: `${Math.round((issuerAccessEvents.length / Math.max(1, source.length)) * 100)}% share` },
+                              { label: "Presentation + 1x1", value: source.filter((event) => /presentations \+ 1x1 meetings/i.test(event.issuerParticipation)).length, detail: "combined access format" },
+                              { label: "Company Presentations", value: presentationEvents.length, detail: "presentation-led access" },
+                              { label: "1x1 Meetings Only", value: oneOnOneEvents.length, detail: "meeting-driven access" },
+                              { label: "Mixed Participation", value: mixedEvents.length, detail: "issuer + investor present" },
+                              { label: "No Issuer Participation", value: noIssuerEvents.length, detail: "explicitly marked" },
+                            ].map((item) => (
+                              <div key={item.label} style={{ background: "rgba(9,36,61,0.62)", borderRadius: "14px", padding: "14px", display: "grid", gap: "6px", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+                                <div style={{ color: "#7f99b8", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>{item.label}</div>
+                                <div style={{ color: "#f4f8ff", fontSize: "18px", fontWeight: 900 }}>{item.value}</div>
+                                <div style={{ color: "#b8cce4", fontSize: "12px" }}>{item.detail}</div>
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ borderRadius: "14px", padding: "14px", background: "rgba(45,212,191,0.08)", color: "#cbe7f6", fontSize: "13px", lineHeight: 1.45 }}>
+                            {issuerAccessEvents.length
+                              ? `Issuer access appears in ${issuerAccessEvents.length} events in this view. ${presentationEvents.length ? `${presentationEvents.length} events include company presentations,` : ""} ${oneOnOneEvents.length ? `${oneOnOneEvents.length} include 1x1-style access,` : ""} and ${noIssuerEvents.length} are explicitly marked as no issuer participation.`
+                              : "Issuer-access tags are still too limited to build a reliable access index in this view."}
+                          </div>
+                        </div>
+
+                        <div style={{ ...cardBase, gridColumn: splitSpan }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", marginBottom: "14px" }}>
+                            <div>
+                              <div style={{ color: "#f4f8ff", fontSize: "20px", lineHeight: 1.1, fontWeight: 900 }}>Geographic Concentration</div>
+                              <div style={{ color: "#b8cce4", fontSize: "14px", lineHeight: 1.35 }}>Conference density by city.</div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (topCityCount?.[0]) {
+                                  applyAnalysisView({ type: "city", value: topCityCount[0] });
+                                }
+                              }}
+                              style={ctaStyle}
+                            >
+                              View Full Map →
+                            </button>
+                          </div>
+                          <div style={{ position: "relative", height: "220px", borderRadius: "16px", background: "radial-gradient(circle at 50% 45%, rgba(14,80,130,0.18), rgba(4,19,34,0.98) 70%)", overflow: "hidden", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)" }}>
+                            <div style={{ position: "absolute", inset: "12% 8% 16% 8%", borderRadius: "50% 42% 44% 46% / 48% 44% 52% 40%", border: "1px solid rgba(107,157,210,0.08)", opacity: 0.55 }} />
+                            <div style={{ position: "absolute", inset: "22% 15% 24% 18%", borderRadius: "48% 36% 48% 40% / 52% 38% 50% 42%", border: "1px solid rgba(107,157,210,0.06)", opacity: 0.45 }} />
+                            <div style={{ position: "absolute", left: "12%", top: "16%", color: "#5f7f9f", fontSize: "10px", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 900 }}>North America</div>
+                            {mv.cityCounts.slice(0, 10).map(([city, count]) => {
+                              const pos = geoPositions[city];
+                              if (!pos) return null;
+                              const glow = 8 + Math.round((count / Math.max(1, mv.cityCounts[0]?.[1] || 1)) * 12);
+                              return (
+                                <div key={city} style={{ position: "absolute", left: pos.left, top: pos.top, transform: "translate(-50%, -50%)", display: "grid", gap: "6px", justifyItems: "center" }}>
+                                  <div style={{ width: `${glow}px`, height: `${glow}px`, borderRadius: "999px", background: "#60a5fa", boxShadow: `0 0 0 4px rgba(96,165,250,0.15), 0 0 18px rgba(96,165,250,0.45)` }} />
+                                  <div style={{ color: "#dbeafe", fontSize: "10px", fontWeight: 800, whiteSpace: "nowrap", textShadow: "0 1px 6px rgba(0,0,0,0.6)" }}>{city.split(",")[0]}</div>
+                                </div>
+                              );
+                            })}
+                            <div style={{ position: "absolute", left: "18px", bottom: "16px", display: "flex", alignItems: "center", gap: "8px", color: "#7f99b8", fontSize: "11px", fontWeight: 800 }}>
+                              <span>Low</span>
+                              <div style={{ width: "96px", height: "8px", borderRadius: "999px", background: "linear-gradient(90deg, rgba(45,212,191,0.28), rgba(59,130,246,0.86))" }} />
+                              <span>High</span>
+                            </div>
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: "10px", marginTop: "14px" }}>
+                            <div style={{ borderRadius: "14px", padding: "12px 14px", background: "rgba(45,212,191,0.08)", color: "#cbe7f6", fontSize: "12px", lineHeight: 1.45 }}>
+                              <div style={{ color: "#5eead4", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "5px" }}>Top issuer city</div>
+                              {topIssuerCity?.[0] || "Insufficient data"}
+                            </div>
+                            <div style={{ borderRadius: "14px", padding: "12px 14px", background: "rgba(34,197,94,0.08)", color: "#cbe7f6", fontSize: "12px", lineHeight: 1.45 }}>
+                              <div style={{ color: "#86efac", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "5px" }}>Top investor city</div>
+                              {topInvestorCity?.[0] || "Insufficient data"}
+                            </div>
+                            <div style={{ borderRadius: "14px", padding: "12px 14px", background: "rgba(59,130,246,0.08)", color: "#cbe7f6", fontSize: "12px", lineHeight: 1.45 }}>
+                              <div style={{ color: "#93c5fd", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "5px" }}>Coverage split</div>
+                              {usCount} U.S. · {canadaCount} Canada{topRegion?.[0] ? ` · Top region: ${topRegion[0]}` : ""}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            ) : null}
+            {dashboardMode === "market" && workspaceViewMode === "calendar" ? (
+              (() => {
+                const calendarCompact = isMobile || isTablet;
+                const timelineDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+                const formatCalendarWeekLabel = (weekStart: string) => {
+                  const start = new Date(`${weekStart}T00:00:00`);
+                  if (Number.isNaN(start.getTime())) return weekStart;
+                  return `${formatWeekLabel(weekStart)}, ${start.getFullYear()}`;
+                };
+
+                return (
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: "12px",
+                      padding: 0,
+                      background: "transparent",
+                      boxShadow: "none",
+                    }}
+                  >
+                    <div style={{ display: "grid", gap: "1px" }}>
+                      <div style={{ color: "#8bbcff", fontSize: "11px", fontWeight: 900, letterSpacing: ".14em", textTransform: "uppercase" }}>Calendar View</div>
+                    </div>
+
+                    <div
+                      style={{
+                        background: "linear-gradient(180deg, rgba(9,34,54,0.72), rgba(7,28,46,0.68))",
+                        border: "1px solid rgba(107, 157, 210, 0.12)",
+                        borderRadius: "14px",
+                        padding: "7px 9px",
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "6px",
+                      }}
+                    >
+                      {[
+                        { label: `${calendarSummary.eventCount} conferences shown`, tone: "#dbeafe" },
+                        { label: `${calendarSummary.activeWeeks} active weeks`, tone: "#dbeafe" },
+                        { label: `Top city: ${calendarSummary.topCity}`, tone: "#2dd4bf" },
+                        { label: `Peak week: ${calendarSummary.nextHotWeek ? formatWeekLabel(calendarSummary.nextHotWeek.weekStart) : "N/A"}`, tone: "#f59e0b" },
+                        { label: `Top focus: ${calendarSummary.topFocus}`, tone: "#8b5cf6" },
+                        { label: `Top organizer: ${calendarSummary.topOrganizer}`, tone: "#60a5fa" },
+                        { label: `Investor-heavy: ${calendarSummary.investorHeavyCount}`, tone: "#22c55e" },
+                        { label: `Issuer-heavy: ${calendarSummary.issuerHeavyCount}`, tone: "#8b5cf6" },
+                        { label: `Cluster windows: ${calendarSummary.clusterWindows}`, tone: "#14b8a6" },
+                        ...(calendarSummary.limitedData ? [{ label: "Limited signal data for this filtered view", tone: "#fbbf24" }] : []),
+                      ].map((chip) => (
+                        <span
+                          key={chip.label}
+                          style={{
+                            height: "28px",
+                            padding: "0 10px",
+                            borderRadius: "999px",
+                            background: "rgba(4, 19, 34, 0.44)",
+                            border: "1px solid rgba(107, 157, 210, 0.12)",
+                            fontSize: "11px",
+                            fontWeight: 800,
+                            color: "#dbeafe",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "8px",
+                          }}
+                        >
+                          <span style={{ width: "8px", height: "8px", borderRadius: "999px", background: chip.tone, boxShadow: `0 0 0 3px ${chip.tone}22` }} />
+                          {chip.label}
+                        </span>
+                      ))}
+                    </div>
+
+                    {filteredEvents.length === 0 ? (
+                      <div style={{ border: "1px solid rgba(96,165,250,0.18)", borderRadius: "16px", background: "rgba(6,22,40,0.52)", padding: "20px 18px", color: "#c7dcf6", fontSize: "15px", lineHeight: 1.5 }}>
+                        No conferences match this calendar view.
+                        <br />
+                        Try clearing filters or selecting a broader market view.
+                      </div>
+                    ) : (
+                      <div style={{ display: "grid", gap: "14px", minWidth: 0 }}>
+                        {calendarWeeks.map((week) => {
+                          const weekSelectedEventId = calendarSelected?.weekStart === week.weekStart ? calendarSelected.eventId : null;
+                          const weekSignal = calendarWeekSignals.get(week.weekStart);
+                          const isWeekExpanded = !!expandedWeeks[week.weekStart];
+                          const maxVisibleLanes = 4;
+                          const sortedWeekEvents = week.events
+                            .slice()
+                            .sort((a, b) => {
+                              if (a.startDate !== b.startDate) return a.startDate.localeCompare(b.startDate);
+                              const aDays = Math.max(1, Math.floor((new Date(`${a.endDate || a.startDate}T00:00:00Z`).getTime() - new Date(`${a.startDate}T00:00:00Z`).getTime()) / 86400000) + 1);
+                              const bDays = Math.max(1, Math.floor((new Date(`${b.endDate || b.startDate}T00:00:00Z`).getTime() - new Date(`${b.startDate}T00:00:00Z`).getTime()) / 86400000) + 1);
+                              if (bDays !== aDays) return bDays - aDays;
+                              const aSignal = (calendarHotWeekKeys.has(week.weekStart) ? 1 : 0) + (isInvestorHeavy(a) ? 1 : 0) + (isIssuerHeavy(a) ? 1 : 0);
+                              const bSignal = (calendarHotWeekKeys.has(week.weekStart) ? 1 : 0) + (isInvestorHeavy(b) ? 1 : 0) + (isIssuerHeavy(b) ? 1 : 0);
+                              if (bSignal !== aSignal) return bSignal - aSignal;
+                              return a.title.localeCompare(b.title);
+                            });
+                          const weekLaneEntries = sortedWeekEvents.map((event) => {
+                            const weekStartMs = new Date(`${week.weekStart}T00:00:00Z`).getTime();
+                            const eventStartMs = new Date(`${event.startDate}T00:00:00Z`).getTime();
+                            const eventEndMs = new Date(`${event.endDate || event.startDate}T00:00:00Z`).getTime();
+                            const startOffset = Math.max(0, Math.floor((eventStartMs - weekStartMs) / 86400000));
+                            const endOffset = Math.min(6, Math.floor((eventEndMs - weekStartMs) / 86400000));
+                            return {
+                              event,
+                              startOffset,
+                              endOffset,
+                              durationDays: Math.max(1, endOffset - startOffset + 1),
+                            };
+                          });
+                          const weekLanes = weekLaneEntries.reduce<Array<typeof weekLaneEntries>>((lanes, laneEntry) => {
+                            let placed = false;
+                            for (const lane of lanes) {
+                              const hasConflict = lane.some((existing) => laneEntry.startOffset <= existing.endOffset && existing.startOffset <= laneEntry.endOffset);
+                              if (!hasConflict) {
+                                lane.push(laneEntry);
+                                placed = true;
+                                break;
+                              }
+                            }
+                            if (!placed) {
+                              lanes.push([laneEntry]);
+                            }
+                            return lanes;
+                          }, []);
+                          const visibleWeekLanes = isWeekExpanded ? weekLanes : weekLanes.slice(0, maxVisibleLanes);
+                          const hiddenLaneCount = Math.max(0, weekLanes.length - visibleWeekLanes.length);
+
+                          return (
+                            <section
+                              key={week.weekStart}
+                              style={{
+                                background: "linear-gradient(180deg, rgba(8,38,61,0.94), rgba(7,31,50,0.96))",
+                                border: "1px solid rgba(107,157,210,0.14)",
+                                borderRadius: "22px",
+                                padding: "13px 15px 14px",
+                                boxShadow: "0 14px 28px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.03)",
+                              }}
+                            >
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px", flexWrap: "wrap", marginBottom: "8px" }}>
+                                <div>
+                                  <div style={{ color: "#ffffff", fontSize: "17px", fontWeight: 900, lineHeight: 1.1 }}>
+                                    {formatCalendarWeekLabel(week.weekStart)}
+                                  </div>
+                                  <div style={{ color: "#86a4c3", fontSize: "12px", fontWeight: 500, marginTop: "4px" }}>
+                                    {week.events.length} conferences
+                                    {weekSignal?.topCity ? ` · Top city: ${weekSignal.topCity}` : ""}
+                                    {weekSignal?.topOrganizer ? ` · Top organizer: ${weekSignal.topOrganizer}` : ""}
+                                  </div>
+                                </div>
+                                {weekSignal?.chips.length ? (
+                                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", justifyContent: "flex-end" }}>
+                                    {weekSignal.chips.map((signal) => (
+                                      <span key={`${week.weekStart}-${signal.key}`} style={{ height: "22px", padding: "0 8px", borderRadius: "999px", fontSize: "9.5px", fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase", display: "inline-flex", alignItems: "center", color: "#f7fbff", border: `1px solid ${signal.tone}66`, background: `${signal.tone}1c` }}>
+                                        {signal.label}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : null}
+                              </div>
+
+                              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 0, borderBottom: "1px solid rgba(107,157,210,0.08)", paddingBottom: "5px", marginBottom: "6px" }}>
+                                {week.dayDates.map((dayIso, idx) => {
+                                  const count = week.byDay[idx].length;
+                                  return (
+                                    <div key={`${week.weekStart}-day-head-${dayIso}`} style={{ minWidth: 0, padding: "0 6px", textAlign: "center" }}>
+                                      <div style={{ color: "#94aecb", fontSize: "10px", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 900 }}>{timelineDays[idx]}</div>
+                                      <div style={{ color: "#ffffff", fontSize: "12px", fontWeight: 850, marginTop: "3px" }}>{formatMonthDay(dayIso)}</div>
+                                      <div style={{ color: count > 1 ? "#56d7c3" : "#6e89a7", fontSize: "9.5px", fontWeight: 800, marginTop: "2px" }}>{count > 0 ? count : ""}</div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              <div style={{ display: "grid", gap: "7px" }}>
+                                {visibleWeekLanes.map((lane, laneIndex) => {
+                                  let laneSelectedPanel: ReactNode = null;
+
+                                  return (
+                                    <div key={`${week.weekStart}-lane-${laneIndex}`} style={{ display: "grid", gap: "10px" }}>
+                                      <div
+                                        style={{
+                                          position: "relative",
+                                          display: "grid",
+                                          gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+                                          minHeight: calendarCompact ? "54px" : "52px",
+                                          alignItems: "center",
+                                          background: "linear-gradient(180deg, rgba(4,20,35,0.52), rgba(4,20,35,0.34))",
+                                          borderRadius: "14px",
+                                          overflow: "hidden",
+                                        }}
+                                      >
+                                        {Array.from({ length: 7 }).map((_, idx) => (
+                                          <div
+                                            key={`${week.weekStart}-lane-${laneIndex}-bg-${idx}`}
+                                            style={{
+                                              height: "100%",
+                                              borderLeft: idx === 0 ? "none" : "1px solid rgba(107,157,210,0.10)",
+                                              background: "transparent",
+                                            }}
+                                          />
+                                        ))}
+                                        {lane.map(({ event, startOffset, endOffset }) => {
+                                  const cityLabel = [event.city, event.state].filter(Boolean).join(", ");
+                                  const isSelected = weekSelectedEventId === event.id;
+                                  const detailSourceEvents = calendarDetailDataset === "all" ? events : filteredEvents;
+                                  const detailWeekSignals = calendarDetailDataset === "all" ? allCalendarWeekSignals : calendarWeekSignals;
+                                  const detailHotWeekKeys = calendarDetailDataset === "all" ? allCalendarHotWeekKeys : calendarHotWeekKeys;
+                                  const detailScopeLabel = calendarDetailDataset === "all" ? "All Conferences" : "Current Filtered View";
+                                  const barGradient = /private/i.test(event.marketFocus)
+                                    ? "linear-gradient(90deg, rgba(86,99,240,0.88), rgba(92,71,173,0.84))"
+                                    : /industry|thematic/i.test(event.primaryCategory)
+                                      ? "linear-gradient(90deg, rgba(18,156,184,0.86), rgba(22,115,132,0.82))"
+                                      : /investor/i.test(`${event.primaryCategory} ${event.marketFocus} ${event.issuerParticipation}`)
+                                        ? "linear-gradient(90deg, rgba(37,99,235,0.82), rgba(14,116,144,0.76))"
+                                      : /issuer|public company|company presentations|1x1/i.test(event.issuerParticipation)
+                                          ? "linear-gradient(90deg, rgba(126,79,216,0.82), rgba(83,78,187,0.78))"
+                                          : "linear-gradient(90deg, rgba(58,131,226,0.78), rgba(26,90,146,0.76))";
+                                  const organizerCount = detailSourceEvents.filter((item) => item.organizer && item.organizer === event.organizer).length;
+                                  const sameWeekEvents = detailSourceEvents.filter((item) => item.id !== event.id && getWeekStart(item.startDate) === week.weekStart).slice(0, 4);
+                                  const sameCityEvents = detailSourceEvents.filter((item) => item.id !== event.id && [item.city, item.state].filter(Boolean).join(", ") === cityLabel).slice(0, 4);
+                                  const sameOrganizerEvents = detailSourceEvents.filter((item) => item.id !== event.id && item.organizer && item.organizer === event.organizer).slice(0, 4);
+                                  const sameFocusEvents = detailSourceEvents.filter((item) => item.id !== event.id && splitCsv(item.marketFocus).some((focus) => splitCsv(event.marketFocus).includes(focus))).slice(0, 4);
+                                  const sameAudienceEvents = detailSourceEvents.filter((item) => item.id !== event.id && item.issuerParticipation && item.issuerParticipation === event.issuerParticipation).slice(0, 4);
+                                  const weekSignalDetail = detailWeekSignals.get(week.weekStart);
+                                  const detailTags = unique([
+                                    event.primaryCategory,
+                                    ...splitCsv(event.marketFocus),
+                                    ...splitCsv(event.sectorThemes),
+                                    ...getDerivedParticipationSignals(event),
+                                    event.issuerParticipation,
+                                    event.format,
+                                  ].filter(Boolean)).slice(0, 8);
+                                  const relatedKeyBase = `${week.weekStart}:${event.id}`;
+                                  const eventHoverId = `calendar:${week.weekStart}:${event.id}`;
+                                  const isHovered = hoveredCardId === eventHoverId;
+                                  const allRelatedMatches = detailSourceEvents
+                                    .filter((item) => item.id !== event.id)
+                                    .map((related) => buildRelatedMatch(event, related))
+                                    .filter((match) => match.score > 0);
+                                  const bestMatches = allRelatedMatches
+                                    .filter((match) => match.meaningfulSignals >= 2 || (match.sameCity && match.daysApart >= 0 && match.daysApart <= 7))
+                                    .sort((a, b) => b.score - a.score)
+                                    .slice(0, 3);
+
+                                  const sameMonthMatches = allRelatedMatches.filter((match) => getMonthKey(match.related.startDate) === getMonthKey(event.startDate));
+                                  const sharedThemeMonthMatches = sameMonthMatches.filter((match) => match.sharedThemes.length > 0);
+                                  const issuerAccessMonthMatches = sameMonthMatches.filter((match) => match.bothPresentations || match.bothOneOnOne || match.sharedIssuerParticipation.length > 0);
+                                  const sameStateWindowMatches = allRelatedMatches
+                                    .filter((match) => match.sameState && match.daysApart >= 0 && match.daysApart <= 45)
+                                    .sort((a, b) => a.daysApart - b.daysApart);
+                                  const sameRegionWindowMatches = allRelatedMatches
+                                    .filter((match) => match.sameRegion && match.daysApart >= 0 && match.daysApart <= 45)
+                                    .sort((a, b) => a.daysApart - b.daysApart);
+
+                                  const candidateInsights: DetailInsight[] = [];
+                                  const seenEvidence = new Set<string>();
+                                  const pushInsight = (insight: DetailInsight | null) => {
+                                    if (!insight) return;
+                                    const signature = `${insight.type}:${(insight.evidence.relatedEventIds || []).join(",")}:${(insight.evidence.sharedSectorThemes || []).join(",")}:${insight.evidence.daysApart ?? ""}:${insight.evidence.sameCity ? "city" : insight.evidence.sameState ? "state" : insight.evidence.sameRegion ? "region" : ""}`;
+                                    if (seenEvidence.has(signature)) return;
+                                    seenEvidence.add(signature);
+                                    candidateInsights.push(insight);
+                                  };
+
+                                  const topTravelMatch = bestMatches.find((match) => match.sameCity && match.daysApart >= 0 && match.daysApart <= 7)
+                                    || sameStateWindowMatches[0]
+                                    || sameRegionWindowMatches[0]
+                                    || bestMatches.find((match) => match.sameWeek);
+                                  if (topTravelMatch) {
+                                    const timeLabel = topTravelMatch.daysApart <= 7
+                                      ? "same-trip opportunity"
+                                      : topTravelMatch.daysApart <= 21
+                                        ? "regional outreach opportunity"
+                                        : "related planning opportunity";
+                                    pushInsight({
+                                      type: topTravelMatch.sameCity
+                                        ? "same_city"
+                                        : topTravelMatch.sameState
+                                          ? "same_state"
+                                          : topTravelMatch.sameRegion
+                                            ? "same_region"
+                                            : "same_week",
+                                      title: topTravelMatch.sameCity
+                                        ? "Same-City Trip Opportunity"
+                                        : topTravelMatch.sameState
+                                          ? "Same-State Planning Opportunity"
+                                          : topTravelMatch.sameRegion
+                                            ? "Regional Planning Opportunity"
+                                            : "Same-Week Conference Window",
+                                      explanation: topTravelMatch.sameCity
+                                        ? `${topTravelMatch.related.title} is scheduled in ${getCityValue(topTravelMatch.related) || "the same city"} ${topTravelMatch.daysApart} day${topTravelMatch.daysApart === 1 ? "" : "s"} later, creating a ${timeLabel} for meetings, travel, or follow-up coverage.`
+                                        : topTravelMatch.sameState
+                                          ? `${topTravelMatch.related.title} is scheduled elsewhere in ${topTravelMatch.related.state} ${topTravelMatch.daysApart} day${topTravelMatch.daysApart === 1 ? "" : "s"} later, giving this trip a ${timeLabel}.`
+                                          : topTravelMatch.sameRegion
+                                            ? `${topTravelMatch.related.title} stays within the ${topTravelMatch.related.region} region ${topTravelMatch.daysApart} day${topTravelMatch.daysApart === 1 ? "" : "s"} later, which can support multi-stop outreach planning.`
+                                            : `${sameWeekEvents.length + 1} conferences fall in the same calendar week, making this a denser planning window for travel, sponsor meetings, and client outreach.`,
+                                      priority: 100,
+                                      confidence: topTravelMatch.confidence,
+                                      evidence: {
+                                        fieldsUsed: unique(["Start Date", "End Date", topTravelMatch.sameCity || topTravelMatch.sameState ? "City" : "", topTravelMatch.sameState ? "State / Province" : "", topTravelMatch.sameRegion ? "Region" : ""]),
+                                        relatedEventIds: [topTravelMatch.related.id],
+                                        daysApart: topTravelMatch.daysApart,
+                                        sameCity: topTravelMatch.sameCity,
+                                        sameState: topTravelMatch.sameState,
+                                        sameRegion: topTravelMatch.sameRegion,
+                                      },
+                                    });
+                                  }
+
+                                  const topFitMatch = bestMatches.find((match) => match.sharedThemes.length > 0)
+                                    || bestMatches.find((match) => match.sharedFocus.length > 0)
+                                    || bestMatches.find((match) => match.sharedIssuerParticipation.length > 0 || match.bothPresentations || match.bothOneOnOne);
+                                  if (topFitMatch) {
+                                    pushInsight({
+                                      type: topFitMatch.sharedThemes.length
+                                        ? "shared_sector_theme"
+                                        : topFitMatch.sharedFocus.length
+                                          ? "shared_market_focus"
+                                          : topFitMatch.sharedIssuerParticipation.length
+                                            ? "shared_issuer_participation"
+                                            : topFitMatch.bothPresentations
+                                              ? "public_company_presentation_cluster"
+                                              : "one_on_one_access_match",
+                                      title: topFitMatch.sharedThemes.length
+                                        ? "Shared Sector Theme Match"
+                                        : topFitMatch.sharedFocus.length
+                                          ? "Shared Market Focus"
+                                          : topFitMatch.sharedIssuerParticipation.length
+                                            ? "Same Participation Model"
+                                            : topFitMatch.bothPresentations
+                                              ? "Public-Company Presentation Match"
+                                              : "One-on-One Access Match",
+                                      explanation: topFitMatch.explanation,
+                                      priority: 90,
+                                      confidence: topFitMatch.confidence,
+                                      evidence: topFitMatch.evidence,
+                                    });
+                                  }
+
+                                  if (sharedThemeMonthMatches.length >= 2) {
+                                    const leadTheme = sharedThemeMonthMatches.flatMap((match) => match.sharedThemes)[0];
+                                    pushInsight({
+                                      type: "sector_activity_cluster",
+                                      title: leadTheme ? `${sharedThemeMonthMatches.length + 1} ${leadTheme} Events This Month` : "Sector Activity Cluster",
+                                      explanation: leadTheme
+                                        ? `${sharedThemeMonthMatches.length + 1} ${leadTheme} events are scheduled in the same month, pointing to a concentrated period for sector-specific meetings and outreach.`
+                                        : `${sharedThemeMonthMatches.length + 1} related events are scheduled in the same month, creating a stronger sector activity window.`,
+                                      priority: 80,
+                                      confidence: "high",
+                                      evidence: {
+                                        fieldsUsed: ["Start Date", "Sector Themes"],
+                                        relatedEventIds: sharedThemeMonthMatches.slice(0, 4).map((match) => match.related.id),
+                                        sharedSectorThemes: leadTheme ? [leadTheme] : [],
+                                      },
+                                    });
+                                  } else if (issuerAccessMonthMatches.length >= 2) {
+                                    pushInsight({
+                                      type: "issuer_access_cluster",
+                                      title: `${issuerAccessMonthMatches.length + 1} Issuer-Access Events This Month`,
+                                      explanation: `${issuerAccessMonthMatches.length + 1} events with similar presentation or one-on-one access signals are scheduled this month, strengthening the case for coordinated banker, advisor, or IR outreach.`,
+                                      priority: 80,
+                                      confidence: "medium",
+                                      evidence: {
+                                        fieldsUsed: ["Start Date", "Issuer Participation"],
+                                        relatedEventIds: issuerAccessMonthMatches.slice(0, 4).map((match) => match.related.id),
+                                      },
+                                    });
+                                  } else if ((detailHotWeekKeys.has(week.weekStart) || sameWeekEvents.length >= 2) && !candidateInsights.some((insight) => insight.type === "same_week")) {
+                                    pushInsight({
+                                      type: "crowded_calendar_period",
+                                      title: "Crowded Calendar Period",
+                                      explanation: `${sameWeekEvents.length + 1} conferences sit in the same week, which can help piggyback meetings and sponsor visibility but also increases competition for time and attention.`,
+                                      priority: 75,
+                                      confidence: "medium",
+                                      evidence: {
+                                        fieldsUsed: ["Start Date", "End Date"],
+                                        relatedEventIds: sameWeekEvents.map((item) => item.id),
+                                      },
+                                    });
+                                  }
+
+                                  if (organizerCount > 1 && event.organizer) {
+                                    pushInsight({
+                                      type: "same_organizer",
+                                      title: `Organizer Hosting ${organizerCount} Upcoming Events`,
+                                      explanation: `${event.organizer} appears across ${organizerCount} events in ${calendarDetailDataset === "all" ? "the full conference universe" : "the current filtered view"}, which can signal recurring audience overlap and follow-up planning opportunities.`,
+                                      priority: 70,
+                                      confidence: organizerCount >= 3 ? "high" : "medium",
+                                      evidence: {
+                                        fieldsUsed: ["Organizer", "Start Date"],
+                                        relatedEventIds: sameOrganizerEvents.map((item) => item.id),
+                                      },
+                                    });
+                                  }
+
+                                  const signalCards = candidateInsights
+                                    .sort((a, b) => b.priority - a.priority)
+                                    .slice(0, 4)
+                                    .map((insight) => ({
+                                      ...insight,
+                                      tone:
+                                        insight.type.includes("state") || insight.type.includes("region") || insight.type.includes("same_city")
+                                          ? "#2dd4bf"
+                                          : insight.type.includes("issuer") || insight.type.includes("presentation") || insight.type.includes("one_on_one")
+                                            ? "#8b5cf6"
+                                            : insight.type.includes("organizer")
+                                              ? "#60a5fa"
+                                              : insight.type.includes("crowded") || insight.type.includes("same_week")
+                                                ? "#f59e0b"
+                                                : "#3b82f6",
+                                    }));
+
+                                  const opportunityChips = unique([
+                                    signalCards[0]?.title || "",
+                                    weekSignalDetail?.topFocus ? `Leading focus: ${weekSignalDetail.topFocus}` : "",
+                                    bestMatches[0]?.tags[0] || "",
+                                  ]).filter(Boolean).slice(0, 3);
+
+                                  const groupedRelatedMatches = [
+                                    { label: "Same City", items: allRelatedMatches.filter((match) => match.sameCity).sort((a, b) => b.score - a.score) },
+                                    { label: "Same State", items: allRelatedMatches.filter((match) => match.sameState).sort((a, b) => b.score - a.score) },
+                                    { label: "Same Region", items: allRelatedMatches.filter((match) => match.sameRegion).sort((a, b) => b.score - a.score) },
+                                    { label: "Same Week", items: allRelatedMatches.filter((match) => match.sameWeek).sort((a, b) => b.score - a.score) },
+                                    { label: "Similar Sector", items: allRelatedMatches.filter((match) => match.sharedThemes.length > 0).sort((a, b) => b.score - a.score) },
+                                    { label: "Similar Market Focus", items: allRelatedMatches.filter((match) => match.sharedFocus.length > 0).sort((a, b) => b.score - a.score) },
+                                    { label: "Similar Issuer Participation", items: allRelatedMatches.filter((match) => match.sharedIssuerParticipation.length > 0 || match.bothPresentations || match.bothOneOnOne).sort((a, b) => b.score - a.score) },
+                                    { label: "Same Organizer", items: allRelatedMatches.filter((match) => match.sameOrganizer).sort((a, b) => b.score - a.score) },
+                                  ]
+                                    .map((group) => ({ ...group, items: group.items.slice(0, 4) }))
+                                    .filter((group) => group.items.length);
+
+                                  const organizerOpportunities: DetailInsight[] = [];
+                                  const similarCityMatches = allRelatedMatches
+                                    .filter((match) => match.sameCity && (match.sharedThemes.length > 0 || match.sharedFocus.length > 0 || match.sharedIssuerParticipation.length > 0 || match.categoryMatch))
+                                    .sort((a, b) => new Date(a.related.startDate).getTime() - new Date(b.related.startDate).getTime());
+                                  const beforeEvent = similarCityMatches.filter((match) => new Date(getEventEndIso(match.related)).getTime() <= new Date(event.startDate).getTime()).pop();
+                                  const afterEvent = similarCityMatches.find((match) => new Date(match.related.startDate).getTime() >= new Date(getEventEndIso(event)).getTime());
+                                  if (beforeEvent && afterEvent) {
+                                    const gapDays = differenceInDays(getEventEndIso(beforeEvent.related), afterEvent.related.startDate);
+                                    const sharedSignals = unique([
+                                      ...beforeEvent.sharedThemes,
+                                      ...afterEvent.sharedThemes,
+                                      ...beforeEvent.sharedFocus,
+                                      ...afterEvent.sharedFocus,
+                                      beforeEvent.bothPresentations || afterEvent.bothPresentations ? "Presentations" : "",
+                                      beforeEvent.bothOneOnOne || afterEvent.bothOneOnOne ? "One-on-One Access" : "",
+                                    ].filter(Boolean)).slice(0, 3);
+                                    if (gapDays === 2 && sharedSignals.length > 0) {
+                                      organizerOpportunities.push({
+                                        type: "piggyback_opportunity",
+                                        title: "Piggyback Opportunity — One-Day Gap",
+                                        explanation: `Two related events in ${cityLabel || "this city"} leave one open day between them, which may support a complementary roundtable, networking event, or smaller add-on while a similar audience is already in market.`,
+                                        priority: 95,
+                                        confidence: "high",
+                                        evidence: {
+                                          fieldsUsed: ["City", "Start Date", "End Date", "Sector Themes", "Market Focus", "Issuer Participation"],
+                                          relatedEventIds: [beforeEvent.related.id, afterEvent.related.id],
+                                          sharedSectorThemes: sharedSignals,
+                                          daysApart: gapDays,
+                                          sameCity: true,
+                                        },
+                                      });
+                                    }
+                                  }
+
+                                  const next21Similar = allRelatedMatches.filter((match) => (match.sameCity || match.sameState || match.sameRegion) && match.daysApart >= 1 && match.daysApart <= 21 && (match.sharedThemes.length > 0 || match.sharedFocus.length > 0 || match.sharedIssuerParticipation.length > 0));
+                                  if (next21Similar.length === 0) {
+                                    organizerOpportunities.push({
+                                      type: "open_window",
+                                      title: cityLabel ? `Three-Week ${event.city || "City"} Opening` : "Three-Week Open Window",
+                                      explanation: `No comparable events are currently scheduled in the next three weeks for this city-market combination, creating a possible opening for a new event or follow-on gathering.`,
+                                      priority: 70,
+                                      confidence: "medium",
+                                      evidence: {
+                                        fieldsUsed: ["City", "Start Date", "Sector Themes", "Market Focus", "Issuer Participation"],
+                                        sameCity: Boolean(event.city),
+                                        sameState: Boolean(event.state),
+                                        sameRegion: Boolean(event.region),
+                                      },
+                                    });
+                                  } else if (next21Similar.length >= 4) {
+                                    organizerOpportunities.push({
+                                      type: "crowded_window",
+                                      title: "Crowded Launch Period",
+                                      explanation: `${next21Similar.length} comparable events are already scheduled nearby in the next three weeks, increasing competition for speakers, sponsors, and attendee attention.`,
+                                      priority: 65,
+                                      confidence: "medium",
+                                      evidence: {
+                                        fieldsUsed: ["City", "Start Date", "Sector Themes", "Market Focus", "Issuer Participation"],
+                                        relatedEventIds: next21Similar.slice(0, 4).map((match) => match.related.id),
+                                      },
+                                    });
+                                  }
+                                  const selectedDetailPanel = isSelected ? (
+                                    <div
+                                      style={{
+                                        display: "grid",
+                                        gap: "16px",
+                                        paddingTop: "14px",
+                                        paddingBottom: "6px",
+                                        marginTop: "-1px",
+                                        background: "linear-gradient(180deg, rgba(9,43,70,0.96), rgba(7,33,56,0.94))",
+                                        borderTop: "1px solid rgba(120,184,255,0.26)",
+                                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03), 0 16px 32px rgba(0,0,0,0.14)",
+                                        borderRadius: "18px",
+                                        paddingInline: calendarCompact ? "10px" : "14px",
+                                      }}
+                                    >
+                                      <div>
+                                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+                                          <div style={{ color: "#8fbfff", fontSize: "11px", fontWeight: 900, letterSpacing: ".16em", textTransform: "uppercase" }}>Conference Detail</div>
+                                          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                                            <div style={{ display: "inline-flex", gap: "4px", padding: "4px", borderRadius: "12px", background: "rgba(5,20,36,0.72)", border: "1px solid rgba(107,157,210,0.22)" }}>
+                                              {[
+                                                { key: "filtered" as const, label: "Filtered View" },
+                                                { key: "all" as const, label: "All Conferences" },
+                                              ].map((option) => (
+                                                <button
+                                                  key={option.key}
+                                                  type="button"
+                                                  onClick={() => setCalendarDetailDataset(option.key)}
+                                                  style={{
+                                                    height: "28px",
+                                                    padding: "0 12px",
+                                                    borderRadius: "9px",
+                                                    border: option.key === calendarDetailDataset ? "1px solid rgba(125,180,255,0.22)" : "1px solid transparent",
+                                                    background: option.key === calendarDetailDataset ? "linear-gradient(180deg, #2f6ff3, #1f55d8)" : "transparent",
+                                                    color: option.key === calendarDetailDataset ? "#ffffff" : "#a8bdd8",
+                                                    boxShadow: option.key === calendarDetailDataset ? "0 0 0 1px rgba(125,180,255,0.22)" : "none",
+                                                    fontSize: "11px",
+                                                    fontWeight: 800,
+                                                    letterSpacing: "0.03em",
+                                                    cursor: "pointer",
+                                                    whiteSpace: "nowrap",
+                                                  }}
+                                                >
+                                                  {option.label}
+                                                </button>
+                                              ))}
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => setCalendarSelected(null)}
+                                              style={{ height: "32px", padding: "0 12px", borderRadius: "999px", border: "1px solid rgba(96,165,250,0.28)", background: "rgba(12,45,73,0.82)", color: "#d8ebff", fontSize: "12px", fontWeight: 900, cursor: "pointer" }}
+                                            >
+                                              Close Detail
+                                            </button>
+                                          </div>
+                                        </div>
+                                        <div style={{ color: "#9fb5cf", fontSize: "12px", fontWeight: 600, marginTop: "8px" }}>
+                                          Intelligence source: {detailScopeLabel}
+                                        </div>
+                                        <div style={{ color: "#ffffff", fontSize: "23px", lineHeight: 1.08, fontWeight: 900, letterSpacing: "-0.03em", marginTop: "10px" }}>{event.title}</div>
+                                        <div style={{ color: "#7dbbff", fontSize: "15px", fontWeight: 850, marginTop: "7px" }}>{cityLabel || "Location TBD"}</div>
+                                        <div style={{ color: "#9fb5cf", fontSize: "13px", fontWeight: 500, lineHeight: 1.45, marginTop: "8px" }}>
+                                          <div>{formatMonthDay(event.startDate)}{event.endDate && event.endDate !== event.startDate ? ` - ${formatMonthDay(event.endDate)}` : ""}</div>
+                                          {event.organizer ? <div>{event.organizer}</div> : null}
+                                          {event.venue ? <div>{event.venue}</div> : null}
+                                        </div>
+                                      </div>
+
+                                      <div style={{ display: "grid", gridTemplateColumns: calendarCompact ? "1fr" : "repeat(4, minmax(0,1fr))", gap: "10px" }}>
+                                        {buildEventLink(event) ? (
+                                          <a href={buildEventLink(event)} target="_blank" rel="noreferrer" style={{ height: "38px", borderRadius: "10px", border: "1px solid rgba(96,165,250,0.28)", background: "rgba(13,36,59,0.72)", color: "#dbeafe", fontSize: "12px", fontWeight: 800, textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                                            Event Link
+                                          </a>
+                                        ) : null}
+                                        <div style={{ minWidth: 0 }}><AddToCalendar title={event.title} startDate={event.startDate} endDate={event.endDate} location={[cityLabel, event.venue].filter(Boolean).join(" · ")} description={buildDescription(event)} url={buildEventLink(event)} compact fullWidth /></div>
+                                        <button
+                                          type="button"
+                                          onClick={() => saveSingleEventToNewList(event)}
+                                          style={{ height: "38px", borderRadius: "10px", border: "1px solid rgba(107,157,210,0.22)", background: "rgba(3,20,38,0.62)", color: "#dbeafe", fontSize: "12px", fontWeight: 800, cursor: "pointer" }}
+                                        >
+                                          Save Event
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleSelect(event.id)}
+                                          style={{ height: "38px", borderRadius: "10px", border: selectedSet.has(event.id) ? "1px solid rgba(96,165,250,0.42)" : "1px solid rgba(107,157,210,0.22)", background: selectedSet.has(event.id) ? "rgba(37,99,235,0.22)" : "rgba(3,20,38,0.62)", color: "#dbeafe", fontSize: "12px", fontWeight: 800, cursor: "pointer" }}
+                                        >
+                                          {selectedSet.has(event.id) ? "Selected" : "Select Event"}
+                                        </button>
+                                      </div>
+
+                                      {detailTags.length ? (
+                                        <div style={{ display: "grid", gap: "10px" }}>
+                                          <div style={{ color: "#8fbfff", fontSize: "10px", fontWeight: 900, letterSpacing: ".14em", textTransform: "uppercase" }}>
+                                            Event Classification
+                                          </div>
+                                          <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+                                            {detailTags.map((tag) => (
+                                              <span
+                                                key={`${event.id}-detail-${tag}`}
+                                                style={{
+                                                  minHeight: "32px",
+                                                  padding: "6px 12px",
+                                                  borderRadius: "999px",
+                                                  border: "1px solid rgba(125,180,255,0.22)",
+                                                  background: "linear-gradient(180deg, rgba(11,44,72,0.96), rgba(8,32,53,0.94))",
+                                                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+                                                  color: "#f4f8ff",
+                                                  fontSize: "12px",
+                                                  fontWeight: 900,
+                                                  lineHeight: 1.2,
+                                                  display: "inline-flex",
+                                                  alignItems: "center",
+                                                }}
+                                              >
+                                                {tag}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      ) : null}
+
+                                      <div style={{ display: "grid", gap: "14px" }}>
+                                        <div
+                                          style={{
+                                            display: "grid",
+                                            gap: "12px",
+                                            padding: "18px 20px",
+                                            borderRadius: "18px",
+                                            background: "linear-gradient(135deg, rgba(37,99,235,0.18), rgba(45,212,191,0.12))",
+                                            border: "1px solid rgba(147,197,253,0.30)",
+                                            boxShadow: "0 14px 30px rgba(4,18,34,0.22), inset 0 1px 0 rgba(255,255,255,0.04)",
+                                          }}
+                                        >
+                                          <div style={{ color: "#8fbfff", fontSize: "11px", fontWeight: 900, letterSpacing: ".16em", textTransform: "uppercase" }}>Opportunity Brief</div>
+                                          <div style={{ color: "#eef6ff", fontSize: "14.5px", fontWeight: 600, lineHeight: 1.5 }}>
+                                            {signalCards.length
+                                              ? signalCards.slice(0, 2).map((item) => item.explanation).join(" ")
+                                              : "This event does not yet have enough nearby or comparable records to generate a stronger planning signal."}
+                                          </div>
+                                          {opportunityChips.length ? (
+                                            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                                              {opportunityChips.map((chip) => (
+                                                <span key={`${event.id}-${chip}`} style={{ background: "rgba(5,24,40,0.46)", border: "1px solid rgba(147,197,253,0.22)", borderRadius: "999px", padding: "7px 10px", fontSize: "12px", fontWeight: 800, color: "#dbeafe" }}>
+                                                  {chip}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          ) : null}
+                                        </div>
+
+                                        <div style={{ display: "grid", gap: "10px" }}>
+                                          <div style={{ color: "#8fbfff", fontSize: "11px", fontWeight: 900, letterSpacing: ".16em", textTransform: "uppercase" }}>Why This Matters</div>
+                                          {signalCards.length ? (
+                                            <>
+                                              <div style={{ display: "grid", gridTemplateColumns: calendarCompact ? "1fr" : "repeat(2, minmax(0,1fr))", gap: "10px" }}>
+                                                {(detailExpanded ? signalCards : signalCards.slice(0, 2)).map((item) => (
+                                                  <div key={item.title} style={{ display: "grid", gap: "6px", padding: "13px 14px", borderRadius: "14px", background: "linear-gradient(180deg, rgba(7,30,51,0.82), rgba(6,24,42,0.78))", border: "1px solid rgba(107,157,210,0.12)" }}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
+                                                      <span style={{ width: "12px", height: "12px", borderRadius: "999px", background: item.tone, boxShadow: `0 0 0 5px ${item.tone}18` }} />
+                                                      <div style={{ color: "#ffffff", fontSize: "15px", fontWeight: 900 }}>{item.title}</div>
+                                                    </div>
+                                                    <div style={{ color: "#c7d8ec", fontSize: "14px", fontWeight: 500, lineHeight: 1.5 }}>{item.explanation}</div>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                              {signalCards.length > 2 ? (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setDetailExpanded((value) => !value)}
+                                                  style={{ justifySelf: "center", display: "inline-flex", alignItems: "center", gap: "8px", height: "38px", padding: "0 14px", borderRadius: "999px", background: "rgba(37,99,235,0.16)", border: "1px solid rgba(147,197,253,0.38)", color: "#bfdbfe", fontSize: "13px", fontWeight: 900, cursor: "pointer" }}
+                                                >
+                                                  {detailExpanded ? "Collapse opportunity brief ↑" : "Show full opportunity brief ↓"}
+                                                </button>
+                                              ) : null}
+                                            </>
+                                          ) : (
+                                            <div style={{ color: "#c7d8ec", fontSize: "14px", fontWeight: 500, lineHeight: 1.45, padding: "13px 14px", borderRadius: "14px", background: "rgba(5,25,44,0.54)", border: "1px solid rgba(107,157,210,0.10)" }}>
+                                              No additional market signals available for this event yet.
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        <div style={{ display: "grid", gap: "12px" }}>
+                                          <div style={{ color: "#8fbfff", fontSize: "11px", fontWeight: 900, letterSpacing: ".16em", textTransform: "uppercase" }}>Related Opportunities</div>
+                                          <div style={{ display: "grid", gap: "10px" }}>
+                                            <div style={{ color: "#ffffff", fontSize: "15px", fontWeight: 900 }}>Best Matches</div>
+                                            {bestMatches.length ? bestMatches.map((match) => {
+                                              const { related } = match;
+                                              const relatedCityLabel = [related.city, related.state].filter(Boolean).join(", ");
+                                              return (
+                                                <div key={`best-${related.id}`} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "14px", alignItems: "center", padding: "12px 15px", borderRadius: "14px", background: "rgba(4,20,35,0.34)", border: "1px solid rgba(107,157,210,0.10)" }}>
+                                                  <div style={{ minWidth: 0, display: "grid", gap: "6px" }}>
+                                                    <div style={{ fontSize: "14px", fontWeight: 800, lineHeight: 1.25, color: "#f4f8ff" }}>{related.title}</div>
+                                                    <div style={{ fontSize: "12px", color: "#9fb5cf", fontWeight: 500 }}>{formatMonthDay(related.startDate)} · {relatedCityLabel || "Location TBD"}</div>
+                                                    <div style={{ fontSize: "13px", color: "#c7d8ec", fontWeight: 500, lineHeight: 1.45 }}>{match.explanation}</div>
+                                                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                                                      {match.tags.slice(0, 3).map((tag) => (
+                                                        <span key={`${related.id}-${tag}`} style={{ background: "rgba(45,212,191,0.10)", border: "1px solid rgba(45,212,191,0.24)", color: "#7dd3fc", borderRadius: "999px", padding: "4px 8px", fontSize: "12px", fontWeight: 800 }}>
+                                                          {tag}
+                                                        </span>
+                                                      ))}
+                                                    </div>
+                                                  </div>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setCalendarSelected({ weekStart: getWeekStart(related.startDate), eventId: related.id })}
+                                                    style={{ height: "32px", padding: "0 12px", borderRadius: "10px", border: "1px solid rgba(96,165,250,0.20)", background: "rgba(11,34,56,0.56)", color: "#dbeafe", fontSize: "12px", fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}
+                                                  >
+                                                    View
+                                                  </button>
+                                                </div>
+                                              );
+                                            }) : (
+                                              <div style={{ color: "#c7d8ec", fontSize: "14px", fontWeight: 500, lineHeight: 1.45, padding: "13px 14px", borderRadius: "14px", background: "rgba(5,25,44,0.54)", border: "1px solid rgba(107,157,210,0.10)" }}>
+                                                No strong related opportunities surfaced for this event yet.
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          {groupedRelatedMatches.map((group) => {
+                                            const groupKey = `${relatedKeyBase}:${group.label}`;
+                                            const isGroupExpanded = Boolean(expandedRelatedGroups[groupKey]);
+                                            return (
+                                              <div key={group.label} style={{ display: "grid", gap: "8px" }}>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setExpandedRelatedGroups((current) => ({ ...current, [groupKey]: !current[groupKey] }))}
+                                                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", minHeight: "36px", padding: "0 14px", borderRadius: "999px", border: "1px solid rgba(107,157,210,0.14)", background: "rgba(8,38,64,0.30)", color: "#f4f8ff", fontSize: "13px", fontWeight: 850, cursor: "pointer", textAlign: "left" }}
+                                                >
+                                                  <span>{group.label} — {group.items.length}</span>
+                                                  <span style={{ color: "#93c5fd", fontSize: "12px" }}>{isGroupExpanded ? "Hide" : "Show"}</span>
+                                                </button>
+                                                {isGroupExpanded ? (
+                                                  <div style={{ display: "grid", gap: "8px" }}>
+                                                    {group.items.map((match) => {
+                                                      const related = match.related;
+                                                      const relatedCityLabel = [related.city, related.state].filter(Boolean).join(", ");
+                                                      return (
+                                                        <div key={`${group.label}-${related.id}`} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "14px", alignItems: "center", padding: "12px 15px", borderRadius: "14px", background: "rgba(4,20,35,0.34)", border: "1px solid rgba(107,157,210,0.10)" }}>
+                                                          <div style={{ minWidth: 0, display: "grid", gap: "5px" }}>
+                                                            <div style={{ fontSize: "14px", fontWeight: 800, lineHeight: 1.25, color: "#f4f8ff" }}>{related.title}</div>
+                                                            <div style={{ fontSize: "12px", color: "#9fb5cf", fontWeight: 500 }}>{formatMonthDay(related.startDate)} · {relatedCityLabel || "Location TBD"}</div>
+                                                            <div style={{ fontSize: "13px", color: "#c7d8ec", fontWeight: 500, lineHeight: 1.45 }}>{match.explanation}</div>
+                                                            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                                                              {match.tags.slice(0, 3).map((tag) => (
+                                                                <span key={`${group.label}-${related.id}-${tag}`} style={{ background: "rgba(45,212,191,0.10)", border: "1px solid rgba(45,212,191,0.24)", color: "#7dd3fc", borderRadius: "999px", padding: "4px 8px", fontSize: "12px", fontWeight: 800 }}>
+                                                                  {tag}
+                                                                </span>
+                                                              ))}
+                                                            </div>
+                                                          </div>
+                                                          <button
+                                                            type="button"
+                                                            onClick={() => setCalendarSelected({ weekStart: getWeekStart(related.startDate), eventId: related.id })}
+                                                            style={{ height: "32px", padding: "0 12px", borderRadius: "10px", border: "1px solid rgba(96,165,250,0.20)", background: "rgba(11,34,56,0.56)", color: "#dbeafe", fontSize: "12px", fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}
+                                                          >
+                                                            View
+                                                          </button>
+                                                        </div>
+                                                      );
+                                                    })}
+                                                  </div>
+                                                ) : null}
+                                              </div>
+                                            );
+                                          })}
+
+                                          {organizerOpportunities.length ? (
+                                            <div style={{ display: "grid", gap: "10px" }}>
+                                              <div style={{ color: "#8fbfff", fontSize: "11px", fontWeight: 900, letterSpacing: ".16em", textTransform: "uppercase" }}>Organizer Opportunities</div>
+                                              <div style={{ display: "grid", gridTemplateColumns: calendarCompact ? "1fr" : "repeat(2, minmax(0,1fr))", gap: "10px" }}>
+                                                {organizerOpportunities.map((item) => (
+                                                  <div key={`${event.id}-${item.type}`} style={{ display: "grid", gap: "6px", padding: "14px 15px", borderRadius: "14px", background: "linear-gradient(180deg, rgba(7,30,51,0.82), rgba(6,24,42,0.78))", border: "1px solid rgba(107,157,210,0.12)" }}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
+                                                      <span style={{ width: "12px", height: "12px", borderRadius: "999px", background: item.type === "crowded_window" ? "#f59e0b" : "#60a5fa", boxShadow: `0 0 0 5px ${(item.type === "crowded_window" ? "#f59e0b" : "#60a5fa")}18` }} />
+                                                      <div style={{ color: "#ffffff", fontSize: "15px", fontWeight: 900 }}>{item.title}</div>
+                                                    </div>
+                                                    <div style={{ color: "#c7d8ec", fontSize: "14px", fontWeight: 500, lineHeight: 1.5 }}>{item.explanation}</div>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          ) : null}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : null;
+
+                                  if (selectedDetailPanel) {
+                                    laneSelectedPanel = selectedDetailPanel;
+                                  }
+
+                                  return (
+                                          <button
+                                            key={`${week.weekStart}-${event.id}`}
+                                            type="button"
+                                            onClick={(eventClick) => {
+                                              eventClick.stopPropagation();
+                                              if (isSelected) {
+                                                setCalendarSelected(null);
+                                                return;
+                                              }
+                                              setCalendarSelected({ weekStart: week.weekStart, eventId: event.id });
+                                            }}
+                                            style={{
+                                              gridColumn: `${startOffset + 1} / ${endOffset + 2}`,
+                                              zIndex: 2,
+                                              margin: "0 4px",
+                                              height: calendarCompact ? "44px" : "42px",
+                                              borderRadius: "14px",
+                                              padding: "7px 12px",
+                                              display: "grid",
+                                              alignContent: "center",
+                                              gap: "1px",
+                                              whiteSpace: "nowrap",
+                                              overflow: "hidden",
+                                              cursor: "pointer",
+                                              background: barGradient.replace("0.88", "0.74").replace("0.84", "0.72").replace("0.86", "0.74").replace("0.82", "0.72").replace("0.78", "0.70").replace("0.76", "0.68"),
+                                              border: isSelected ? "1px solid rgba(255,255,255,0.88)" : isHovered ? "1px solid rgba(173,216,255,0.82)" : "1px solid rgba(147,197,253,0.40)",
+                                              boxShadow: isSelected ? "0 0 0 3px rgba(59,130,246,0.20), 0 10px 22px rgba(37,99,235,0.22)" : isHovered ? "0 0 0 2px rgba(120,184,255,0.18), 0 10px 22px rgba(37,99,235,0.18)" : "0 6px 16px rgba(37,99,235,0.10)",
+                                              color: "#ffffff",
+                                              transition: "all 160ms ease",
+                                              textAlign: "left",
+                                              transform: isHovered && !isSelected ? "translateY(-1px)" : "translateY(0)",
+                                            }}
+                                            onMouseEnter={() => setHoveredCardId(eventHoverId)}
+                                            onMouseLeave={() => setHoveredCardId((prev) => (prev === eventHoverId ? null : prev))}
+                                          >
+                                            <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+                                              <span title={`${event.title} · ${formatMonthDay(event.startDate)}${event.endDate && event.endDate !== event.startDate ? ` - ${formatMonthDay(event.endDate)}` : ""} · ${cityLabel || "Location TBD"} · ${event.organizer || ""}`} style={{ fontSize: "11.5px", fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{event.title}</span>
+                                            </div>
+                                            <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+                                              <div title={event.marketFocus || getPrimaryParticipationLabel(event) || event.issuerParticipation || cityLabel || "Location TBD"} style={{ fontSize: "10.5px", color: "#e6f3ff", opacity: 0.9, overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
+                                                {cityLabel || "Location TBD"} {(event.marketFocus || event.issuerParticipation) ? `· ${(splitCsv(event.marketFocus)[0] || getPrimaryParticipationLabel(event))}` : ""}
+                                              </div>
+                                            </div>
+                                          </button>
+                                  );
+                                })}
+                                      </div>
+                                      {laneSelectedPanel}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {weekLanes.length > maxVisibleLanes ? (
+                                <div style={{ display: "grid", gap: "10px", marginTop: "10px" }}>
+                                  <div style={{ minHeight: "34px", padding: "0 12px", borderRadius: "12px", background: "rgba(3,20,38,0.42)", border: "1px solid rgba(107,157,210,0.10)", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px", color: "#c8d8ec", fontSize: "12px", fontWeight: 800 }}>
+                                    <span>{week.events.length} conferences this week</span>
+                                    {weekSignal?.investorHeavyCount ? <span>· {weekSignal.investorHeavyCount} investor-heavy</span> : null}
+                                    {weekSignal?.issuerHeavyCount ? <span>· {weekSignal.issuerHeavyCount} issuer-heavy</span> : null}
+                                    {weekSignal?.topCity ? <span>· Top city: {weekSignal.topCity}</span> : null}
+                                    {weekSignal?.topFocus ? <span>· Top focus: {weekSignal.topFocus}</span> : null}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedWeeks((current) => ({ ...current, [week.weekStart]: !current[week.weekStart] }))}
+                                    style={{ justifySelf: "start", height: "34px", padding: "0 14px", borderRadius: "10px", border: "1px solid rgba(96,165,250,0.24)", background: "rgba(13,36,59,0.62)", color: "#dbeafe", fontSize: "12px", fontWeight: 800, cursor: "pointer" }}
+                                  >
+                                    {isWeekExpanded ? "Show fewer" : hiddenLaneCount > 0 ? `View ${hiddenLaneCount} more lanes` : `Show all ${week.events.length} conferences`}
+                                  </button>
+                                </div>
+                              ) : null}
+                            </section>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()
+            ) : null}
+            {dashboardMode === "market" && workspaceViewMode === "database" ? (
+            filteredEvents.length === 0 ? (
+              <div style={{ border: "1px solid rgba(96,165,250,0.2)", borderRadius: "12px", background: "rgba(8,24,42,0.68)", padding: "18px 16px", color: "#c7dcf6", fontSize: "15px", lineHeight: 1.45 }}>
+                No current results for this market view, try refining your search.
+              </div>
+            ) : (
+            <div className="event-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: compactSingleResultLayout ? "6px" : filteredEvents.length === 1 ? "8px" : "12px", marginTop: compactSingleResultLayout ? "0" : undefined, width: "100%", maxWidth: "100%", minWidth: 0 }}>
+          {filteredEvents.map((e, index) => {
             const parts = toDateRangeParts(e.startDate, e.endDate);
             const isMultiDay = parts.dayRange.includes("–");
             const weekStart = getWeekStart(e.startDate);
@@ -2637,12 +8001,159 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
             const venueNorm = normalizeLocationText(normalizedVenue);
             const venueLine = normalizedVenue && venueNorm && cityNorm && !cityNorm.includes(venueNorm) && !venueNorm.includes(cityNorm) ? normalizedVenue : "";
             const externalUrl = buildEventLink(e);
+            const insertedSignal = marketSignalInsertMap.get(index);
+            const stripTone = insertedSignal?.type === "hotweek"
+              ? {
+                  accent: "#f4a340",
+                  border: "rgba(226,150,67,0.4)",
+                  glow: "rgba(244,163,64,0.16)",
+                  iconBg: "linear-gradient(180deg, rgba(153,92,28,0.68), rgba(92,56,20,0.52))",
+                  ctaColor: "#ffc773",
+                }
+              : insertedSignal?.type === "cluster"
+                ? {
+                    accent: "#d4a15b",
+                    border: "rgba(196,146,74,0.38)",
+                    glow: "rgba(184,128,58,0.16)",
+                    iconBg: "linear-gradient(180deg, rgba(137,92,39,0.68), rgba(79,51,23,0.5))",
+                    ctaColor: "#f6c27d",
+                  }
+                : insertedSignal?.type === "participation"
+                  ? {
+                      accent: "#66b7ff",
+                      border: "rgba(96,168,246,0.38)",
+                      glow: "rgba(77,146,255,0.16)",
+                      iconBg: "linear-gradient(180deg, rgba(54,102,172,0.68), rgba(27,52,108,0.5))",
+                      ctaColor: "#95d1ff",
+                    }
+                  : insertedSignal?.type === "theme"
+                    ? {
+                        accent: "#4fd7d0",
+                        border: "rgba(63,191,183,0.36)",
+                        glow: "rgba(42,171,169,0.16)",
+                        iconBg: "linear-gradient(180deg, rgba(38,126,122,0.66), rgba(20,74,83,0.5))",
+                        ctaColor: "#7de7df",
+                      }
+                    : {
+                        accent: "#9b84ff",
+                        border: "rgba(135,111,229,0.36)",
+                        glow: "rgba(116,92,214,0.16)",
+                        iconBg: "linear-gradient(180deg, rgba(83,67,168,0.68), rgba(41,34,95,0.5))",
+                        ctaColor: "#b6a7ff",
+                      };
 
-            return (
+            return [
+              insertedSignal ? (
+                <div key={`signal-strip-${insertedSignal.id}`}>
+                  {index === firstMarketSignalInsertIndex ? (
+                    <div
+                      style={{
+                        margin: "4px 0 10px",
+                        color: "#86b9f4",
+                        fontSize: "11px",
+                        fontWeight: 900,
+                        letterSpacing: "0.14em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Live Market Signals
+                    </div>
+                  ) : null}
+                  <div
+                    style={{
+                      minHeight: "96px",
+                      borderTop: `1px solid ${stripTone.border}`,
+                      borderRight: `1px solid ${stripTone.border}`,
+                      borderBottom: `1px solid ${stripTone.border}`,
+                      borderLeft: `4px solid ${stripTone.accent}`,
+                      borderRadius: "16px",
+                      background: `linear-gradient(90deg, rgba(10,26,44,0.96) 0%, rgba(7,20,36,0.94) 100%), radial-gradient(60% 120% at 0% 50%, ${stripTone.glow} 0%, rgba(0,0,0,0) 72%)`,
+                      padding: "20px 24px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "18px",
+                      boxShadow: "0 16px 28px rgba(2,10,24,0.18), inset 0 1px 0 rgba(255,255,255,0.04)",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "16px", minWidth: 0, flex: 1 }}>
+                      <span
+                        style={{
+                          width: "48px",
+                          height: "48px",
+                          borderRadius: "14px",
+                          flex: "0 0 auto",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: stripTone.accent,
+                          border: `1px solid ${stripTone.border}`,
+                          background: stripTone.iconBg,
+                          boxShadow: `0 0 0 1px ${stripTone.glow}`,
+                        }}
+                      >
+                        <MarketSignalIcon kind={insertedSignal.type} color={stripTone.accent} />
+                      </span>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                          <div style={{ color: stripTone.accent, fontSize: "13px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>
+                            {insertedSignal.label}
+                          </div>
+                          {insertedSignal.badge ? (
+                            <span
+                              style={{
+                                minHeight: "24px",
+                                padding: "0 10px",
+                                borderRadius: "999px",
+                                border: `1px solid ${stripTone.border}`,
+                                background: "rgba(11,30,52,0.72)",
+                                color: "#e7f1ff",
+                                fontSize: "12px",
+                                fontWeight: 800,
+                                display: "inline-flex",
+                                alignItems: "center",
+                              }}
+                            >
+                              {insertedSignal.badge}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div style={{ color: "#ffffff", fontSize: "18px", fontWeight: 700, marginTop: "6px" }}>
+                          {insertedSignal.headline}
+                        </div>
+                        <div style={{ color: "#b9cae1", fontSize: "14px", lineHeight: 1.45, marginTop: "4px" }}>
+                          {insertedSignal.body}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleMarketSignalAction(insertedSignal)}
+                      style={{
+                        height: "40px",
+                        borderRadius: "10px",
+                        border: `1px solid ${stripTone.border}`,
+                        background: "rgba(11,31,54,0.88)",
+                        color: stripTone.ctaColor,
+                        fontSize: "14px",
+                        fontWeight: 700,
+                        padding: "0 16px",
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                        boxShadow: `0 0 18px ${stripTone.glow}`,
+                      }}
+                    >
+                      {insertedSignal.cta}
+                    </button>
+                  </div>
+                </div>
+              ) : null,
+              (
               <article
                 id={`event-card-${e.id}`}
                 className="ccc-workspace-event-card event-card"
                 key={e.id}
+                ref={e.id === initialEventId || (!initialEventId && index === 0) ? firstResultCardRef : null}
                 onMouseEnter={() => setHoveredCardId(e.id)}
                 onMouseLeave={() => setHoveredCardId((prev) => (prev === e.id ? null : prev))}
                 onClick={() => {
@@ -2650,17 +8161,19 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
                   recordActivity("event", `Viewed: ${e.title}`, [e.city, e.state].filter(Boolean).join(", "));
                 }}
                 style={{
-                  border: selected ? "1px solid rgba(134,166,201,0.58)" : "1px solid rgba(106,125,148,0.24)",
+                  borderTop: selected ? "1px solid rgba(144,178,218,0.56)" : "1px solid rgba(118,142,170,0.2)",
+                  borderRight: selected ? "1px solid rgba(144,178,218,0.56)" : "1px solid rgba(118,142,170,0.2)",
+                  borderBottom: selected ? "1px solid rgba(144,178,218,0.56)" : "1px solid rgba(118,142,170,0.2)",
                   borderLeft: isHot ? "3px solid rgba(182,132,84,0.68)" : isCluster ? "3px solid rgba(160,86,104,0.64)" : "3px solid rgba(90,110,132,0.42)",
                   borderRadius: "14px",
-                  background: `radial-gradient(78% 64% at 46% 50%, rgba(76,116,164,0.08) 0%, rgba(76,116,164,0.012) 54%, rgba(76,116,164,0) 82%), radial-gradient(90% 88% at 26% 18%, rgba(98,142,191,0.075) 0%, rgba(98,142,191,0.016) 42%, rgba(98,142,191,0) 70%), radial-gradient(110% 90% at 92% 92%, rgba(6,14,26,0.3) 0%, rgba(6,14,26,0.07) 52%, rgba(6,14,26,0) 74%), radial-gradient(85% 85% at 15% 10%, ${
+                  background: `radial-gradient(78% 64% at 46% 50%, rgba(90,136,192,0.1) 0%, rgba(90,136,192,0.02) 54%, rgba(90,136,192,0) 82%), radial-gradient(90% 88% at 26% 18%, rgba(110,156,208,0.09) 0%, rgba(110,156,208,0.02) 42%, rgba(110,156,208,0) 70%), radial-gradient(110% 90% at 92% 92%, rgba(6,14,26,0.24) 0%, rgba(6,14,26,0.06) 52%, rgba(6,14,26,0) 74%), radial-gradient(85% 85% at 15% 10%, ${
                     isHot
                       ? "rgba(166,124,84,0.16)"
                     : isCluster
                         ? "rgba(152,84,102,0.16)"
                         : "rgba(101,131,168,0.09)"
-                  } 0%, rgba(8,22,36,0.03) 42%, rgba(8,22,36,0) 70%), radial-gradient(70% 80% at 42% 52%, rgba(28,62,96,0.08) 0%, rgba(10,24,40,0.01) 56%, rgba(10,24,40,0) 82%), linear-gradient(132deg, rgba(14,30,50,0.26) 8%, rgba(9,23,39,0.02) 40%, rgba(8,20,36,0.18) 100%), linear-gradient(180deg, rgba(10,26,43,0.97) 0%, rgba(7,20,34,0.98) 100%)`,
-                  padding: "12px 16px",
+                  } 0%, rgba(8,22,36,0.04) 42%, rgba(8,22,36,0) 70%), radial-gradient(70% 80% at 42% 52%, rgba(28,62,96,0.1) 0%, rgba(10,24,40,0.02) 56%, rgba(10,24,40,0) 82%), linear-gradient(132deg, rgba(14,30,50,0.22) 8%, rgba(9,23,39,0.03) 40%, rgba(8,20,36,0.16) 100%), linear-gradient(180deg, rgba(12,30,50,0.95) 0%, rgba(9,24,41,0.97) 100%)`,
+                  padding: "14px 16px",
                   minHeight: "148px",
                   height: "auto",
                   display: "grid",
@@ -2745,9 +8258,9 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
                     </span>
                   </span>
                   <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", minHeight: "18px", alignContent: "flex-start" }}>
-                    {visibleBadges.map((badge) => (
+                    {visibleBadges.map((badge, badgeIndex) => (
                       <button
-                        key={badge.label}
+                        key={`${e.id}-badge-${badge.label}-${badgeIndex}`}
                         type="button"
                         onMouseDown={(event) => event.stopPropagation()}
                         onClick={(event) => {
@@ -2849,7 +8362,7 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
                     {e.title}
                   </div>
 
-                  <div style={{ marginTop: "6px", color: "rgba(196,214,235,0.86)", fontSize: "18px", fontWeight: 620, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cityLabel || "Location TBD"}</div>
+                    <div style={{ marginTop: "6px", color: "#7fc1ff", fontSize: "19px", fontWeight: 650, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cityLabel || "Location TBD"}</div>
                   <div style={{ marginTop: "6px", color: "rgba(172,192,214,0.74)", fontSize: "15px", fontWeight: 520, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.organizer || "Organizer TBD"}</div>
                   {venueLine ? <div style={{ marginTop: "2px", color: "rgba(142,166,192,0.56)", fontSize: "13px", fontWeight: 450, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>⌂ {venueLine}</div> : null}
                   <div style={{ marginTop: "10px", color: "rgba(147,169,194,0.84)", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 650, borderTop: "1px solid rgba(96,112,130,0.055)", paddingTop: "4px", display: "flex", alignItems: "center", gap: "7px" }}>
@@ -2933,7 +8446,7 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
                         rel={externalUrl ? "noopener noreferrer" : undefined}
                         onMouseDown={(event) => event.stopPropagation()}
                         onClick={(event) => event.stopPropagation()}
-                        style={{ height: "34px", borderRadius: "8px", border: hoveredCardId === e.id ? "1px solid rgba(148,176,208,0.38)" : "1px solid rgba(108,130,154,0.2)", background: "rgba(13,27,42,0.62)", color: "#c3d1e2", padding: "0 14px", display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", fontSize: "13px", fontWeight: 600, gap: "6px", whiteSpace: "nowrap", minWidth: "108px", opacity: externalUrl ? 1 : 0.65, transition: "all 180ms ease-out", boxShadow: hoveredCardId === e.id ? "0 0 0 1px rgba(122,149,179,0.14)" : "none" }}
+                        style={{ height: "42px", borderRadius: "10px", border: hoveredCardId === e.id ? "1px solid rgba(148,176,208,0.44)" : "1px solid rgba(108,130,154,0.26)", background: "rgba(13,27,42,0.62)", color: "#c3d1e2", padding: "0 16px", display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", fontSize: "14px", fontWeight: 800, gap: "6px", whiteSpace: "nowrap", minWidth: "124px", opacity: externalUrl ? 1 : 0.65, transition: "all 180ms ease-out", boxShadow: hoveredCardId === e.id ? "0 0 0 1px rgba(122,149,179,0.14)" : "none" }}
                       >
                         Event Link <span style={{ fontSize: "11px", opacity: 0.76 }}>↗</span>
                       </a>
@@ -2949,8 +8462,8 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
                           toggleSelect(e.id);
                         }}
                         style={{
-                        width: "18px",
-                        height: "18px",
+                        width: "22px",
+                        height: "22px",
                         borderRadius: "999px",
                         border: selected ? "1px solid rgba(134,165,198,0.74)" : "1px solid rgba(120,138,160,0.5)",
                         background: selected ? "rgba(61,92,126,0.95)" : "rgba(12,30,48,0.66)",
@@ -3043,91 +8556,268 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
                   </div>
                 </div>
               </article>
-            );
-          })}
+              ),
+            ];
+            })}
             </div>
+            )
+            ) : null}
+            {dashboardMode === "getstarted" || dashboardMode === "market" || dashboardMode === "marketview"
+              ? renderPrimaryModeNav("bottom")
+              : null}
           </div>
-        </div>
-
-        <div style={{ border: "1px solid rgba(96,165,250,0.24)", borderRadius: "12px", background: "linear-gradient(180deg, rgba(10,32,56,0.95) 0%, rgba(8,28,49,0.95) 100%)", padding: "14px", display: "grid", gridTemplateColumns: "minmax(0,1fr) 260px", gap: "16px" }}>
-          <div>
-            <div style={{ color: "#f8fbff", fontSize: "24px", fontWeight: 800 }}>Turn This View Into a Live Calendar Feed</div>
-            <div style={{ color: "#bfdbfe", marginTop: "6px", lineHeight: 1.5 }}>Subscribe to this filtered view and get automatically updated events in your calendar.</div>
-            <div style={{ color: "#93c5fd", marginTop: "8px", fontSize: "13px" }}>• Instant delivery to your calendar • Updates as new matching events are added • Works with Google, Apple, and Outlook</div>
-            <a href="/api/ics" style={{ marginTop: "10px", display: "inline-flex", height: "40px", alignItems: "center", padding: "0 14px", borderRadius: "10px", background: "#2563eb", color: "#fff", textDecoration: "none", fontWeight: 800 }}>Create Live Calendar Feed</a>
-          </div>
-          <div style={{ border: "1px solid rgba(147,197,253,0.2)", borderRadius: "10px", padding: "10px", color: "#dbeafe", background: "rgba(8,30,53,0.82)" }}>
-            <div style={{ fontSize: "12px", color: "#93c5fd", fontWeight: 800, marginBottom: "8px" }}>Works with</div>
-            <div style={{ display: "grid", gap: "6px" }}>
-              <div>Google Calendar</div>
-              <div>Apple Calendar</div>
-              <div>Outlook</div>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ border: "1px solid rgba(96,165,250,0.15)", borderRadius: "14px", padding: "14px", background: "linear-gradient(180deg, rgba(8,30,53,0.82) 0%, rgba(7,26,47,0.8) 100%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
-          <div style={{ color: "#f8fbff", fontSize: "18px", fontWeight: 800, marginBottom: "8px" }}>Events Nearby</div>
-          <div style={{ marginBottom: "8px", display: "flex", gap: "8px", alignItems: "center" }}>
-            <label style={{ color: "#93c5fd", fontSize: "12px" }}>Selected city</label>
-            <select value={nearbyCity} onChange={(e) => setNearbyCity(e.target.value)} style={{ height: "32px", borderRadius: "8px", background: "#08223d", color: "#e2e8f0", border: "1px solid rgba(96,165,250,0.3)", padding: "0 8px" }}>
-              {cities.slice(0, 40).map((c, index) => <option key={`${c}-${index}`} value={c.split(",")[0]?.trim() || c}>{c}</option>)}
-            </select>
-          </div>
-              <AreaEventsPanel
-                events={filteredEvents}
-                initialCity={nearbyCity}
-                _initialState="default"
-              />
         </div>
       </section>
 
       <aside
         className="right-rail ccc-scroll-rail ccc-scroll-rail-right"
-        style={{ position: "relative", alignSelf: "stretch", display: "grid", gap: "10px", minWidth: 0, minHeight: 0, width: "100%", maxWidth: "280px", height: PANEL_HEIGHT, maxHeight: PANEL_HEIGHT, overflow: "hidden", paddingRight: "1px" }}
+        style={{ position: "relative", alignSelf: "stretch", display: "grid", gap: "10px", minWidth: 0, minHeight: 0, width: "100%", maxWidth: "320px", height: PANEL_HEIGHT, maxHeight: PANEL_HEIGHT, overflow: "hidden", paddingRight: "1px" }}
       >
-        <div style={{ height: "100%", maxHeight: "100%", overflowY: "auto", overflowX: "hidden", overscrollBehaviorY: "contain", WebkitOverflowScrolling: "touch", paddingRight: "2px", paddingBottom: "8px", display: "grid", gap: "8px" }}>
-          <div style={{ border: "1px solid rgba(96,165,250,0.13)", borderRadius: "11px", background: "rgba(8,30,53,0.76)", padding: "9px" }}>
-            <div style={{ color: "#f8fbff", fontWeight: 800, marginBottom: "4px" }}>Sync With Your Calendar</div>
-            <div style={{ color: "#97b8d9", fontSize: "12px", marginBottom: "8px", lineHeight: 1.42 }}>
-              Turn the current market view into a live calendar workflow.
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            maxHeight: "100%",
+            overflow: "hidden",
+            borderRadius: "18px",
+            background: "rgba(4, 18, 34, 0.92)",
+            border: "1px solid rgba(90, 130, 180, 0.22)",
+          }}
+        >
+          <div style={{ height: "100%", maxHeight: "100%", overflowY: "auto", overflowX: "hidden", overscrollBehaviorY: "contain", WebkitOverflowScrolling: "touch", padding: "16px", display: "grid", gap: "10px" }}>
+            <div style={{ marginBottom: "2px", textAlign: "center", display: "grid", justifyItems: "center" }}>
+              <div style={{ color: "#dbeafe", fontWeight: 900, fontSize: "20px", lineHeight: 1.05, marginBottom: "6px" }}>Control Panel</div>
+              <div style={{ color: "#9db4d3", fontSize: "13px", lineHeight: 1.35, maxWidth: "230px", width: "100%", textAlign: "left", justifySelf: "stretch" }}>
+                Export, save, sync, and manage this market view.
+              </div>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "6px", marginBottom: "2px" }}>
-              {[
-                { label: "Google", brand: "google" as const, platform: "Google Calendar" as const },
-                { label: "Apple", brand: "apple" as const, platform: "Apple Calendar" as const },
-                { label: "Outlook", brand: "outlook" as const, platform: "Outlook" as const },
-              ].map((platform) => (
-                <button
-                  key={platform.label}
-                  type="button"
-                  onClick={() => openCalendarSync(platform.platform)}
-                  style={{
-                    height: "32px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(147,197,253,0.24)",
-                    background: "rgba(147,197,253,0.08)",
-                    color: "#dbeafe",
-                    fontSize: "11px",
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "6px",
-                    fontWeight: 650,
-                  }}
-                >
-                  <span style={{ width: "16px", height: "16px", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                    <CalendarBrandGlyph brand={platform.brand} />
-                  </span>
-                  {platform.label}
-                </button>
-              ))}
+
+          <div
+            style={{
+              ...rightRailSectionCardStyle,
+              padding: 0,
+              overflow: "visible",
+              position: "sticky",
+              top: 0,
+              zIndex: 8,
+              background: "linear-gradient(180deg, rgba(13,35,62,0.98) 0%, rgba(8,25,46,0.96) 100%)",
+              border: "1px solid rgba(88, 145, 230, 0.34)",
+              boxShadow: "0 0 0 1px rgba(70,120,220,0.12), 0 12px 24px rgba(0,0,0,0.18)",
+            }}
+          >
+            <div style={{ width: "100%", minHeight: "42px", padding: "0 14px", color: "#dbeafe", display: "flex", alignItems: "center" }}>
+              <span style={{ fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", display: "inline-flex", alignItems: "center", gap: "9px", textTransform: "uppercase" }}>
+                <span style={{ width: "18px", height: "18px", color: "#8fc2ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind="sync" /></span>
+                SYNC CALENDAR
+              </span>
+            </div>
+            <div style={{ padding: "0 14px 14px 14px" }}>
+              <div style={{ color: "#c6d7ee", fontSize: "13px", marginBottom: "12px", lineHeight: 1.4 }}>
+                Turn this market view into a live calendar workflow.
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "8px", marginBottom: "2px" }}>
+                {[
+                  { label: "Google", brand: "google" as const, platform: "Google Calendar" as const },
+                  { label: "Apple", brand: "apple" as const, platform: "Apple Calendar" as const },
+                  { label: "Outlook", brand: "outlook" as const, platform: "Outlook" as const },
+                ].map((platform) => (
+                  <button
+                    key={platform.label}
+                    type="button"
+                    onClick={() => openCalendarSync(platform.platform)}
+                    style={{
+                      height: "36px",
+                      borderRadius: "10px",
+                      border: platform.label === "Outlook" ? "1px solid rgba(86, 180, 220, 0.34)" : "1px solid rgba(105, 153, 205, 0.28)",
+                      background: platform.label === "Apple" ? "rgba(8, 24, 43, 0.92)" : "rgba(11, 32, 56, 0.82)",
+                      color: "#dbeafe",
+                      fontSize: "12.5px",
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "6px",
+                      fontWeight: 800,
+                    }}
+                  >
+                    <span style={{ width: "16px", height: "16px", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                      <CalendarBrandGlyph brand={platform.brand} />
+                    </span>
+                    {platform.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-          <div style={{ height: "1px", background: "rgba(147,197,253,0.12)", margin: "0 4px" }} />
+          <div style={{ ...rightRailSectionCardStyle, padding: 0, overflow: "visible" }}>
+            <div
+              style={{ width: "100%", height: "40px", padding: "0 14px", color: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "space-between" }}
+            >
+              <span style={{ fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", display: "inline-flex", alignItems: "center", gap: "9px", textTransform: "uppercase" }}>
+                <span style={{ width: "18px", height: "18px", color: "#9ec5ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind="actions" /></span>
+                QUICK ACTIONS
+              </span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "12px", color: "#8fb3df", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "5px" }}>
+                  {selectedEvents.length > 0 ? <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: "#60a5fa", display: "inline-block" }} /> : null}
+                  {selectedEvents.length} selected
+                </span>
+              </span>
+            </div>
+            <div style={{ display: "grid", gap: "8px", padding: "0 14px 14px 14px" }}>
+            <div style={{ display: "grid", gap: "8px" }}>
+              <button
+                onClick={() => {
+                  markToolbarAction("clear");
+                  clearWorkspaceView();
+                }}
+                onMouseEnter={() => setToolbarHelpText("Reset filters, selections, and quick views to default.")}
+                onMouseLeave={() => setToolbarHelpText("")}
+                style={{
+                  height: "38px",
+                  borderRadius: "10px",
+                  border: activeToolbarAction === "clear" ? "1px solid rgba(125,182,255,0.58)" : "1px solid rgba(92,136,184,0.28)",
+                  background: activeToolbarAction === "clear" ? "linear-gradient(180deg, rgba(24,58,100,0.98), rgba(17,42,78,0.96))" : "rgba(17,38,67,0.9)",
+                  color: "#e7f2ff",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  boxShadow: activeToolbarAction === "clear" ? "0 0 0 1px rgba(96,165,250,0.28), 0 0 14px rgba(59,130,246,0.24), inset 0 1px 0 rgba(255,255,255,0.08)" : "0 0 10px rgba(59,130,246,0.12), inset 0 1px 0 rgba(255,255,255,0.06)",
+                  transition: "all 140ms ease",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "0 10px 0 12px",
+                }}
+              >
+                <span>Clear</span>
+                <span style={{ opacity: 0.95, display: "inline-flex", alignItems: "center" }}>
+                    <span style={{ color: "#9fc3ff" }}><QuickActionIcon kind="clear" /></span>
+                  </span>
+                </button>
+              <button
+                onClick={() => {
+                  markToolbarAction("share");
+                  shareSelected();
+                }}
+                onMouseEnter={() => setToolbarHelpText("Open an email draft with up to 20 selected events and links.")}
+                onMouseLeave={() => setToolbarHelpText("")}
+                style={{
+                  height: "38px",
+                  borderRadius: "10px",
+                  border: activeToolbarAction === "share" ? "1px solid rgba(125,182,255,0.58)" : "1px solid rgba(92,136,184,0.28)",
+                  background: activeToolbarAction === "share" ? "linear-gradient(180deg, rgba(24,58,100,0.98), rgba(17,42,78,0.96))" : "rgba(17,38,67,0.9)",
+                  color: "#e7f2ff",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  boxShadow: activeToolbarAction === "share" ? "0 0 0 1px rgba(96,165,250,0.28), 0 0 14px rgba(59,130,246,0.24), inset 0 1px 0 rgba(255,255,255,0.08)" : "0 0 10px rgba(59,130,246,0.12), inset 0 1px 0 rgba(255,255,255,0.06)",
+                  transition: "all 140ms ease",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "0 10px 0 12px",
+                }}
+              >
+                <span>Share Selected</span>
+                <span style={{ opacity: 0.95, display: "inline-flex", alignItems: "center" }}>
+                    <span style={{ color: "#8fd0ff" }}><QuickActionIcon kind="share" /></span>
+                  </span>
+                </button>
+              <button
+                onClick={() => {
+                  markToolbarAction("view");
+                  saveCurrentView();
+                }}
+                onMouseEnter={() => setToolbarHelpText("Save your current filters as a local market view preset.")}
+                onMouseLeave={() => setToolbarHelpText("")}
+                style={{
+                  height: "38px",
+                  borderRadius: "10px",
+                  border: activeToolbarAction === "view" ? "1px solid rgba(125,182,255,0.58)" : "1px solid rgba(92,136,184,0.28)",
+                  background: activeToolbarAction === "view" ? "linear-gradient(180deg, rgba(24,58,100,0.98), rgba(17,42,78,0.96))" : "rgba(17,38,67,0.9)",
+                  color: "#e7f2ff",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  boxShadow: activeToolbarAction === "view" ? "0 0 0 1px rgba(96,165,250,0.28), 0 0 14px rgba(59,130,246,0.24), inset 0 1px 0 rgba(255,255,255,0.08)" : "0 0 10px rgba(59,130,246,0.12), inset 0 1px 0 rgba(255,255,255,0.06)",
+                  transition: "all 140ms ease",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "0 10px 0 12px",
+                }}
+              >
+                <span>Save Market View</span>
+                <span style={{ opacity: 0.95, display: "inline-flex", alignItems: "center" }}>
+                    <span style={{ color: "#7ad6c8" }}><QuickActionIcon kind="saveView" /></span>
+                  </span>
+                </button>
+              <div ref={saveMenuRef} style={{ position: "relative" }}>
+                <button
+                  onClick={() => {
+                    markToolbarAction("save");
+                    setSaveMenuOpen((v) => !v);
+                  }}
+                  onMouseEnter={() => setToolbarHelpText("Save selected conferences to a new or existing local list.")}
+                  onMouseLeave={() => setToolbarHelpText("")}
+                  style={{
+                    width: "100%",
+                    height: "38px",
+                    borderRadius: "10px",
+                    border: activeToolbarAction === "save" || saveMenuOpen ? "1px solid rgba(125,182,255,0.58)" : "1px solid rgba(92,136,184,0.28)",
+                    background: activeToolbarAction === "save" || saveMenuOpen ? "linear-gradient(180deg, rgba(24,58,100,0.98), rgba(17,42,78,0.96))" : "rgba(17,38,67,0.9)",
+                    color: "#e7f2ff",
+                    fontSize: "13px",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    boxShadow: activeToolbarAction === "save" || saveMenuOpen ? "0 0 0 1px rgba(96,165,250,0.28), 0 0 14px rgba(59,130,246,0.24), inset 0 1px 0 rgba(255,255,255,0.08)" : "0 0 10px rgba(59,130,246,0.12), inset 0 1px 0 rgba(255,255,255,0.06)",
+                    transition: "all 140ms ease",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "0 10px 0 12px",
+                  }}
+                >
+                  <span>Save Selected</span>
+                  <span style={{ opacity: 0.95, display: "inline-flex", alignItems: "center" }}>
+                    <span style={{ color: "#ffbf66" }}><QuickActionIcon kind="saveSelected" /></span>
+                  </span>
+                </button>
+                {saveMenuOpen ? (
+                  <div style={{ position: "absolute", top: "35px", left: 0, right: 0, zIndex: 400, borderRadius: "10px", border: "1px solid rgba(96,165,250,0.3)", background: "linear-gradient(180deg, rgba(8,30,53,0.98) 0%, rgba(7,25,45,0.98) 100%)", boxShadow: "0 14px 28px rgba(4,12,22,0.38)", padding: "10px", display: "grid", gap: "8px" }}>
+                    <div style={{ fontSize: "11px", color: "#9ec4e9", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>Save Events To</div>
+                    <select value={saveListChoice} onChange={(e) => setSaveListChoice(e.target.value)} style={{ height: "34px", borderRadius: "8px", background: "#08223d", color: "#e2e8f0", border: "1px solid rgba(96,165,250,0.3)", padding: "0 8px" }}>
+                      <option value="new">Create New List</option>
+                      {savedLists.map((list) => (
+                        <option key={list.id} value={list.id}>
+                          {list.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (saveListChoice === "new") {
+                          addSelectedToNewList();
+                        } else {
+                          addSelectedToExistingList(saveListChoice);
+                        }
+                        setSaveMenuOpen(false);
+                        setSaveListChoice("new");
+                      }}
+                      style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(96,165,250,0.44)", background: "rgba(37,99,235,0.24)", color: "#dbeafe", fontWeight: 700, cursor: "pointer" }}
+                    >
+                      Save
+                    </button>
+                  </div>
+                ) : null}
+            </div>
+		            </div>
+		            </div>
+		          </div>
 
-          <div style={{ border: "1px solid rgba(96,165,250,0.13)", borderRadius: "11px", background: "rgba(8,30,53,0.76)", padding: "9px" }}>
+	          <div style={{ ...rightRailSectionCardStyle, padding: 0, overflow: "visible", background: "rgba(7,24,44,0.62)", border: "1px solid rgba(86,122,166,0.18)" }}>
             <button
               type="button"
               onClick={() => setSavedConferenceListsOpen((v) => !v)}
@@ -3139,28 +8829,31 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
                 gap: "8px",
                 border: "none",
                 background: "transparent",
-                color: "#f8fbff",
+                color: "#dbeafe",
                 cursor: "pointer",
-                padding: 0,
+                padding: "0 14px",
                 textAlign: "left",
-                marginBottom: "6px",
+                height: "46px",
               }}
             >
-              <div>
-                <div style={{ fontWeight: 800 }}>Saved Conference Lists</div>
-                <div style={{ color: "#97b8d9", fontSize: "11px", marginTop: "2px" }}>
-                  {savedLists.length} saved {savedLists.length === 1 ? "list" : "lists"}
-                </div>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: "9px", fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", color: "#f1f7ff" }}>
+                <span style={{ width: "18px", height: "18px", color: "#9ec5ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind="lists" /></span>
+                SAVED LISTS
               </div>
-              <span style={{ color: "#93c5fd", fontSize: "14px", lineHeight: 1 }}>{savedConferenceListsOpen ? "▾" : "▸"}</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ color: "#9fc3e7", fontSize: "12px", fontWeight: 700 }}>
+                  {savedLists.length} saved
+                </span>
+                <span style={{ color: "#9fb6d4", fontSize: "14px", lineHeight: 1 }}>{savedConferenceListsOpen ? "▾" : "▸"}</span>
+              </span>
             </button>
             {savedConferenceListsOpen ? (
               savedLists.length ? (
-                <div style={{ display: "grid", gap: "6px", maxHeight: "220px", overflowY: "auto", paddingRight: "2px" }}>
+                <div style={{ display: "grid", gap: "8px", padding: "0 14px 14px 14px" }}>
                   {savedLists.map((list) => (
-                    <div key={list.id} style={{ border: "1px solid rgba(147,197,253,0.18)", borderRadius: "8px", padding: "6px" }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", marginBottom: "2px" }}>
-                        <div style={{ color: "#dbeafe", fontSize: "11px", fontWeight: 700 }}>{list.name}</div>
+                    <div key={list.id} style={{ border: "1px solid rgba(147,197,253,0.18)", borderRadius: "10px", padding: "10px 10px 9px" }}>
+                      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "10px", marginBottom: "4px" }}>
+                        <div style={{ color: "#dbeafe", fontSize: "12px", lineHeight: 1.3, fontWeight: 700 }}>{list.name}</div>
                         <button
                           type="button"
                           onClick={() => deleteSavedList(list.id)}
@@ -3181,19 +8874,19 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
                           ✕
                         </button>
                       </div>
-                      <div style={{ color: "#93c5fd", fontSize: "10px", marginBottom: "5px" }}>
+                      <div style={{ color: "#93c5fd", fontSize: "10.5px", marginBottom: "8px" }}>
                         {list.eventIds.length} events • Updated {new Date(list.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                       </div>
                       <button
                         type="button"
                         onClick={() => loadSavedList(list.id)}
                         style={{
-                          height: "24px",
-                          borderRadius: "6px",
+                          height: "26px",
+                          borderRadius: "7px",
                           border: "1px solid rgba(147,197,253,0.28)",
                           background: "rgba(147,197,253,0.08)",
                           color: "#dbeafe",
-                          fontSize: "10px",
+                          fontSize: "10.5px",
                           cursor: "pointer",
                           padding: "0 10px",
                         }}
@@ -3204,17 +8897,16 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
                   ))}
                 </div>
               ) : (
-                <div style={{ color: "#93c5fd", fontSize: "11px", lineHeight: 1.45 }}>
-                  No saved conference lists yet.
+                <div style={{ color: "#9fb6d4", fontSize: "12.5px", lineHeight: 1.4, padding: "0 14px 14px 14px" }}>
+                  No saved lists yet.
                   <br />
                   Select events, then use Save Selected.
                 </div>
               )
             ) : null}
           </div>
-          <div style={{ height: "1px", background: "rgba(147,197,253,0.12)", margin: "0 4px" }} />
 
-          <div style={{ border: "1px solid rgba(96,165,250,0.13)", borderRadius: "11px", background: "rgba(8,30,53,0.76)", padding: "9px" }}>
+	          <div style={{ ...rightRailSectionCardStyle, padding: 0, overflow: "visible", background: "rgba(7,24,44,0.62)", border: "1px solid rgba(86,122,166,0.18)" }}>
             <button
               type="button"
               onClick={() => setSavedMarketViewsOpen((v) => !v)}
@@ -3226,36 +8918,32 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
                 gap: "8px",
                 border: "none",
                 background: "transparent",
-                color: "#f8fbff",
+                color: "#dbeafe",
                 cursor: "pointer",
-                padding: 0,
+                padding: "0 14px",
                 textAlign: "left",
-                marginBottom: "6px",
+                height: "46px",
               }}
             >
-              <div>
-                <div style={{ fontWeight: 800 }}>Saved Market Views</div>
-                <div style={{ color: "#97b8d9", fontSize: "11px", marginTop: "2px" }}>
-                  {savedViews.length} saved {savedViews.length === 1 ? "view" : "views"}
-                </div>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: "9px", fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", color: "#f1f7ff" }}>
+                <span style={{ width: "18px", height: "18px", color: "#9ec5ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind="views" /></span>
+                SAVED VIEWS
               </div>
-              <span style={{ color: "#93c5fd", fontSize: "14px", lineHeight: 1 }}>{savedMarketViewsOpen ? "▾" : "▸"}</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ color: "#9fc3e7", fontSize: "12px", fontWeight: 700 }}>
+                  {savedViews.length} saved
+                </span>
+                <span style={{ color: "#9fb6d4", fontSize: "14px", lineHeight: 1 }}>{savedMarketViewsOpen ? "▾" : "▸"}</span>
+              </span>
             </button>
             {savedMarketViewsOpen ? (
               <>
-                <button
-                  type="button"
-                  onClick={saveCurrentView}
-                  style={{ height: "30px", width: "100%", borderRadius: "8px", border: "1px solid rgba(147,197,253,0.34)", background: "rgba(37,99,235,0.18)", color: "#dbeafe", fontSize: "11px", fontWeight: 700, cursor: "pointer", marginBottom: "7px" }}
-                >
-                  Save Market View
-                </button>
                 {savedViews.length ? (
-                  <div style={{ display: "grid", gap: "6px", maxHeight: "220px", overflowY: "auto", paddingRight: "2px" }}>
+                  <div style={{ display: "grid", gap: "8px", padding: "0 14px 14px 14px" }}>
                     {savedViews.map((v) => (
-                      <div key={v.id} style={{ border: "1px solid rgba(147,197,253,0.18)", borderRadius: "8px", padding: "6px" }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", marginBottom: "2px" }}>
-                          <div style={{ color: "#dbeafe", fontSize: "11px", fontWeight: 700 }}>{v.name}</div>
+                      <div key={v.id} style={{ border: "1px solid rgba(147,197,253,0.18)", borderRadius: "10px", padding: "10px 10px 9px" }}>
+                        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "10px", marginBottom: "4px" }}>
+                          <div style={{ color: "#dbeafe", fontSize: "12px", lineHeight: 1.3, fontWeight: 700 }}>{v.name}</div>
                           <button
                             type="button"
                             onClick={() => deleteSavedView(v.id)}
@@ -3276,78 +8964,38 @@ export default function EventsClient({ events, initialCity, initialSearchQuery =
                             ✕
                           </button>
                         </div>
-                        <div style={{ color: "#93c5fd", fontSize: "10px", marginBottom: "5px" }}>
+                        <div style={{ color: "#93c5fd", fontSize: "10.5px", marginBottom: "8px" }}>
                           {(v.eventCount ?? 0)} events • Updated {new Date(v.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                         </div>
-                        <button type="button" onClick={() => loadSavedView(v.id)} style={{ height: "24px", borderRadius: "6px", border: "1px solid rgba(147,197,253,0.28)", background: "rgba(147,197,253,0.08)", color: "#dbeafe", fontSize: "10px", cursor: "pointer", padding: "0 10px" }}>Load</button>
+                        <button type="button" onClick={() => loadSavedView(v.id)} style={{ height: "26px", borderRadius: "7px", border: "1px solid rgba(147,197,253,0.28)", background: "rgba(147,197,253,0.08)", color: "#dbeafe", fontSize: "10.5px", cursor: "pointer", padding: "0 10px" }}>Load</button>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div style={{ color: "#93c5fd", fontSize: "11px", lineHeight: 1.45 }}>
-                    <div style={{ color: "#dbeafe", marginBottom: "3px" }}>No saved views yet.</div>
+                  <div style={{ color: "#9fb6d4", fontSize: "12.5px", lineHeight: 1.4, padding: "0 14px 14px 14px" }}>
+                    No saved views yet.
+                    <br />
                     Save your current filters to return to this market view later.
                   </div>
                 )}
               </>
             ) : null}
           </div>
-          <div style={{ height: "1px", background: "rgba(147,197,253,0.12)", margin: "0 4px" }} />
 
-          <div style={{ border: "1px solid rgba(96,165,250,0.13)", borderRadius: "11px", background: "rgba(8,30,53,0.76)", padding: "9px" }}>
-            <div style={{ color: "#f8fbff", fontWeight: 800, marginBottom: "8px" }}>Quick Feeds</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "5px" }}>
-              <button type="button" onClick={() => applyHeroQuickView("investor-conferences")} style={{ height: "26px", borderRadius: "7px", border: "1px solid rgba(147,197,253,0.24)", background: "rgba(147,197,253,0.08)", color: "#dbeafe", fontSize: "10px", cursor: "pointer" }}>Investor Conferences</button>
-              <button type="button" onClick={() => applyHeroQuickView("healthcare-conferences")} style={{ height: "26px", borderRadius: "7px", border: "1px solid rgba(147,197,253,0.24)", background: "rgba(147,197,253,0.08)", color: "#dbeafe", fontSize: "10px", cursor: "pointer" }}>Healthcare Events</button>
-              <button type="button" onClick={() => applyHeroQuickView("private-markets")} style={{ height: "26px", borderRadius: "7px", border: "1px solid rgba(147,197,253,0.24)", background: "rgba(147,197,253,0.08)", color: "#dbeafe", fontSize: "10px", cursor: "pointer" }}>Private Markets</button>
-              <button type="button" onClick={() => applyHeroQuickView("canada-events")} style={{ height: "26px", borderRadius: "7px", border: "1px solid rgba(147,197,253,0.24)", background: "rgba(147,197,253,0.08)", color: "#dbeafe", fontSize: "10px", cursor: "pointer" }}>Canada Events</button>
-              <button type="button" onClick={() => applyHeroQuickView("upcoming-30-days")} style={{ height: "26px", borderRadius: "7px", border: "1px solid rgba(147,197,253,0.24)", background: "rgba(147,197,253,0.08)", color: "#dbeafe", fontSize: "10px", cursor: "pointer" }}>Upcoming 30 Days</button>
-              <button
-                type="button"
-                onClick={() => {
-                  const firstHot = viewConcentrationCards.find((item) => item.type === "hotweek") || allConcentrationCards.find((item) => item.type === "hotweek");
-                  if (firstHot) {
-                    applyConcentrationItem(firstHot);
-                    recordActivity("feed", "Quick feed: hot weeks");
-                  }
-                }}
-                style={{ height: "26px", borderRadius: "7px", border: "1px solid rgba(147,197,253,0.24)", background: "rgba(147,197,253,0.08)", color: "#dbeafe", fontSize: "10px", cursor: "pointer" }}
-              >
-                Hot Weeks
-              </button>
+          <div style={{ paddingTop: "12px", marginTop: "6px", borderTop: "1px solid rgba(90, 124, 166, 0.16)" }}>
+            <div style={{ fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", color: "#8fb7e8", textTransform: "uppercase", marginBottom: "8px", display: "inline-flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ width: "16px", height: "16px", color: "#7fb4ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind="status" /></span>
+              WORKSPACE STATUS
+            </div>
+            <div style={{ display: "grid", gap: "8px", color: "#c9d8ed", fontSize: "12.5px", lineHeight: 1.3, marginTop: "10px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}><span style={{ width: "7px", height: "7px", borderRadius: "999px", background: "#22c55e", display: "inline-block" }} />Conference index: Live</div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}><span style={{ width: "7px", height: "7px", borderRadius: "999px", background: "#57a6ff", display: "inline-block" }} />Calendar feed: Ready</div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}><span style={{ width: "7px", height: "7px", borderRadius: "999px", background: "#6eb6ff", display: "inline-block" }} />Saved views: Local browser</div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}><span style={{ width: "7px", height: "7px", borderRadius: "999px", background: "#9aaec8", display: "inline-block" }} />Last refresh: Recently</div>
             </div>
           </div>
-          <div style={{ height: "1px", background: "rgba(147,197,253,0.12)", margin: "0 4px" }} />
 
-          <div style={{ border: "1px solid rgba(96,165,250,0.13)", borderRadius: "11px", background: "rgba(8,30,53,0.76)", padding: "9px" }}>
-            <div style={{ color: "#f8fbff", fontWeight: 800, marginBottom: "8px" }}>Workspace Status</div>
-            <div style={{ display: "grid", gap: "5px", color: "#bfd6f0", fontSize: "10px" }}>
-              <div><span style={{ color: "#4ade80" }}>●</span> Conference index: Live</div>
-              <div><span style={{ color: "#60a5fa" }}>●</span> Calendar feed: Ready</div>
-              <div><span style={{ color: "#60a5fa" }}>●</span> Saved views: Local browser</div>
-              <div><span style={{ color: "#93c5fd" }}>●</span> Last refresh: Recently</div>
-            </div>
-          </div>
-          <div style={{ height: "1px", background: "rgba(147,197,253,0.12)", margin: "0 4px" }} />
-
-          <div style={{ border: "1px solid rgba(96,165,250,0.13)", borderRadius: "11px", background: "rgba(8,30,53,0.76)", padding: "9px" }}>
-            <div style={{ color: "#f8fbff", fontWeight: 800, marginBottom: "8px" }}>Recent Activity</div>
-            {recentActivity.length ? (
-              <div style={{ display: "grid", gap: "5px" }}>
-                {recentActivity.slice(0, 8).map((item) => (
-                  <div key={item.id} style={{ border: "1px solid rgba(147,197,253,0.14)", borderRadius: "7px", padding: "5px" }}>
-                    <div style={{ color: "#dbeafe", fontSize: "10px", fontWeight: 700 }}>{item.label}</div>
-                    <div style={{ color: "#93c5fd", fontSize: "10px" }}>{item.detail || "Workspace activity"}</div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ color: "#93c5fd", fontSize: "11px", lineHeight: 1.45 }}>
-                Activity will appear as you explore the market calendar.
-              </div>
-            )}
-          </div>
-
+        </div>
         </div>
       </aside>
     </div>

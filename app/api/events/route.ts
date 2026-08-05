@@ -40,6 +40,22 @@ function cleanDateOnly(value: unknown): string {
   return toText(value).slice(0, 10);
 }
 
+function isWebsiteApproved(fields: Record<string, unknown>): boolean {
+  const approvalKey =
+    Object.keys(fields).find(
+      (key) => key.replace(/[^a-z]/gi, "").toLowerCase() === "websiteapproval"
+    ) || "Website Approval";
+  const normalized = toText(fields[approvalKey]).toLowerCase().replace(/\s+/g, "");
+  if (!normalized) return false;
+  const looksApproved = normalized.includes("approved") || normalized.includes("appoved");
+  const looksRejected =
+    normalized.includes("notapproved") ||
+    normalized.includes("unapproved") ||
+    normalized.includes("pending") ||
+    normalized.includes("rejected");
+  return looksApproved && !looksRejected;
+}
+
 function toArray(values: string[]): string[] {
   return values.map((v) => v.trim()).filter(Boolean);
 }
@@ -179,6 +195,7 @@ async function getEvents(): Promise<EventRow[]> {
   } while (offset);
 
   return records
+    .filter((record) => isWebsiteApproved(record.fields || {}))
     .map((record) => {
       const fields = record.fields || {};
       const startDate = cleanDateOnly(fields["Start Date"]);

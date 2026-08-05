@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "preview:discovery:audit": "node scripts/preview-discovery-audit.mjs",
+    "preview:discovery:stress": "node scripts/preview-discovery-stress.mjs"
   },
   "dependencies": {
     "next": "16.2.1",

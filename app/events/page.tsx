@@ -31,6 +31,12 @@ type EventRow = {
   verificationStatus: string;
   lastVerified: string;
   sourcePage: string;
+  publicCompanySector?: string;
+  additionalPublicCompanySectors?: string;
+  eventCharacter?: string;
+  organizerType?: string;
+  dataCompletenessScore?: string;
+  websiteApproval?: string;
 };
 
 type EventsPageProps = {
@@ -65,6 +71,22 @@ function cleanDateOnly(value: unknown): string {
 function getSingleParam(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] || "";
   return value || "";
+}
+
+function isWebsiteApproved(fields: Record<string, unknown>): boolean {
+  const approvalKey =
+    Object.keys(fields).find(
+      (key) => key.replace(/[^a-z]/gi, "").toLowerCase() === "websiteapproval"
+    ) || "Website Approval";
+  const normalized = toText(fields[approvalKey]).toLowerCase().replace(/\s+/g, "");
+  if (!normalized) return false;
+  const looksApproved = normalized.includes("approved") || normalized.includes("appoved");
+  const looksRejected =
+    normalized.includes("notapproved") ||
+    normalized.includes("unapproved") ||
+    normalized.includes("pending") ||
+    normalized.includes("rejected");
+  return looksApproved && !looksRejected;
 }
 
 function getMultiParam(value: string | string[] | undefined): string[] {
@@ -266,6 +288,7 @@ async function getEvents(): Promise<EventRow[]> {
   }
 
   return records
+    .filter((record) => isWebsiteApproved(record.fields || {}))
     .map((record) => {
       const fields = record.fields || {};
       const startDate = cleanDateOnly(fields["Start Date"]);
@@ -292,6 +315,12 @@ async function getEvents(): Promise<EventRow[]> {
         verificationStatus: toText(fields["Verification Status"]),
         lastVerified: cleanDateOnly(fields["Last Verified"]),
         sourcePage: toText(fields["Source Page (event-specific)"]),
+        publicCompanySector: toText(fields["Public Company Sector"]),
+        additionalPublicCompanySectors: toText(fields["Additional Public Company Sectors"]),
+        eventCharacter: toText(fields["Event Character"]),
+        organizerType: toText(fields["Organizer Type / Type from Organizer"]) || toText(fields["Type from Organizer"]),
+        dataCompletenessScore: toText(fields["Data Completeness Score copy"]),
+        websiteApproval: toText(fields["Website Approval"]),
       };
     })
     .filter((event) => event.startDate)
@@ -699,6 +728,13 @@ export default async function EventsPage({
     <AppShell
       active="events"
       searchQuery={q}
+      tickerEvents={allEvents.map((event) => ({
+        id: event.id,
+        title: event.title,
+        startDate: event.startDate,
+        endDate: event.endDate,
+        city: event.city,
+      }))}
       rightRail={
         <IntelligenceRail
           signals={intelligenceSignals}

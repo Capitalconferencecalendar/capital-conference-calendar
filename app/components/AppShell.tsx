@@ -6,6 +6,13 @@ type AppShellProps = {
   searchQuery?: string;
   children: React.ReactNode;
   rightRail?: React.ReactNode;
+  tickerEvents?: Array<{
+    id: string;
+    title: string;
+    startDate: string;
+    endDate: string;
+    city: string;
+  }>;
 };
 
 export default function AppShell({
@@ -13,6 +20,7 @@ export default function AppShell({
   searchQuery = "",
   children,
   rightRail,
+  tickerEvents,
 }: AppShellProps) {
   const isWorkspaceMode = active === "dashboard" || active === "events";
   const footerLinks = [
@@ -34,7 +42,7 @@ export default function AppShell({
         paddingTop: "106px",
       }}
     >
-      <EventTicker />
+      <EventTicker events={tickerEvents} />
       <Header active={active} searchQuery={searchQuery} />
 
       <div

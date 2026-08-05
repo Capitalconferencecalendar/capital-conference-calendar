@@ -245,15 +245,18 @@ body {
 }
 
 .ccc-ticker-track {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 0;
   white-space: nowrap;
-  width: max-content;
-  animation: cccTickerScroll 143s linear infinite;
+  width: fit-content;
+  min-width: max-content;
+  animation: cccTickerScroll 180s linear infinite;
   will-change: transform;
 }
 
+.ccc-ticker-shell:hover .ccc-ticker-track,
+.ccc-ticker-shell:focus-within .ccc-ticker-track,
 .ccc-ticker-viewport:hover .ccc-ticker-track,
 .ccc-ticker-viewport:focus-within .ccc-ticker-track {
   animation-play-state: paused;
@@ -271,7 +274,7 @@ body {
     transform: translate3d(0, 0, 0);
   }
   to {
-    transform: translate3d(-50%, 0, 0);
+    transform: translate3d(-33.3333%, 0, 0);
   }
 }
 
@@ -283,15 +286,37 @@ body {
 
 @media (max-width: 1180px) {
   .ccc-header-grid {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: 1fr auto 1fr !important;
+    grid-template-areas:
+      "actions logo ."
+      "search search search";
+    align-items: center !important;
+    gap: 8px 10px !important;
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
   }
 
   .ccc-header-search {
-    order: 3;
+    grid-area: search;
+    order: 0 !important;
+    grid-column: 1 / -1;
+    width: 100% !important;
+    max-width: 100% !important;
+    justify-self: stretch !important;
   }
 
   .ccc-header-actions {
+    grid-area: actions;
+    justify-self: start;
     justify-content: flex-start !important;
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .ccc-header-grid > a:first-child {
+    grid-area: logo;
+    justify-self: center;
+    width: auto !important;
   }
 
   .ccc-shell-grid,
@@ -399,6 +424,24 @@ body {
 
   .ccc-provider-grid {
     grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  .ccc-header-grid {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+  }
+
+  .ccc-header-grid > a:first-child {
+    width: auto !important;
+  }
+
+  .ccc-header-actions {
+    gap: 6px !important;
+  }
+
+  .ccc-header-search {
+    width: 100% !important;
   }
 }
 

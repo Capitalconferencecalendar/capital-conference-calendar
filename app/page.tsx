@@ -27,6 +27,26 @@ function firstText(fields: Record<string, unknown>, keys: string[]): string {
   return "";
 }
 
+function normalizeStatus(value: unknown) {
+  return toText(value).toLowerCase().replace(/\s+/g, "");
+}
+
+function isWebsiteApproved(fields: Record<string, unknown>): boolean {
+  const approvalKey =
+    Object.keys(fields).find(
+      (key) => key.replace(/[^a-z]/gi, "").toLowerCase() === "websiteapproval"
+    ) || "Website Approval";
+  const normalized = normalizeStatus(fields[approvalKey]);
+  if (!normalized) return false;
+  const looksApproved = normalized.includes("approved") || normalized.includes("appoved");
+  const looksRejected =
+    normalized.includes("notapproved") ||
+    normalized.includes("unapproved") ||
+    normalized.includes("pending") ||
+    normalized.includes("rejected");
+  return looksApproved && !looksRejected;
+}
+
 async function getEvents(): Promise<WorkspaceEvent[]> {
   const baseId = process.env.AIRTABLE_BASE_ID;
   const tableName = process.env.AIRTABLE_TABLE_NAME;
@@ -64,6 +84,7 @@ async function getEvents(): Promise<WorkspaceEvent[]> {
   }
 
   return records
+    .filter((record) => isWebsiteApproved(record.fields || {}))
     .map((record) => {
       const fields = record.fields || {};
       const startDate = cleanDateOnly(fields["Start Date"]);
@@ -98,23 +119,33 @@ async function getEvents(): Promise<WorkspaceEvent[]> {
 
 type SearchParamsShape = Record<string, string | string[] | undefined>;
 
-export default async function HomePage({
-  searchParams,
-}: {
+type HomePageProps = {
   searchParams?: Promise<SearchParamsShape>;
-}) {
+};
+
+export default async function HomePage({ searchParams }: HomePageProps) {
   const reqHeaders = await headers();
   const events = await getEvents();
-  const initialCity = reqHeaders.get("x-vercel-ip-city") || reqHeaders.get("x-city") || "";
   const params = (searchParams ? await searchParams : {}) as SearchParamsShape;
   const qParam = params.q;
   const initialSearchQuery = Array.isArray(qParam) ? qParam[0] || "" : qParam || "";
+  const eventIdParam = params.eventId;
+  const initialEventId = Array.isArray(eventIdParam) ? eventIdParam[0] || "" : eventIdParam || "";
   const modeParam = params.mode;
   const initialModeRaw = Array.isArray(modeParam) ? modeParam[0] || "" : modeParam || "";
   const initialMode =
-    initialModeRaw === "about" || initialModeRaw === "contact" || initialModeRaw === "subscribe" || initialModeRaw === "submit"
+    initialModeRaw === "getstarted" ||
+    initialModeRaw === "market" ||
+    initialModeRaw === "marketview" ||
+    initialModeRaw === "about" ||
+    initialModeRaw === "contact" ||
+    initialModeRaw === "legal" ||
+    initialModeRaw === "subscribe" ||
+    initialModeRaw === "submit"
       ? initialModeRaw
       : "market";
+
+  const initialCity = reqHeaders.get("x-vercel-ip-city") || reqHeaders.get("x-city") || "";
 
   return (
     <AppShell
@@ -123,15 +154,30 @@ export default async function HomePage({
           ? "about"
           : initialMode === "contact"
             ? "help"
-          : initialMode === "subscribe"
-              ? "feeds"
-              : initialMode === "submit"
-                ? "submit"
-            : "dashboard"
+            : initialMode === "legal"
+              ? "legal"
+              : initialMode === "subscribe"
+                ? "feeds"
+                : initialMode === "submit"
+                  ? "submit"
+                  : "dashboard"
       }
       searchQuery={initialSearchQuery}
+      tickerEvents={events.map((event) => ({
+        id: event.id,
+        title: event.title,
+        startDate: event.startDate,
+        endDate: event.endDate,
+        city: event.city,
+      }))}
     >
-      <EventsClient events={events} initialCity={initialCity} initialSearchQuery={initialSearchQuery} initialMode={initialMode} />
+      <EventsClient
+        events={events}
+        initialCity={initialCity}
+        initialSearchQuery={initialSearchQuery}
+        initialMode={initialMode}
+        initialEventId={initialEventId}
+      />
     </AppShell>
   );
 }

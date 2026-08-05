@@ -1,7 +1,8 @@
 import GuideLayout from "../calendar-setup/GuideLayout";
 import CopyLinkMockup from "../calendar-setup/CopyLinkMockup";
 
-const DEFAULT_FEED_URL = "https://capitalconferences.com/api/ics/abc123";
+const DEFAULT_FEED_URL = "https://capitalconferencecalendar.com/api/ics?view=investor-conferences";
+const DISPLAY_FEED_URL = "https://capitalconferencecalendar.com/api/ics?view=your-market-view";
 
 function resolveFeedUrl(value: string | string[] | undefined) {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -11,14 +12,30 @@ function resolveFeedUrl(value: string | string[] | undefined) {
   return DEFAULT_FEED_URL;
 }
 
-function cardFrame(children: React.ReactNode) {
+function frame(children: React.ReactNode, padding = "18px") {
   return (
     <div
       style={{
-        border: "1px solid #e2e8f0",
-        borderRadius: "10px",
-        backgroundColor: "#ffffff",
-        overflow: "hidden",
+        padding,
+        background: "linear-gradient(180deg, rgba(8,31,55,0.98), rgba(4,20,36,0.98))",
+        border: "1px solid rgba(107, 157, 210, 0.18)",
+        borderRadius: "18px",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Label({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: "11px",
+        fontWeight: 900,
+        letterSpacing: "0.13em",
+        textTransform: "uppercase",
+        color: "#c8d8ec",
       }}
     >
       {children}
@@ -27,194 +44,149 @@ function cardFrame(children: React.ReactNode) {
 }
 
 function HeroApplePreview() {
-  return cardFrame(
-    <div style={{ display: "grid", gridTemplateColumns: "88px minmax(0, 1fr)", minHeight: "220px" }}>
-      <div
-        style={{
-          display: "grid",
-          placeItems: "center",
-          background: "linear-gradient(160deg, #ef4444 0%, #dc2626 50%, #b91c1c 100%)",
-          borderRight: "1px solid #e2e8f0",
-          color: "#ffffff",
-          fontWeight: 800,
-          fontSize: "28px",
-          textShadow: "0 1px 2px rgba(0,0,0,0.18)",
-        }}
-      >
-        9
+  return frame(
+    <div style={{ display: "grid", gap: "14px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
+        <Label>Live feed setup</Label>
+        <span style={{ fontSize: "12px", color: "#dbeafe", fontWeight: 800 }}>Apple Calendar</span>
       </div>
-      <div style={{ padding: "10px" }}>
-        <div style={{ fontSize: "16px", fontWeight: 700, color: "#334155", marginBottom: "8px" }}>Apple Calendar</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 130px", gap: "10px" }}>
-          <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "8px" }}>
-            <div style={{ fontSize: "12px", color: "#0f172a", fontWeight: 700, marginBottom: "6px" }}>May 2026</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px" }}>
-              {Array.from({ length: 28 }, (_, i) => (
-                <div
-                  key={i}
-                  style={{
-                    textAlign: "center",
-                    fontSize: "10px",
-                    color: i === 11 ? "#ffffff" : "#64748b",
-                    backgroundColor: i === 11 ? "#6b7280" : "transparent",
-                    borderRadius: "999px",
-                    height: "18px",
-                    lineHeight: "18px",
-                  }}
-                >
-                  {i + 1}
-                </div>
-              ))}
-            </div>
-          </div>
-          <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "8px" }}>
-            <div style={{ fontSize: "12px", fontWeight: 700, color: "#475569", marginBottom: "6px" }}>iCloud</div>
-            <div style={{ display: "grid", gap: "6px", fontSize: "12px", color: "#0f172a" }}>
-              <div>Home</div>
-              <div>Work</div>
-              <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
-                <span style={{ width: "10px", height: "10px", borderRadius: "2px", backgroundColor: "#8b5cf6" }} />
-                Capital Conference Calendar
-              </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1.05fr auto 0.95fr", gap: "12px", alignItems: "center" }}>
+        <div style={{ borderRadius: "16px", padding: "14px", background: "rgba(8,39,67,0.82)", border: "1px solid rgba(107,157,210,0.18)" }}>
+          <Label>Saved Market View</Label>
+          <div style={{ marginTop: "10px", color: "#ffffff", fontSize: "18px", fontWeight: 900 }}>Private Markets · West Coast</div>
+          <div style={{ marginTop: "6px", color: "#8fa8c3", fontSize: "13px" }}>Upcoming 30 days · Sponsor targets</div>
+        </div>
+        <div style={{ color: "#8b5cf6", fontSize: "24px", fontWeight: 900 }}>→</div>
+        <div style={{ borderRadius: "16px", padding: "14px", background: "rgba(3,20,38,0.86)", border: "1px solid rgba(107,157,210,0.18)" }}>
+          <div style={{ color: "#ffffff", fontSize: "15px", fontWeight: 900, marginBottom: "10px" }}>Apple subscription preview</div>
+          <div style={{ display: "grid", gridTemplateColumns: "78px 1fr", gap: "10px", alignItems: "center" }}>
+            <div style={{ borderRadius: "16px", minHeight: "86px", background: "linear-gradient(180deg, #ef4444, #991b1b)", color: "#ffffff", display: "grid", placeItems: "center", fontWeight: 900, fontSize: "22px" }}>17</div>
+            <div style={{ display: "grid", gap: "6px" }}>
+              <div style={{ color: "#dbeafe", fontSize: "14px", fontWeight: 800 }}>Capital Conference Calendar</div>
+              <div style={{ color: "#8fa8c3", fontSize: "12px" }}>Refreshes on Apple’s subscription schedule.</div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </div>,
   );
 }
 
-function FilterAndMetricVisual() {
-  return cardFrame(
-    <div style={{ padding: "10px" }}>
-      <div style={{ border: "1px solid #e5e7eb", borderRadius: "8px", padding: "8px" }}>
-        <div style={{ fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>Build Your Market View</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "6px", marginBottom: "6px" }}>
-          {[
-            "Category",
-            "Issuer Participation",
-            "Sector / Themes",
-            "Market Focus",
-            "Country",
-            "Region",
-          ].map((field) => (
-            <div key={field} style={{ border: "1px solid #e5e7eb", borderRadius: "6px", padding: "6px", fontSize: "11px", color: "#64748b" }}>
-              {field}
+function Step1Visual() {
+  return frame(
+    <div style={{ display: "grid", gap: "12px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
+        {["Date & Timing", "Location", "Audience", "Market Focus"].map((label, index) => (
+          <div key={label} style={{ borderRadius: "14px", padding: "12px", background: index === 0 ? "rgba(139,92,246,0.16)" : "rgba(255,255,255,0.04)", border: "1px solid rgba(107,157,210,0.16)" }}>
+            <div style={{ color: "#c8d8ec", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>{label}</div>
+            <div style={{ marginTop: "8px", color: "#ffffff", fontSize: "15px", fontWeight: 800 }}>
+              {label === "Date & Timing" ? "Hot Weeks" : label === "Location" ? "Canada Events" : label === "Audience" ? "Institutional Investors" : "Private Markets"}
             </div>
-          ))}
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "6px" }}>
-          {["Start Date", "End Date"].map((field) => (
-            <div key={field} style={{ border: "1px solid #e5e7eb", borderRadius: "6px", padding: "6px", fontSize: "11px", color: "#64748b", backgroundColor: "#fbfcfe" }}>
-              {field}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CopyLinkVisual({ feedUrl }: { feedUrl: string }) {
-  return cardFrame(
-    <CopyLinkMockup
-      feedUrl={feedUrl}
-      borderColor="#d1d5db"
-      buttonBorderColor="#374151"
-      buttonBgColor="#374151"
-    />
-  );
-}
-
-function AppleMenuBarVisual() {
-  return cardFrame(
-    <div style={{ padding: "10px" }}>
-      <div style={{ border: "1px solid #e5e7eb", borderRadius: "8px", overflow: "hidden" }}>
-        <div style={{ display: "flex", gap: "16px", padding: "8px 10px", backgroundColor: "#f3f4f6", fontSize: "12px", color: "#334155" }}>
-          {["Calendar", "File", "Edit", "View", "Window", "Help"].map((item) => (
-            <span key={item} style={{ fontWeight: item === "File" ? 800 : 600, color: item === "File" ? "#111827" : "#475569" }}>
-              {item}
-            </span>
-          ))}
-        </div>
-        <div style={{ padding: "10px", fontSize: "12px", color: "#64748b" }}>Open Apple Calendar and select File from the top menu.</div>
-      </div>
-    </div>
-  );
-}
-
-function NewSubscriptionMenuVisual() {
-  return cardFrame(
-    <div style={{ padding: "10px" }}>
-      <div style={{ border: "1px solid #e5e7eb", borderRadius: "8px", overflow: "hidden" }}>
-        {["New Event", "New Calendar", "New Calendar Subscription...", "New Calendar Group", "Import..."].map((item) => (
-          <div
-            key={item}
-            style={{
-              padding: "8px 10px",
-              fontSize: "12px",
-              color: item.includes("Subscription") ? "#111827" : "#334155",
-              backgroundColor: item.includes("Subscription") ? "#e5e7eb" : "#ffffff",
-              fontWeight: item.includes("Subscription") ? 700 : 500,
-              borderBottom: "1px solid #f1f5f9",
-            }}
-          >
-            {item}
           </div>
         ))}
       </div>
-    </div>
+    </div>,
   );
 }
 
-function PasteUrlModalVisual({ feedUrl }: { feedUrl: string }) {
-  return cardFrame(
-    <div style={{ padding: "10px", display: "grid", gap: "8px" }}>
-      <div style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>New Calendar Subscription</div>
-      <div style={{ fontSize: "11px", color: "#64748b" }}>Calendar URL</div>
-      <div style={{ border: "1px solid #d1d5db", borderRadius: "6px", padding: "7px", fontSize: "12px", color: "#334155", overflowWrap: "anywhere" }}>
-        {feedUrl}
-      </div>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <button style={{ border: "1px solid #374151", backgroundColor: "#374151", color: "#fff", fontSize: "12px", borderRadius: "6px", padding: "6px 10px" }}>
-          Subscribe
-        </button>
-      </div>
-    </div>
+function Step2Visual({ feedUrl }: { feedUrl: string }) {
+  return frame(
+    <CopyLinkMockup
+      feedUrl={feedUrl}
+      displayFeedUrl={DISPLAY_FEED_URL}
+      borderColor="rgba(107, 157, 210, 0.24)"
+      buttonBorderColor="#8b5cf6"
+      buttonBgColor="#8b5cf6"
+      dark
+      title="Copy your CCC live feed link"
+      subtitle="Use this subscription link in Apple Calendar."
+      copiedLabel="Live feed copied."
+    />,
   );
 }
 
-function RefreshSettingsVisual() {
-  return cardFrame(
-    <div style={{ padding: "10px", display: "grid", gap: "8px" }}>
-      <div style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>Subscription Settings</div>
-      <div style={{ display: "grid", gap: "6px" }}>
-        <div style={{ border: "1px solid #e5e7eb", borderRadius: "6px", padding: "6px", fontSize: "12px", color: "#334155" }}>Name: Capital Conference Calendar</div>
-        <div style={{ border: "1px solid #e5e7eb", borderRadius: "6px", padding: "6px", fontSize: "12px", color: "#334155" }}>Color: Purple</div>
-        <div style={{ border: "1px solid #e5e7eb", borderRadius: "6px", padding: "6px", fontSize: "12px", color: "#334155" }}>Refresh: Every hour</div>
+function Step3Visual() {
+  return frame(
+    <div style={{ display: "grid", gap: "10px" }}>
+      <div style={{ color: "#ffffff", fontSize: "15px", fontWeight: 900 }}>Open Apple Calendar</div>
+      <div style={{ display: "flex", gap: "18px", color: "#8fa8c3", fontSize: "13px", fontWeight: 700 }}>
+        {["Calendar", "File", "Edit", "View", "Window", "Help"].map((item) => (
+          <span key={item} style={{ color: item === "File" ? "#ffffff" : "#8fa8c3" }}>
+            {item}
+          </span>
+        ))}
       </div>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <button style={{ border: "1px solid #374151", backgroundColor: "#374151", color: "#fff", fontSize: "12px", borderRadius: "6px", padding: "6px 12px" }}>
-          OK
-        </button>
-      </div>
-    </div>
+      <div style={{ color: "#c8d8ec", fontSize: "13px" }}>From the top menu, choose File to open the subscription options.</div>
+    </div>,
   );
 }
 
-function AppleLiveVisual() {
-  return cardFrame(
-    <div style={{ padding: "10px", display: "grid", gap: "8px" }}>
-      <div style={{ fontSize: "12px", fontWeight: 700, color: "#475569" }}>iCloud calendars</div>
-      <div style={{ display: "grid", gap: "6px", fontSize: "13px", color: "#334155" }}>
-        <div>Home</div>
-        <div>Work</div>
-        <div style={{ display: "flex", alignItems: "center", gap: "7px", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "8px", backgroundColor: "#fafafa" }}>
-          <span style={{ width: "10px", height: "10px", borderRadius: "2px", backgroundColor: "#8b5cf6" }} />
-          Capital Conference Calendar
+function Step4Visual() {
+  return frame(
+    <div style={{ display: "grid", gap: "8px" }}>
+      {["New Event", "New Calendar", "New Calendar Subscription...", "Import..."].map((item) => (
+        <div
+          key={item}
+          style={{
+            borderRadius: "12px",
+            padding: "10px 12px",
+            border: "1px solid rgba(107,157,210,0.14)",
+            background: item.includes("Subscription") ? "rgba(139,92,246,0.18)" : "rgba(255,255,255,0.04)",
+            color: item.includes("Subscription") ? "#ffffff" : "#c8d8ec",
+            fontSize: "13px",
+            fontWeight: item.includes("Subscription") ? 900 : 700,
+          }}
+        >
+          {item}
         </div>
+      ))}
+    </div>,
+  );
+}
+
+function Step5Visual() {
+  return frame(
+    <div style={{ display: "grid", gap: "10px" }}>
+      <Label>Calendar URL</Label>
+      <div style={{ borderRadius: "14px", padding: "12px", background: "rgba(3,20,38,0.86)", border: "1px solid rgba(107,157,210,0.18)", color: "#c8d8ec", fontSize: "13px", overflowWrap: "anywhere" }}>
+        {DISPLAY_FEED_URL}
       </div>
-    </div>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <span style={{ borderRadius: "10px", padding: "10px 14px", background: "#8b5cf6", color: "#ffffff", fontSize: "12px", fontWeight: 900 }}>
+          Subscribe
+        </span>
+      </div>
+    </div>,
+  );
+}
+
+function Step6Visual() {
+  return frame(
+    <div style={{ display: "grid", gap: "10px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "10px" }}>
+        {["Name", "Color", "Refresh"].map((label) => (
+          <div key={label} style={{ borderRadius: "12px", padding: "12px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(107,157,210,0.16)" }}>
+            <div style={{ color: "#8fa8c3", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>{label}</div>
+            <div style={{ marginTop: "8px", color: "#ffffff", fontSize: "14px", fontWeight: 800 }}>
+              {label === "Name" ? "Capital Conference Calendar" : label === "Color" ? "Purple" : "Every hour"}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ color: "#2dd4bf", fontSize: "13px", fontWeight: 800 }}>Choose how often Apple Calendar checks the feed for updates.</div>
+    </div>,
+  );
+}
+
+function Step7Visual() {
+  return frame(
+    <div style={{ display: "grid", gridTemplateColumns: "78px 1fr", gap: "12px", alignItems: "center" }}>
+      <div style={{ borderRadius: "16px", minHeight: "88px", background: "linear-gradient(180deg, #ef4444, #991b1b)", color: "#ffffff", display: "grid", placeItems: "center", fontWeight: 900, fontSize: "22px" }}>17</div>
+      <div style={{ display: "grid", gap: "6px" }}>
+        <div style={{ color: "#ffffff", fontSize: "16px", fontWeight: 900 }}>Capital Conference Calendar</div>
+        <div style={{ color: "#c8d8ec", fontSize: "13px" }}>Your live conference feed now appears in Apple Calendar and continues following the market view you created.</div>
+      </div>
+    </div>,
   );
 }
 
@@ -226,41 +198,99 @@ export default async function AppleCalendarHelpPage(props: {
 
   return (
     <GuideLayout
+      platformKey="apple"
       breadcrumbCurrent="Apple Calendar"
       platformLabel="Apple Calendar Setup"
-      accent="#6b7280"
-      headline="Add Your Conference Feed to Apple Calendar"
-      subheadline="Subscribe to the live Capital Conference Calendar feed and your filtered events will automatically appear in your Apple Calendar"
-      chips={["One-time setup", "Automatic updates", "Remove anytime"]}
+      accent="#8b5cf6"
+      headline="Sync your conference view to your calendar."
+      subheadline="Create a live conference feed from your Capital Conference Calendar market view and subscribe to it in Apple Calendar."
+      supportingCopy="Subscribed feeds can update as matching events are added, reviewed, or reclassified. Apple Calendar refresh timing depends on the frequency you choose during setup."
+      chips={["One-time setup", "Live ICS feed", "Google / Apple / Outlook", "Remove anytime"]}
       heroPreview={<HeroApplePreview />}
-      workflowItems={[]}
       steps={[
-        { number: 1, title: "Build your market view", copy: "Use filters in Capital Conference Calendar to create the exact conference view you want in Apple Calendar.", visual: <FilterAndMetricVisual /> },
-        { number: 2, title: "Copy your live calendar link", copy: "Click “Copy Live Calendar Link” on the right panel. Your unique subscription URL is copied to your clipboard.", visual: <CopyLinkVisual feedUrl={feedUrl} /> },
-        { number: 3, title: "Open Apple Calendar", copy: "Open Apple Calendar on your Mac. From the top menu, click File.", visual: <AppleMenuBarVisual /> },
-        { number: 4, title: "Select “New Calendar Subscription”", copy: "From the File menu, choose “New Calendar Subscription.”", visual: <NewSubscriptionMenuVisual /> },
-        { number: 5, title: "Paste your live calendar link", copy: "Paste your Capital Conference Calendar link into the subscription URL field, then click “Subscribe.”", visual: <PasteUrlModalVisual feedUrl={feedUrl} /> },
-        { number: 6, title: "Choose refresh settings", copy: "Name your calendar, choose a color, and select a refresh frequency. Then click OK.", visual: <RefreshSettingsVisual /> },
-        { number: 7, title: "Your conference calendar is live", copy: "Your live feed will appear in Apple Calendar. Matching events will update based on your selected refresh settings.", visual: <AppleLiveVisual /> },
+        {
+          number: 1,
+          title: "Build the market view you want to track",
+          copy: "Create the exact conference slice you want to follow before you subscribe. That filtered view becomes the live feed Apple Calendar will monitor.",
+          visual: <Step1Visual />,
+        },
+        {
+          number: 2,
+          title: "Copy your live feed subscription link",
+          copy: "Copy the CCC live feed URL from Discovery. This is the subscription link Apple Calendar uses to stay connected to your conference view.",
+          visual: <Step2Visual feedUrl={feedUrl} />,
+        },
+        {
+          number: 3,
+          title: "Open Apple Calendar",
+          copy: "Launch Apple Calendar on your Mac and use the top menu bar to access File.",
+          visual: <Step3Visual />,
+        },
+        {
+          number: 4,
+          title: "Choose New Calendar Subscription",
+          copy: "From the File menu, choose New Calendar Subscription to add a feed from URL.",
+          visual: <Step4Visual />,
+        },
+        {
+          number: 5,
+          title: "Paste your CCC live feed link",
+          copy: "Paste the subscription link into the calendar URL field and continue.",
+          visual: <Step5Visual />,
+        },
+        {
+          number: 6,
+          title: "Choose refresh settings",
+          copy: "Name the calendar, choose a color, and select how often Apple Calendar should refresh the subscription.",
+          visual: <Step6Visual />,
+        },
+        {
+          number: 7,
+          title: "Your live conference feed is connected",
+          copy: "Your subscribed feed now sits inside Apple Calendar and can update as the matching conference records change.",
+          visual: <Step7Visual />,
+        },
       ]}
       supportCards={[
-        { title: "Important: Refresh Timing", body: "Apple Calendar lets you choose a refresh frequency for subscribed calendars. Updates from Capital Conference Calendar appear after Apple Calendar refreshes the feed." },
         {
           title: "What happens after you subscribe?",
           bullets: [
-            "New matching conferences can appear automatically",
-            "Conference updates can be reflected",
-            "Cancelled events can be removed",
-            "You can change refresh settings",
-            "You can unsubscribe at any time",
+            "Matching conferences can appear automatically",
+            "Updated event records can refresh into Apple Calendar",
+            "You can choose a refresh frequency during setup",
+            "You can remove the subscription anytime",
+          ],
+        },
+        {
+          title: "Important: refresh timing",
+          body: "Apple Calendar follows the refresh interval you choose when subscribing. Faster refresh settings help keep new events and reclassifications closer to the live CCC view.",
+        },
+        {
+          title: "Best uses for live feeds",
+          bullets: [
+            "Track one region or sponsor target list",
+            "Keep investor-heavy conference windows visible",
+            "Monitor one saved view across desktop and mobile",
           ],
         },
       ]}
       faqs={[
-        { question: "Can I edit subscribed events?", answer: "Subscribed feed data comes from the source. You can add your own notes locally, but feed events sync from Capital Conference Calendar." },
-        { question: "Can I change refresh frequency?", answer: "Yes. Apple Calendar lets you adjust how often subscribed calendars refresh." },
-        { question: "Can I subscribe on iPhone or iPad?", answer: "Yes. Subscribed calendars can sync to your Apple devices through iCloud." },
-        { question: "Can I unsubscribe later?", answer: "Yes. You can remove the subscribed calendar at any time." },
+        {
+          question: "Can I rename the feed later?",
+          answer: "Yes. Apple Calendar lets you update the display name and color for subscribed calendars after setup.",
+        },
+        {
+          question: "Will this work on iPhone and iPad too?",
+          answer: "Yes, if the subscribed calendar is part of the same Apple calendar account that syncs across your devices.",
+        },
+        {
+          question: "Can I subscribe to multiple CCC market views?",
+          answer: "Yes. Each saved or filtered view can have its own live subscription link and calendar.",
+        },
+        {
+          question: "Why do updates not appear instantly?",
+          answer: "Apple Calendar refreshes subscriptions on its own schedule or based on the interval you selected during setup.",
+        },
       ]}
     />
   );
