@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 type HeaderProps = {
   active?: "dashboard" | "events" | "feeds" | "submit" | "help" | "about" | "legal" | "subscribe";
   searchQuery?: string;
+  workspaceMode?: "getstarted" | "discovery" | "marketview";
 };
 
 function NavIcon({ name }: { name: "dashboard" | "about" | "contact" | "legal" | "subscribe" | "submit" }) {
@@ -84,22 +85,24 @@ function TopNavLink({
 }: {
   href: string;
   label: string;
-  icon: "dashboard" | "about" | "contact" | "legal" | "subscribe" | "submit";
+  icon?: "dashboard" | "about" | "contact" | "legal" | "subscribe" | "submit";
   isActive?: boolean;
   compact?: boolean;
 }) {
+  const isSubmit = icon === "submit";
+  const isDesktopSecondary = !compact && (label === "About" || label === "Contact" || label === "Submit");
   return (
     <Link
       href={href}
       style={{
         textDecoration: "none",
-        display: "grid",
-        placeItems: "center",
+        display: "inline-flex",
+        alignItems: "center",
         justifyContent: "center",
-        gap: "2px",
-        width: compact ? "62px" : "72px",
-        height: compact ? "46px" : "52px",
-        padding: compact ? "3px 5px" : "4px 6px",
+        minWidth: compact ? "62px" : "78px",
+        maxWidth: compact ? "74px" : label === "Contact" ? "84px" : "80px",
+        height: compact ? "44px" : "46px",
+        padding: compact ? "3px 5px" : "0 12px",
         borderRadius: "10px",
         color: isActive ? "#ffffff" : "#1e293b",
         background: isActive
@@ -107,17 +110,65 @@ function TopNavLink({
           : "#eef3f8",
         border: isActive
           ? "1px solid rgba(15, 61, 117, 0.28)"
-          : "1px solid #cfd9e6",
+          : isSubmit
+            ? "1px solid rgba(85, 145, 255, 0.72)"
+            : "1px solid #cfd9e6",
         boxShadow: isActive
           ? "0 6px 18px rgba(15, 23, 42, 0.14)"
-          : "0 1px 4px rgba(15, 23, 42, 0.05)",
-        fontSize: compact ? "9px" : "10px",
-        fontWeight: 700,
+          : isSubmit
+            ? "0 0 0 1px rgba(113, 176, 255, 0.18), 0 0 14px rgba(65, 132, 255, 0.2)"
+            : "0 1px 4px rgba(15, 23, 42, 0.05)",
+        fontSize: compact ? "9px" : "12px",
+        fontWeight: isDesktopSecondary ? 560 : 850,
+        letterSpacing: compact ? "0" : "0.01em",
         lineHeight: 1,
         whiteSpace: "nowrap",
       }}
     >
-      <NavIcon name={icon} />
+      {label}
+    </Link>
+  );
+}
+
+function WorkspaceNavButton({
+  href,
+  label,
+  isActive,
+}: {
+  href: string;
+  label: string;
+  isActive?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      style={{
+        textDecoration: "none",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minWidth: label === "Get Started" ? "110px" : label === "Market View" ? "118px" : "108px",
+        maxWidth: label === "Get Started" ? "116px" : label === "Market View" ? "124px" : "114px",
+        height: "42px",
+        padding: "0 10px",
+        borderRadius: "10px",
+        color: "#eef6ff",
+        background: isActive
+          ? "#2f6df6"
+          : "linear-gradient(180deg, rgba(34,88,188,0.98) 0%, rgba(23,62,143,0.98) 100%)",
+        border: isActive
+          ? "1px solid rgba(147,197,253,0.55)"
+          : "1px solid rgba(108, 165, 245, 0.42)",
+        boxShadow: isActive
+          ? "0 0 0 1px rgba(59,130,246,0.18)"
+          : "0 6px 16px rgba(22, 61, 145, 0.16), inset 0 1px 0 rgba(255,255,255,0.05)",
+        fontSize: "11px",
+        fontWeight: 850,
+        letterSpacing: "0.01em",
+        lineHeight: 1,
+        whiteSpace: "nowrap",
+      }}
+    >
       {label}
     </Link>
   );
@@ -126,6 +177,7 @@ function TopNavLink({
 export default function Header({
   active = "dashboard",
   searchQuery = "",
+  workspaceMode,
 }: HeaderProps) {
   const [query, setQuery] = useState(searchQuery);
   const [compactNav, setCompactNav] = useState(false);
@@ -150,6 +202,10 @@ export default function Header({
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [menuOpen]);
 
+  const isGetStartedActive = workspaceMode === "getstarted";
+  const isDiscoveryActive = workspaceMode === "discovery";
+  const isMarketViewActive = workspaceMode === "marketview";
+
   return (
     <header
       style={{
@@ -167,16 +223,16 @@ export default function Header({
       <div
         className="ccc-header-grid"
         style={{
-          maxWidth: "100%",
+          maxWidth: compactNav ? "100%" : "1720px",
           margin: "0 auto",
-          padding: compactNav ? "8px 12px" : "12px 14px",
+          padding: compactNav ? "8px 12px" : "10px 16px",
           display: "grid",
-          gridTemplateColumns: compactNav ? "auto minmax(0, 1fr)" : "280px minmax(360px, 1fr) auto",
+          gridTemplateColumns: compactNav ? "auto minmax(0, 1fr)" : "210px minmax(0, 1fr) auto",
           gridTemplateAreas: compactNav
             ? "\"actions logo\" \"search search\""
             : "\"logo search actions\"",
           alignItems: "center",
-          gap: compactNav ? "10px" : "16px",
+          gap: compactNav ? "10px" : "14px",
         }}
       >
         <Link
@@ -184,14 +240,14 @@ export default function Header({
           style={{
             display: "flex",
             alignItems: "center",
-            justifyContent: compactNav ? "flex-start" : "center",
+            justifyContent: compactNav ? "flex-start" : "flex-start",
             gap: "10px",
             textDecoration: "none",
             color: "#0f172a",
             width: compactNav ? "auto" : "100%",
-            minWidth: compactNav ? "180px" : "240px",
+            minWidth: compactNav ? "180px" : "206px",
             gridArea: "logo",
-            justifySelf: compactNav ? "start" : "stretch",
+            justifySelf: compactNav ? "start" : "start",
             position: "relative",
             zIndex: 3,
             flexShrink: 0,
@@ -204,7 +260,7 @@ export default function Header({
             loading="eager"
             decoding="sync"
             style={{
-              height: compactNav ? "42px" : "50px",
+              height: compactNav ? "42px" : "58px",
               width: "auto",
               objectFit: "contain",
               display: "block",
@@ -217,88 +273,159 @@ export default function Header({
         </Link>
 
         <form
-          className="ccc-header-search"
+          className="ccc-header-search ccc-header-core-group"
           action="/"
           method="get"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const params = new URLSearchParams({ mode: "market" });
+            const value = query.trim();
+            if (value) params.set("q", value);
+            window.location.assign(`/?${params.toString()}`);
+          }}
           style={{
-            display: "flex",
+            display: compactNav ? "flex" : "grid",
             alignItems: "center",
-            gap: "10px",
+            gap: compactNav ? "8px" : "10px",
             minWidth: 0,
             justifySelf: "center",
             width: "100%",
-            maxWidth: compactNav ? "560px" : "640px",
+            maxWidth: compactNav ? "100%" : "1140px",
             gridArea: "search",
+            justifyContent: compactNav ? "flex-start" : undefined,
+            gridTemplateColumns: compactNav ? undefined : "1fr auto 1fr",
           }}
         >
+          {!compactNav ? (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                minWidth: 0,
+              }}
+            >
+              <WorkspaceNavButton
+                href="/?mode=getstarted"
+                label="Get Started"
+                isActive={isGetStartedActive}
+              />
+            </div>
+          ) : null}
           <div
             style={{
-              position: "relative",
-              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              gap: compactNav ? "8px" : "10px",
+              width: compactNav ? "100%" : "auto",
+              justifyContent: "center",
+              minWidth: 0,
             }}
           >
-            <input
-              type="text"
-              name="q"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search conferences, organizers, cities, sectors..."
+            <div
               style={{
-                width: "100%",
-                height: compactNav ? "40px" : "46px",
-                borderRadius: "10px",
-                border: "1px solid #d5dde7",
-                backgroundColor: "#ffffff",
-                padding: query ? "0 42px 0 16px" : "0 16px",
-                fontSize: compactNav ? "13px" : "14px",
-                color: "#0f172a",
-                outline: "none",
-                boxSizing: "border-box",
+                position: "relative",
+                width: compactNav ? "100%" : "clamp(500px, 32vw, 600px)",
+                minWidth: 0,
+                flex: compactNav ? 1 : "0 1 auto",
               }}
-            />
+            >
+              <input
+                type="text"
+                name="q"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search conferences, organizers, cities, sectors..."
+                style={{
+                  width: "100%",
+                  height: compactNav ? "40px" : "42px",
+                  borderRadius: "12px",
+                  border: "1px solid #d5dde7",
+                  backgroundColor: "#ffffff",
+                  padding: query ? "0 132px 0 18px" : "0 96px 0 18px",
+                  fontSize: compactNav ? "12.5px" : "12px",
+                  color: "#0f172a",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
 
-            {query ? (
               <button
-                type="button"
-                onClick={() => setQuery("")}
+                type="submit"
                 style={{
                   position: "absolute",
-                  top: "50%",
-                  right: "10px",
-                  transform: "translateY(-50%)",
-                  height: "24px",
-                  width: "24px",
-                  borderRadius: "999px",
-                  border: "none",
-                  backgroundColor: "#eef2f7",
-                  color: "#475569",
-                  fontWeight: 700,
+                  right: "5px",
+                  top: "5px",
+                  bottom: "5px",
+                  minWidth: compactNav ? "66px" : "76px",
+                  padding: compactNav ? "0 10px" : "0 12px",
+                  borderRadius: "9px",
+                  border: "1px solid rgba(10, 29, 52, 0.88)",
+                  background: "linear-gradient(180deg, #10253f 0%, #08192d 100%)",
+                  color: "#ffffff",
+                  fontSize: compactNav ? "11px" : "12px",
+                  fontWeight: 850,
                   cursor: "pointer",
-                  lineHeight: 1,
+                  whiteSpace: "nowrap",
+                  boxShadow: "0 6px 14px rgba(5, 18, 32, 0.28), inset 0 1px 0 rgba(255,255,255,0.04)",
                 }}
               >
-                ×
+                Search
               </button>
-            ) : null}
-          </div>
 
-          <button
-            type="submit"
+              {query ? (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  aria-label="Clear search"
+                  title="Clear search"
+                  style={{
+                    position: "absolute",
+                    top: "50%",
+                    right: compactNav ? "84px" : "94px",
+                    transform: "translateY(-50%)",
+                    height: "26px",
+                    width: "26px",
+                    borderRadius: "8px",
+                    border: "1px solid rgba(15, 40, 70, 0.35)",
+                    background: "linear-gradient(180deg, #244664 0%, #15314d 100%)",
+                    color: "#ffffff",
+                    fontSize: "17px",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    lineHeight: 1,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: "0 2px 6px rgba(5, 18, 32, 0.2)",
+                  }}
+                >
+                  ×
+                  </button>
+                ) : null}
+              </div>
+          </div>
+          {!compactNav ? (
+            <div
               style={{
-                height: compactNav ? "40px" : "46px",
-                padding: compactNav ? "0 14px" : "0 18px",
-                borderRadius: "10px",
-                border: "1px solid #111827",
-                backgroundColor: "#111827",
-                color: "#ffffff",
-                fontSize: compactNav ? "13px" : "14px",
-                fontWeight: 700,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "flex-start",
+                gap: "8px",
+                minWidth: 0,
               }}
-          >
-            Search
-          </button>
+            >
+              <WorkspaceNavButton
+                href="/?mode=market"
+                label="Discovery"
+                isActive={isDiscoveryActive}
+              />
+              <WorkspaceNavButton
+                href="/?mode=marketview"
+                label="Market View"
+                isActive={isMarketViewActive}
+              />
+            </div>
+          ) : null}
         </form>
 
         <div
@@ -308,8 +435,8 @@ export default function Header({
             display: "flex",
             alignItems: "center",
             justifyContent: compactNav ? "flex-start" : "flex-end",
-            gap: "8px",
-            flexWrap: "wrap",
+            gap: compactNav ? "8px" : "8px",
+            flexWrap: compactNav ? "wrap" : "nowrap",
             position: "relative",
             gridArea: "actions",
             justifySelf: compactNav ? "start" : "end",
@@ -317,20 +444,13 @@ export default function Header({
         >
           {compactNav ? (
             <>
-              <TopNavLink
-                href="/"
-                label="Dashboard"
-                icon="dashboard"
-                isActive={active === "dashboard"}
-                compact
-              />
               <button
                 type="button"
                 onClick={() => setMenuOpen((v) => !v)}
                 style={{
                   height: "46px",
                   minWidth: "62px",
-                  borderRadius: "10px",
+                  borderRadius: "6px",
                   border: "1px solid #cfd9e6",
                   background: "#eef3f8",
                   color: "#1e293b",
@@ -356,7 +476,7 @@ export default function Header({
                     right: 0,
                     top: "58px",
                     width: "190px",
-                    borderRadius: "12px",
+                    borderRadius: "8px",
                     border: "1px solid rgba(147,197,253,0.28)",
                     background: "linear-gradient(180deg, rgba(8,30,53,0.96), rgba(6,22,40,0.98))",
                     boxShadow: "0 16px 28px rgba(2,8,18,0.42)",
@@ -367,6 +487,9 @@ export default function Header({
                   }}
                 >
                   {[
+                    { href: "/?mode=getstarted", label: "Get Started", active: workspaceMode === "getstarted" },
+                    { href: "/?mode=market", label: "Discovery", active: workspaceMode === "discovery" },
+                    { href: "/?mode=marketview", label: "Market View", active: workspaceMode === "marketview" },
                     { href: "/?mode=about", label: "About", icon: "about" as const, active: active === "about" },
                     { href: "/?mode=contact", label: "Contact", icon: "contact" as const, active: active === "help" },
                     { href: "/?mode=legal", label: "Legal", icon: "legal" as const, active: active === "legal" },
@@ -379,7 +502,7 @@ export default function Header({
                       onClick={() => setMenuOpen(false)}
                       style={{
                         height: "38px",
-                        borderRadius: "9px",
+                        borderRadius: "6px",
                         border: item.active ? "1px solid rgba(147,197,253,0.6)" : "1px solid rgba(147,197,253,0.2)",
                         background: item.active ? "rgba(37,99,235,0.28)" : "rgba(8,24,44,0.55)",
                         color: "#dbeafe",
@@ -392,7 +515,7 @@ export default function Header({
                         fontWeight: 700,
                       }}
                     >
-                      <NavIcon name={item.icon} />
+                      {"icon" in item && item.icon ? <NavIcon name={item.icon} /> : null}
                       {item.label}
                     </Link>
                   ))}
@@ -402,41 +525,21 @@ export default function Header({
           ) : (
             <>
               <TopNavLink
-                href="/"
-                label="Dashboard"
-                icon="dashboard"
-                isActive={active === "dashboard"}
-                compact={false}
-              />
-              <TopNavLink
                 href="/?mode=about"
                 label="About"
-                icon="about"
                 isActive={active === "about"}
               />
               <TopNavLink
                 href="/?mode=contact"
                 label="Contact"
-                icon="contact"
                 isActive={active === "help"}
-              />
-              <TopNavLink
-                href="/?mode=legal"
-                label="Legal"
-                icon="legal"
-                isActive={active === "legal"}
-              />
-              <TopNavLink
-                href="/?mode=subscribe"
-                label="Subscribe"
-                icon="subscribe"
-                isActive={active === "subscribe"}
               />
               <TopNavLink
                 href="/?mode=submit"
                 label="Submit"
                 icon="submit"
                 isActive={active === "submit"}
+                compact={false}
               />
             </>
           )}

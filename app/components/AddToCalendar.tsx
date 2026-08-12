@@ -136,20 +136,21 @@ export default function AddToCalendar({
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
-          height: compact ? "34px" : "42px",
-          padding: compact ? "0 14px" : "0 14px",
-          borderRadius: compact ? "8px" : "10px",
-          backgroundColor: "#f8fbff",
-          border: "1px solid #d7dde5",
-          color: "#0f172a",
-          fontSize: compact ? "13px" : "13px",
-          fontWeight: compact ? 670 : 700,
+          height: compact ? "28px" : "42px",
+          padding: compact ? "0 12px" : "0 14px",
+          borderRadius: compact ? "9px" : "10px",
+          backgroundColor: compact ? "rgba(8, 26, 46, 0.72)" : "#f8fbff",
+          border: compact ? "1.5px solid rgba(120,170,245,0.72)" : "1px solid #d7dde5",
+          color: compact ? "#dbeafe" : "#0f172a",
+          fontSize: compact ? "10px" : "13px",
+          fontWeight: compact ? 900 : 700,
           userSelect: "none",
           whiteSpace: "nowrap",
-          minWidth: compact ? "108px" : "auto",
+          letterSpacing: compact ? "0.02em" : "0",
+          minWidth: compact ? "118px" : "auto",
           width: fullWidth ? "100%" : "auto",
           boxShadow: compact
-            ? "0 1px 0 rgba(255,255,255,0.8) inset, 0 6px 12px rgba(8,24,43,0.26), 0 0 0 1px rgba(144,179,224,0.2), 0 0 14px rgba(128,166,216,0.16)"
+            ? "inset 0 1px 0 rgba(255,255,255,0.04), 0 0 0 1px rgba(120,170,245,0.12)"
             : "0 1px 0 rgba(255,255,255,0.8) inset, 0 8px 14px rgba(8,24,43,0.28), 0 0 0 1px rgba(144,179,224,0.2), 0 0 16px rgba(128,166,216,0.18)",
           transition: "filter 180ms ease-out, box-shadow 180ms ease-out, background-color 180ms ease-out",
           position: "relative",
@@ -157,14 +158,25 @@ export default function AddToCalendar({
           pointerEvents: "auto",
         }}
         onMouseEnter={(event) => {
+          if (compact) {
+            event.currentTarget.style.backgroundColor = "rgba(194, 202, 214, 0.18)";
+            event.currentTarget.style.borderColor = "rgba(196, 210, 230, 0.72)";
+            event.currentTarget.style.boxShadow = "inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 1px rgba(196,210,230,0.14)";
+            event.currentTarget.style.filter = "none";
+            return;
+          }
           event.currentTarget.style.filter = "brightness(1.03)";
           event.currentTarget.style.boxShadow = "0 1px 0 rgba(255,255,255,0.9) inset, 0 8px 16px rgba(8,24,43,0.32), 0 0 0 1px rgba(162,194,236,0.32), 0 0 20px rgba(142,182,234,0.24)";
         }}
         onMouseLeave={(event) => {
           event.currentTarget.style.filter = "none";
-          event.currentTarget.style.boxShadow = compact
-            ? "0 1px 0 rgba(255,255,255,0.8) inset, 0 6px 12px rgba(8,24,43,0.26), 0 0 0 1px rgba(144,179,224,0.2), 0 0 14px rgba(128,166,216,0.16)"
-            : "0 1px 0 rgba(255,255,255,0.8) inset, 0 8px 14px rgba(8,24,43,0.28), 0 0 0 1px rgba(144,179,224,0.2), 0 0 16px rgba(128,166,216,0.18)";
+          if (compact) {
+            event.currentTarget.style.backgroundColor = "rgba(8, 26, 46, 0.72)";
+            event.currentTarget.style.borderColor = "rgba(120,170,245,0.72)";
+            event.currentTarget.style.boxShadow = "inset 0 1px 0 rgba(255,255,255,0.04), 0 0 0 1px rgba(120,170,245,0.12)";
+            return;
+          }
+          event.currentTarget.style.boxShadow = "0 1px 0 rgba(255,255,255,0.8) inset, 0 8px 14px rgba(8,24,43,0.28), 0 0 0 1px rgba(144,179,224,0.2), 0 0 16px rgba(128,166,216,0.18)";
         }}
       >
         {showIcon ? <span style={{ marginRight: "6px", opacity: 0.9 }}>📅</span> : null}

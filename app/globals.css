@@ -284,6 +284,12 @@ body {
   }
 }
 
+@media (min-width: 1181px) {
+  .ccc-header-core-group {
+    transform: translateX(-35px);
+  }
+}
+
 @media (max-width: 1180px) {
   .ccc-header-grid {
     grid-template-columns: 1fr auto 1fr !important;

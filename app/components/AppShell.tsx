@@ -1,9 +1,11 @@
 import Header from "./Header";
 import EventTicker from "./EventTicker";
+import Link from "next/link";
 
 type AppShellProps = {
   active?: "dashboard" | "events" | "feeds" | "submit" | "help" | "about" | "legal";
   searchQuery?: string;
+  workspaceMode?: "getstarted" | "discovery" | "marketview";
   children: React.ReactNode;
   rightRail?: React.ReactNode;
   tickerEvents?: Array<{
@@ -18,17 +20,12 @@ type AppShellProps = {
 export default function AppShell({
   active = "dashboard",
   searchQuery = "",
+  workspaceMode,
   children,
   rightRail,
   tickerEvents,
 }: AppShellProps) {
   const isWorkspaceMode = active === "dashboard" || active === "events";
-  const footerLinks = [
-    { label: "About", href: "/about" },
-    { label: "Help", href: "/help" },
-    { label: "Submit a Conference", href: "/submit" },
-    { label: "Legal", href: "/legal" },
-  ];
 
   return (
     <main
@@ -43,7 +40,7 @@ export default function AppShell({
       }}
     >
       <EventTicker events={tickerEvents} />
-      <Header active={active} searchQuery={searchQuery} />
+      <Header active={active} searchQuery={searchQuery} workspaceMode={workspaceMode} />
 
       <div
         className="ccc-app-frame"
@@ -92,44 +89,125 @@ export default function AppShell({
       {!isWorkspaceMode ? (
       <footer
         style={{
-          borderTop: "1px solid #dbe3ec",
-          backgroundColor: "#eef3f8",
+          borderTop: "1px solid rgba(148, 163, 184, 0.18)",
+          background:
+            "radial-gradient(120% 160% at 50% -20%, rgba(37,99,235,0.08) 0%, rgba(238,243,249,0) 46%), linear-gradient(180deg, #eef3f8 0%, #e7eef7 100%)",
         }}
       >
         <div
           style={{
             maxWidth: "1520px",
             margin: "0 auto",
-            padding: "12px 16px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "10px",
-            flexWrap: "wrap",
+            padding: "24px 16px 18px",
+            display: "grid",
+            gap: "22px",
           }}
         >
-          <div style={{ fontSize: "12px", color: "#64748b", fontWeight: 700 }}>
-            Information Links
-          </div>
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-            {footerLinks.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(240px, 1.25fr) repeat(3, minmax(150px, 0.8fr))",
+              gap: "20px",
+              alignItems: "start",
+            }}
+          >
+            <div style={{ display: "grid", gap: "10px" }}>
+              <div style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>
+                Capital Conference Calendar
+              </div>
+              <div style={{ fontSize: "14px", lineHeight: 1.6, color: "#475569", maxWidth: "320px" }}>
+                Discover conferences, investors, organizers, and market events.
+              </div>
+              <Link
+                href="/subscribe"
                 style={{
                   textDecoration: "none",
-                  fontSize: "12px",
-                  color: "#334155",
-                  border: "1px solid #d7dde5",
-                  borderRadius: "999px",
-                  backgroundColor: "#ffffff",
-                  padding: "4px 8px",
-                  lineHeight: 1.4,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  height: "40px",
+                  padding: "0 14px",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(59,130,246,0.28)",
+                  background: "linear-gradient(180deg, rgba(255,255,255,0.95), rgba(244,248,253,0.96))",
+                  color: "#0f3d75",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  width: "fit-content",
+                  boxShadow: "0 8px 18px rgba(37,99,235,0.08)",
                 }}
               >
-                {link.label} ({link.href})
-              </a>
+                Stay ahead of the conference calendar
+              </Link>
+            </div>
+
+            {[
+              {
+                title: "Explore",
+                links: [
+                  { label: "Get Started", href: "/?mode=getstarted" },
+                  { label: "Discovery", href: "/?mode=market" },
+                  { label: "Market View", href: "/?mode=marketview" },
+                ],
+              },
+              {
+                title: "Company",
+                links: [
+                  { label: "About", href: "/about" },
+                  { label: "Contact", href: "/help" },
+                  { label: "Submit", href: "/submit" },
+                ],
+              },
+              {
+                title: "Resources",
+                links: [
+                  { label: "Subscribe", href: "/subscribe" },
+                  { label: "Legal", href: "/legal" },
+                ],
+              },
+            ].map((group) => (
+              <div key={group.title} style={{ display: "grid", gap: "8px" }}>
+                <div style={{ fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", color: "#0f3d75" }}>
+                  {group.title}
+                </div>
+                <div style={{ display: "grid", gap: "8px" }}>
+                  {group.links.map((link) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      style={{
+                        textDecoration: "none",
+                        color: "#334155",
+                        fontSize: "14px",
+                        lineHeight: 1.5,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {link.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
             ))}
+          </div>
+
+          <div
+            style={{
+              borderTop: "1px solid rgba(148, 163, 184, 0.22)",
+              paddingTop: "14px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ fontSize: "13px", color: "#475569", lineHeight: 1.55 }}>
+              Get new conferences and updates delivered to your inbox through the existing weekly briefing.
+            </div>
+            <div style={{ fontSize: "12px", color: "#64748b", fontWeight: 700 }}>
+              © 2026 Capital Conference Calendar
+            </div>
           </div>
         </div>
       </footer>

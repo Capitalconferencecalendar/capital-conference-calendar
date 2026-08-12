@@ -137,7 +137,9 @@ export default async function EventTicker({ events: providedEvents }: EventTicke
 
   const tickerLoops = events.length === 1 ? 12 : 3;
   const duplicated = Array.from({ length: tickerLoops }, () => events).flat();
-  const tickerDurationSeconds = Math.max(70, events.length * 14);
+  // Keep movement readable, but do not let a larger event list turn the ticker
+  // into an almost-static multi-minute animation.
+  const tickerDurationSeconds = Math.min(72, Math.max(38, events.length * 3));
 
   return (
     <div

@@ -728,6 +728,7 @@ export default async function EventsPage({
     <AppShell
       active="events"
       searchQuery={q}
+      workspaceMode="discovery"
       tickerEvents={allEvents.map((event) => ({
         id: event.id,
         title: event.title,
