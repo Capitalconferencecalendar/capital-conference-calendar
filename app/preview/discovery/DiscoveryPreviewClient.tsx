@@ -727,52 +727,41 @@ export default function DiscoveryPreviewClient({
   const liveFeedName = useMemo(() => buildFeedName(filters), [filters]);
 
   const intelligenceStrip = useMemo(() => {
-    const inViewValue = hasActiveFilters
-      ? `${filteredCounts.conferences} records in current view`
-      : `${previewContext.publicCounts.approvedVisibleRecords} website-visible records`;
-    const topCitiesValue =
-      filteredTopCities.length > 0
-        ? filteredTopCities.map(([city]) => city).join(" · ")
-        : "City coverage building";
-
     return [
       {
-        label: hasActiveFilters ? "Current View" : "Approved Coverage",
-        value: inViewValue,
+        label: "Visible Records",
+        value: `${previewContext.publicCounts.approvedVisibleRecords}`,
         icon: "database" as const,
         tone: "#60a5fa",
       },
       {
-        label: "Top Cities",
-        value: topCitiesValue,
-        icon: "location" as const,
-        tone: "#2dd4bf",
-      },
-      {
-        label: "Audience Signals",
-        value: `${filteredCounts.investorHeavy} investor-heavy · ${filteredCounts.issuerAccess} issuer-access`,
+        label: "Investor-Heavy",
+        value: `${filteredCounts.investorHeavy}`,
         icon: "audience" as const,
-        tone: "#8b5cf6",
-      },
-      {
-        label: "Verified Approved",
-        value: `${previewContext.publicCounts.verifiedApprovedRecords} approved records carry a verification status`,
-        icon: "check" as const,
         tone: "#22c55e",
       },
       {
-        label: "Source Dataset",
-        value: `${previewContext.publicCounts.totalRecords} source records reviewed for website approval`,
+        label: "Issuer Access",
+        value: `${filteredCounts.issuerAccess}`,
+        icon: "signal" as const,
+        tone: "#8b5cf6",
+      },
+      {
+        label: "Verified",
+        value: `${previewContext.publicCounts.verifiedApprovedRecords}`,
+        icon: "check" as const,
+        tone: "#2dd4bf",
+      },
+      {
+        label: "Reviewed Sources",
+        value: `${previewContext.publicCounts.totalRecords}`,
         icon: "panel" as const,
         tone: "#7dbbff",
       },
     ];
   }, [
-    filteredCounts.conferences,
     filteredCounts.investorHeavy,
     filteredCounts.issuerAccess,
-    filteredTopCities,
-    hasActiveFilters,
     previewContext.publicCounts.approvedVisibleRecords,
     previewContext.publicCounts.totalRecords,
     previewContext.publicCounts.verifiedApprovedRecords,
@@ -1304,7 +1293,7 @@ export default function DiscoveryPreviewClient({
           overflowX: "hidden",
           display: "grid",
           alignContent: "start",
-          gap: "16px",
+          gap: "14px",
           paddingRight: "4px",
         }}
       >
@@ -1313,27 +1302,27 @@ export default function DiscoveryPreviewClient({
             borderRadius: "22px",
             border: "1px solid rgba(107,157,210,0.16)",
             background:
-              "radial-gradient(circle at 18% 0%, rgba(37,99,235,0.14), transparent 34%), linear-gradient(180deg, rgba(7,26,46,0.88), rgba(4,18,34,0.9))",
-            padding: "18px 20px",
+              "radial-gradient(circle at 18% 0%, rgba(47,109,246,0.16), transparent 34%), linear-gradient(180deg, rgba(8,31,54,0.9), rgba(4,18,34,0.92))",
+            padding: "14px 18px",
             display: "grid",
-            gap: "14px",
+            gap: "10px",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>
-            <div style={{ display: "grid", gap: "8px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+            <div style={{ display: "grid", gap: "6px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                 {internalNavButton("Get Started", false)}
                 {internalNavButton("Discovery", true)}
                 {internalNavButton("Market View", false)}
               </div>
               <div>
-                <div style={{ color: "#8fb8ff", fontSize: "10px", fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "6px" }}>
+                <div style={{ color: "#8fb8ff", fontSize: "10px", fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "4px" }}>
                   Discovery
                 </div>
-                <div style={{ color: "#ffffff", fontSize: "28px", lineHeight: 1.05, fontWeight: 900, letterSpacing: "-0.03em" }}>
+                <div style={{ color: "#f8fbff", fontSize: viewportWidth <= 1280 ? "28px" : "30px", lineHeight: 1.05, fontWeight: 900, letterSpacing: "-0.03em" }}>
                   Conference Intelligence Discovery
                 </div>
-                <div style={{ color: "#b8cce4", fontSize: "14px", lineHeight: 1.45, marginTop: "6px", maxWidth: "820px" }}>
+                <div style={{ color: "#b8cbe0", fontSize: viewportWidth <= 1280 ? "14px" : "15px", lineHeight: 1.4, marginTop: "4px", maxWidth: "760px" }}>
                   Explore verified conferences with timing, audience, participation, and market-context signals.
                 </div>
               </div>
@@ -1350,17 +1339,17 @@ export default function DiscoveryPreviewClient({
                 border: "1px solid rgba(107,157,210,0.18)",
               }}
             >
-              {[
-                { key: "database" as const, label: "Database" },
-                { key: "calendar" as const, label: "Calendar" },
-              ].map((item) => (
+                {[
+                  { key: "database" as const, label: "Database" },
+                  { key: "calendar" as const, label: "Calendar" },
+                ].map((item) => (
                 <button
                   key={item.key}
                   type="button"
                   onClick={() => setViewMode(item.key)}
                   style={{
-                    height: "36px",
-                    padding: "0 14px",
+                    height: "34px",
+                    padding: "0 13px",
                     borderRadius: "10px",
                     border: "none",
                     background:
@@ -1368,7 +1357,7 @@ export default function DiscoveryPreviewClient({
                         ? "linear-gradient(180deg, #3b82f6, #2563eb)"
                         : "transparent",
                     color: viewMode === item.key ? "#ffffff" : "#a9bfd8",
-                    fontSize: "12px",
+                    fontSize: "11px",
                     fontWeight: 850,
                     letterSpacing: "0.04em",
                     textTransform: "uppercase",
@@ -1390,9 +1379,9 @@ export default function DiscoveryPreviewClient({
           >
             <div
               style={{
-                borderRadius: "18px",
-                border: "1px solid rgba(107,157,210,0.16)",
-                background: "linear-gradient(180deg, rgba(6,24,44,0.62), rgba(4,18,34,0.76))",
+                borderRadius: "16px",
+                border: "1px solid rgba(117,165,220,0.2)",
+                background: "linear-gradient(180deg, rgba(9,36,60,0.68), rgba(5,22,40,0.8))",
                 overflow: "hidden",
               }}
             >
@@ -1407,9 +1396,9 @@ export default function DiscoveryPreviewClient({
                   <div
                     key={item.label}
                     style={{
-                      padding: "14px 16px",
+                      padding: "12px 14px",
                       display: "grid",
-                      gap: "6px",
+                      gap: "4px",
                       minWidth: 0,
                       borderLeft:
                         viewportWidth <= 1360
@@ -1431,9 +1420,9 @@ export default function DiscoveryPreviewClient({
                         alignItems: "center",
                         gap: "8px",
                         color: item.tone,
-                        fontSize: "11px",
+                        fontSize: "10px",
                         fontWeight: 900,
-                        letterSpacing: "0.12em",
+                        letterSpacing: "0.14em",
                         textTransform: "uppercase",
                       }}
                     >
@@ -1443,9 +1432,9 @@ export default function DiscoveryPreviewClient({
                     <div
                       style={{
                         color: "#ffffff",
-                        fontSize: item.label === "Top Cities" ? "16px" : "17px",
-                        fontWeight: 780,
-                        lineHeight: 1.3,
+                        fontSize: viewportWidth <= 1280 ? "26px" : "28px",
+                        fontWeight: 900,
+                        lineHeight: 1,
                       }}
                     >
                       {item.value}
@@ -1460,26 +1449,17 @@ export default function DiscoveryPreviewClient({
             style={{
               display: "flex",
               flexWrap: "wrap",
-              gap: "10px 16px",
+              gap: "8px 14px",
               color: "#9fb5cf",
-              fontSize: "12px",
+              fontSize: "11px",
               alignItems: "center",
             }}
           >
             <span>
-              Website-visible records: <strong style={{ color: "#dbeafe" }}>{previewContext.publicCounts.approvedVisibleRecords}</strong>
-            </span>
-            <span>
-              Verified approved records: <strong style={{ color: "#dbeafe" }}>{previewContext.publicCounts.verifiedApprovedRecords}</strong>
-            </span>
-            <span>
-              Source records: <strong style={{ color: "#dbeafe" }}>{previewContext.publicCounts.totalRecords}</strong>
+              Coverage window: <strong style={{ color: "#dbeafe" }}>{previewContext.approvedCoverage.earliestDate} – {previewContext.approvedCoverage.latestDate}</strong>
             </span>
             <span>
               Latest verification stamp: <strong style={{ color: "#dbeafe" }}>{formatFreshnessDate(previewContext.freshness.latestVerifiedDate)}</strong>
-            </span>
-            <span>
-              Coverage window: <strong style={{ color: "#dbeafe" }}>{previewContext.approvedCoverage.earliestDate} – {previewContext.approvedCoverage.latestDate}</strong>
             </span>
           </div>
         </div>
@@ -1505,102 +1485,80 @@ export default function DiscoveryPreviewClient({
                   style={{
                     borderRadius: "22px",
                     border: isActive
-                      ? "1px solid rgba(96,165,250,0.36)"
-                      : "1px solid rgba(107,157,210,0.14)",
+                      ? "1px solid rgba(139,190,255,0.42)"
+                      : "1px solid rgba(117,165,220,0.24)",
                     background:
                       isActive
-                        ? "linear-gradient(180deg, rgba(10,39,67,0.96), rgba(6,24,44,0.96))"
-                        : "linear-gradient(180deg, rgba(8,30,52,0.86), rgba(4,18,34,0.92))",
-                    boxShadow: isActive ? "0 18px 38px rgba(0,0,0,0.18)" : "none",
+                        ? "linear-gradient(135deg, rgba(13,47,76,0.92), rgba(6,25,44,0.96))"
+                        : "linear-gradient(135deg, rgba(11,42,68,0.88), rgba(6,25,44,0.92))",
+                    boxShadow: "0 14px 35px rgba(0,0,0,0.18)",
                     padding: "18px",
                     display: "grid",
-                    gridTemplateColumns: `${viewportWidth <= 1280 ? "84px minmax(0, 1fr) 208px" : "100px minmax(0, 1fr) 236px"}`,
+                    gridTemplateColumns: `${viewportWidth <= 1280 ? "92px minmax(0, 1fr) 190px" : "96px minmax(0, 1fr) 236px"}`,
                     gap: "16px",
                     alignItems: "start",
                     cursor: "pointer",
+                    transition: "border-color 120ms ease, background 120ms ease, transform 120ms ease",
                   }}
                   className="ccc-preview-record-card"
                 >
                   <div
                     style={{
-                      borderRadius: "24px",
-                      background: "linear-gradient(180deg, rgba(112,147,214,0.92), rgba(63,91,145,0.88))",
-                      minHeight: viewportWidth <= 1280 ? "132px" : "142px",
-                      padding: viewportWidth <= 1280 ? "12px 9px" : "14px 10px",
+                      borderRadius: "18px",
+                      background: "linear-gradient(180deg, rgba(95,127,184,0.96), rgba(51,79,124,0.92))",
+                      border: "1px solid rgba(179,208,255,0.24)",
+                      minHeight: viewportWidth <= 1280 ? "126px" : "134px",
+                      padding: viewportWidth <= 1280 ? "12px 9px" : "13px 10px",
                       display: "grid",
                       alignContent: "center",
                       justifyItems: "center",
-                      gap: "6px",
+                      gap: "4px",
                       textAlign: "center",
                       color: "#f8fbff",
                     }}
                   >
-                    <div style={{ fontSize: "11px", fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase" }}>Date</div>
-                    <div style={{ width: "64px", borderTop: "1px solid rgba(255,255,255,0.28)" }} />
-                    <div style={{ fontSize: "12px", fontWeight: 800, opacity: 0.9 }}>{formatMonthDay(event.startDate)}</div>
-                    <div style={{ fontSize: "28px", fontWeight: 900, lineHeight: 1.05 }}>
+                    <div style={{ fontSize: "10px", fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase" }}>Date</div>
+                    <div style={{ width: "58px", borderTop: "1px solid rgba(255,255,255,0.28)" }} />
+                    <div style={{ fontSize: "11px", fontWeight: 800, opacity: 0.92 }}>{formatMonthDay(event.startDate).split(" ")[0]}</div>
+                    <div style={{ fontSize: "12px", fontWeight: 800, opacity: 0.94 }}>{new Date(`${event.startDate}T00:00:00Z`).getUTCFullYear()}</div>
+                    <div style={{ fontSize: viewportWidth <= 1280 ? "24px" : "26px", fontWeight: 900, lineHeight: 1 }}>
                       {event.endDate && event.endDate !== event.startDate
                         ? `${formatMonthDay(event.startDate).split(" ")[1]}–${formatMonthDay(event.endDate).split(" ")[1]}`
                         : formatMonthDay(event.startDate).split(" ")[1]}
                     </div>
-                    <div style={{ fontSize: "12px", fontWeight: 800, opacity: 0.92 }}>{new Date(`${event.startDate}T00:00:00Z`).getUTCFullYear()}</div>
-                    <div style={{ width: "64px", borderTop: "1px solid rgba(255,255,255,0.22)" }} />
-                    <div style={{ fontSize: "11px", fontWeight: 800, opacity: 0.92 }}>{eventDurationLabel(event)}</div>
+                    <div style={{ fontSize: "10px", fontWeight: 800, opacity: 0.88 }}>
+                      {`${formatWeekday(event.startDate)}${event.endDate && event.endDate !== event.startDate ? `–${formatWeekday(event.endDate)}` : ""}`}
+                    </div>
+                    <div style={{ fontSize: "10px", fontWeight: 800, opacity: 0.84 }}>{eventDurationLabel(event)}</div>
                   </div>
 
                   <div style={{ minWidth: 0, display: "grid", gap: "10px" }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "start", gap: "12px" }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div
-                          style={{
-                            color: "#ffffff",
-                            fontSize: viewportWidth <= 1280 ? "22px" : "25px",
-                            fontWeight: 900,
-                            lineHeight: 1.12,
-                            letterSpacing: "-0.03em",
-                            display: "-webkit-box",
-                            WebkitBoxOrient: "vertical",
-                            WebkitLineClamp: 2,
-                            overflow: "hidden",
-                            minHeight: "2.24em",
-                          }}
-                        >
-                          {event.title}
-                        </div>
-                        <div style={{ marginTop: "8px", color: "#7dbbff", fontSize: "19px", fontWeight: 800 }}>
-                          {eventLocationLabel(event)}
-                        </div>
-                        <div style={{ marginTop: "6px", color: "#c8d8ec", fontSize: "15px", lineHeight: 1.4 }}>
-                          {[event.organizer, event.venue].filter(Boolean).join(" · ") || "Organizer and venue information available on the record"}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(clickEvent) => {
-                          clickEvent.stopPropagation();
-                          toggleSelection(event.id);
-                        }}
-                        aria-pressed={isSelected}
+                    <div style={{ minWidth: 0 }}>
+                      <div
                         style={{
-                          width: "24px",
-                          height: "24px",
-                          borderRadius: "6px",
-                          border: isSelected ? "1px solid rgba(96,165,250,0.8)" : "1px solid rgba(120,138,160,0.55)",
-                          background: isSelected ? "rgba(59,130,246,0.22)" : "rgba(8,31,55,0.44)",
                           color: "#ffffff",
-                          display: "grid",
-                          placeItems: "center",
-                          cursor: "pointer",
-                          flexShrink: 0,
-                          fontSize: "12px",
+                          fontSize: viewportWidth <= 1280 ? "24px" : "26px",
                           fontWeight: 900,
+                          lineHeight: 1.05,
+                          letterSpacing: "-0.025em",
+                          display: "-webkit-box",
+                          WebkitBoxOrient: "vertical",
+                          WebkitLineClamp: 2,
+                          overflow: "hidden",
+                          minHeight: "2.1em",
                         }}
                       >
-                        {isSelected ? "✓" : ""}
-                      </button>
+                        {event.title}
+                      </div>
+                      <div style={{ marginTop: "5px", color: "#78b7ff", fontSize: viewportWidth <= 1280 ? "18px" : "19px", fontWeight: 850 }}>
+                        {eventLocationLabel(event)}
+                      </div>
+                      <div style={{ marginTop: "4px", color: "#a9bdd2", fontSize: "13px", lineHeight: 1.35 }}>
+                        {[event.organizer, event.venue].filter(Boolean).join(" · ") || "Organizer and venue information available on the record"}
+                      </div>
                     </div>
 
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                       {categoryTags.map((tag, index) => (
                         <span
                           key={`${event.id}-${tag}-${index}`}
@@ -1609,9 +1567,12 @@ export default function DiscoveryPreviewClient({
                             border: "1px solid rgba(107,157,210,0.18)",
                             background: index === 0 ? "rgba(59,130,246,0.14)" : "rgba(7,24,42,0.74)",
                             color: index === 0 ? "#dbeafe" : "#b8cce4",
-                            padding: "6px 10px",
-                            fontSize: "12px",
-                            fontWeight: 800,
+                            height: "26px",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            padding: "0 9px",
+                            fontSize: "11.5px",
+                            fontWeight: 750,
                           }}
                         >
                           {tag}
@@ -1619,8 +1580,8 @@ export default function DiscoveryPreviewClient({
                       ))}
                     </div>
 
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                      {getSupportedSignals(event).map((signal) => (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                      {getSupportedSignals(event).slice(0, 1).map((signal) => (
                         <span
                           key={`${event.id}-${signal.label}`}
                           style={{
@@ -1628,8 +1589,11 @@ export default function DiscoveryPreviewClient({
                             border: `1px solid ${signal.tone}33`,
                             background: `${signal.tone}14`,
                             color: "#dbeafe",
-                            padding: "6px 10px",
-                            fontSize: "11px",
+                            height: "26px",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            padding: "0 9px",
+                            fontSize: "11.5px",
                             fontWeight: 850,
                           }}
                         >
@@ -1640,48 +1604,114 @@ export default function DiscoveryPreviewClient({
 
                     <div
                       style={{
-                        borderRadius: "16px",
-                        border: "1px solid rgba(107,157,210,0.16)",
-                        background: "rgba(5,20,37,0.56)",
-                        padding: "12px 14px",
                         display: "grid",
-                        gap: "8px",
+                        gap: "3px",
                       }}
                     >
-                      <div style={{ color: "#8fb8ff", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>
-                        Why this record stands out
+                      <div
+                        style={{
+                          color: "#8fbfff",
+                          fontSize: "10px",
+                          fontWeight: 900,
+                          letterSpacing: "0.14em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Market Signal
                       </div>
-                      <div style={{ color: "#dbeafe", fontSize: "14px", lineHeight: 1.5, fontWeight: 650 }}>
+                      <div
+                        style={{
+                          color: "#d8e7f8",
+                          fontSize: "13px",
+                          lineHeight: 1.35,
+                          display: "-webkit-box",
+                          WebkitBoxOrient: "vertical",
+                          WebkitLineClamp: 2,
+                          overflow: "hidden",
+                        }}
+                      >
                         {getWhyItMatters(event)}
                       </div>
                     </div>
                   </div>
 
-                  <div style={{ display: "grid", gap: "12px" }}>
+                  <div style={{ display: "grid", gap: "8px", alignContent: "start" }}>
+                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                      <button
+                        type="button"
+                        onClick={(clickEvent) => {
+                          clickEvent.stopPropagation();
+                          toggleSelection(event.id);
+                        }}
+                        aria-pressed={isSelected}
+                        style={{
+                          width: "22px",
+                          height: "22px",
+                          borderRadius: "999px",
+                          border: isSelected ? "1px solid rgba(96,165,250,0.82)" : "1px solid rgba(120,138,160,0.5)",
+                          background: isSelected ? "rgba(59,130,246,0.88)" : "rgba(8,31,55,0.32)",
+                          color: "#ffffff",
+                          display: "grid",
+                          placeItems: "center",
+                          cursor: "pointer",
+                          flexShrink: 0,
+                          fontSize: "11px",
+                          fontWeight: 900,
+                          opacity: isSelected ? 1 : 0.75,
+                        }}
+                      >
+                        {isSelected ? "✓" : ""}
+                      </button>
+                    </div>
                     <div style={{ display: "grid", gap: "8px" }}>
+                      <button
+                        type="button"
+                        onClick={(clickEvent) => {
+                          clickEvent.stopPropagation();
+                          setActiveEventId(event.id);
+                        }}
+                        style={{
+                          height: "40px",
+                          borderRadius: "12px",
+                          border: "1px solid rgba(147,197,253,0.24)",
+                          background: "rgba(8,31,52,0.82)",
+                          color: "#dcecff",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "13px",
+                          fontWeight: 800,
+                          cursor: "pointer",
+                        }}
+                      >
+                        View Details
+                      </button>
                       <a
                         href={event.website || "#"}
                         target={event.website ? "_blank" : undefined}
                         rel={event.website ? "noopener noreferrer" : undefined}
                         onClick={(clickEvent) => clickEvent.stopPropagation()}
                         style={{
-                          height: "34px",
-                          borderRadius: "10px",
-                          border: "1px solid rgba(107,157,210,0.18)",
-                          background: "rgba(8,31,55,0.32)",
-                          color: "#c8d8ec",
+                          height: "40px",
+                          borderRadius: "12px",
+                          border: "1px solid rgba(147,197,253,0.24)",
+                          background: "rgba(8,31,52,0.82)",
+                          color: "#dcecff",
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          fontSize: "12px",
-                          fontWeight: 720,
+                          fontSize: "13px",
+                          fontWeight: 800,
                           textDecoration: "none",
                           opacity: event.website ? 1 : 0.6,
                         }}
                       >
-                        View Details ↗
+                        Event Link ↗
                       </a>
-                      <div onClick={(clickEvent) => clickEvent.stopPropagation()}>
+                      <div
+                        onClick={(clickEvent) => clickEvent.stopPropagation()}
+                        style={{ filter: "saturate(0.95) brightness(1)" }}
+                      >
                         <AddToCalendar
                           compact
                           fullWidth
@@ -1694,21 +1724,8 @@ export default function DiscoveryPreviewClient({
                         />
                       </div>
                     </div>
-
-                    <div
-                      style={{
-                        borderRadius: "16px",
-                        border: "1px solid rgba(45,212,191,0.18)",
-                        background: "linear-gradient(135deg, rgba(37,99,235,0.12), rgba(45,212,191,0.10))",
-                        padding: "12px 14px",
-                      }}
-                    >
-                      <div style={{ color: "#8fb8ff", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "6px" }}>
-                        Live calendar relevance
-                      </div>
-                      <div style={{ color: "#dbeafe", fontSize: "13px", lineHeight: 1.45 }}>
-                        This record will flow into <strong>{liveFeedName}</strong> if it matches the saved filter you sync.
-                      </div>
+                    <div style={{ color: "#8fa8c3", fontSize: "10px", lineHeight: 1.3, paddingTop: "2px" }}>
+                      Included in synced feed when this filter is saved.
                     </div>
                   </div>
                 </article>

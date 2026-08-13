@@ -535,6 +535,16 @@ export default function Header({
                 isActive={active === "help"}
               />
               <TopNavLink
+                href="/?mode=legal"
+                label="Legal"
+                isActive={active === "legal"}
+              />
+              <TopNavLink
+                href="/?mode=subscribe"
+                label="Subscribe"
+                isActive={active === "subscribe"}
+              />
+              <TopNavLink
                 href="/?mode=submit"
                 label="Submit"
                 icon="submit"

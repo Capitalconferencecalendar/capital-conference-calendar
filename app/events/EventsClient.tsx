@@ -2696,12 +2696,15 @@ useEffect(() => {
 
   const discoveryHeaderMetrics = useMemo(() => {
     const hasManualFilterSelection = activeFilterChips.length > 0 || Boolean(activeSavedListId);
-    const totalConferences = discoveryPage.allAggregates.events;
     const stats = hasManualFilterSelection ? discoveryPage.aggregates : discoveryPage.allAggregates;
 
     return {
       metrics: [
-        { label: "Total Conferences", value: totalConferences, tone: "#69b7ff" },
+        {
+          label: hasManualFilterSelection ? "Filtered Records" : "Visible Records",
+          value: stats.events,
+          tone: "#69b7ff",
+        },
         { label: "Investor-Heavy", value: stats.investorHeavy, tone: "#22c55e" },
         { label: "Issuer Access", value: stats.issuerAccess, tone: "#8b5cf6" },
         { label: "Highest Activity Week", value: stats.highestActivityWeek?.label || "—", detail: stats.highestActivityWeek ? `${stats.highestActivityWeek.count} events` : "", tone: "#38d5c4", compact: true },
@@ -2710,6 +2713,7 @@ useEffect(() => {
       earliestDate: stats.earliestDate,
       latestDate: stats.latestDate,
       latestVerificationStamp: stats.latestVerificationStamp,
+      recordCount: stats.events,
     };
   }, [activeFilterChips.length, activeSavedListId, discoveryPage.aggregates, discoveryPage.allAggregates]);
 
@@ -4426,11 +4430,11 @@ useEffect(() => {
 
               <div>
                 <div style={{ fontSize: "9px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", color: "#8fbfff", marginBottom: "5px" }}>
-                  Data Base View Selection
+                  View Selection
                 </div>
                 <div style={{ display: "inline-flex", gap: "6px" }}>
                   {[
-                    { key: "database" as const, label: "GRID", icon: "database" as const },
+                    { key: "database" as const, label: "DATABASE", icon: "database" as const },
                     { key: "calendar" as const, label: "CALENDAR", icon: "calendar" as const },
                   ].map((mode) => (
                     <button
@@ -5572,7 +5576,7 @@ useEffect(() => {
               zIndex: 8,
             }}
           >
-            <div style={{ color: "#dbeafe", fontWeight: 700 }}>{selectedEvents.length ? `${selectedEvents.length} selected` : `Showing ${events.length} of ${discoveryPage.total} conferences`}</div>
+            <div style={{ color: "#dbeafe", fontWeight: 700 }}>{selectedEvents.length ? `${selectedEvents.length} selected` : `Showing ${events.length} of ${discoveryHeaderMetrics.recordCount} conferences`}</div>
             <div style={{ display: "none", gap: "6px" }}>
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               <button
