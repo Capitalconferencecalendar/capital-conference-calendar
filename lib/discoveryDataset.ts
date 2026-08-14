@@ -1,4 +1,5 @@
 import "server-only";
+import { buildMarketViewIntelligence, type MarketViewIntelligence } from "./marketViewIntelligence";
 
 export type DiscoveryEvent = {
   id: string;
@@ -150,6 +151,8 @@ export type DiscoveryPage = {
   allAggregates: DiscoveryAggregateStats;
   marketAnalytics: MarketViewAnalytics;
   allMarketAnalytics: MarketViewAnalytics;
+  marketViewIntelligence: MarketViewIntelligence;
+  allMarketViewIntelligence: MarketViewIntelligence;
 };
 
 export type DiscoveryQuery = {
@@ -754,5 +757,7 @@ export async function getDiscoveryPage(query: DiscoveryQuery = {}): Promise<Disc
     allAggregates: aggregate(approvedEvents),
     marketAnalytics: buildMarketViewAnalytics(filtered),
     allMarketAnalytics: buildMarketViewAnalytics(approvedEvents),
+    marketViewIntelligence: buildMarketViewIntelligence(filtered),
+    allMarketViewIntelligence: buildMarketViewIntelligence(approvedEvents),
   };
 }

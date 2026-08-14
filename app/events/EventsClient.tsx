@@ -4,7 +4,7 @@ import { Fragment, type CSSProperties, type ReactNode, useCallback, useEffect, u
 import AddToCalendar from "../components/AddToCalendar";
 import ConcentrationStrip from "../components/ConcentrationStrip";
 import type { ConcentrationItem } from "../components/ConcentrationStrip";
-import { buildMarketViewIntelligence } from "../../lib/marketViewIntelligence";
+import type { MarketViewIntelligence } from "../../lib/marketViewIntelligence";
 
 export type WorkspaceEvent = {
   id: string;
@@ -111,6 +111,8 @@ type Props = {
     allAggregates: DiscoveryAggregateStats;
     marketAnalytics: MarketViewAnalytics;
     allMarketAnalytics: MarketViewAnalytics;
+    marketViewIntelligence: MarketViewIntelligence;
+    allMarketViewIntelligence: MarketViewIntelligence;
   };
   initialCity: string;
   initialSearchQuery?: string;
@@ -262,6 +264,8 @@ type DiscoveryPageResponse = {
   allAggregates: DiscoveryAggregateStats;
   marketAnalytics: MarketViewAnalytics;
   allMarketAnalytics: MarketViewAnalytics;
+  marketViewIntelligence: MarketViewIntelligence;
+  allMarketViewIntelligence: MarketViewIntelligence;
 };
 
 function normalizeDiscoveryAggregateStats(stats?: Partial<DiscoveryAggregateStats>): DiscoveryAggregateStats {
@@ -1408,6 +1412,8 @@ export default function EventsClient({
     allAggregates: normalizeDiscoveryAggregateStats(initialPage.allAggregates || initialPage.aggregates),
     marketAnalytics: normalizeMarketViewAnalytics(initialPage.marketAnalytics),
     allMarketAnalytics: normalizeMarketViewAnalytics(initialPage.allMarketAnalytics || initialPage.marketAnalytics),
+    marketViewIntelligence: initialPage.marketViewIntelligence,
+    allMarketViewIntelligence: initialPage.allMarketViewIntelligence || initialPage.marketViewIntelligence,
   }));
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
   const [eventLoadError, setEventLoadError] = useState<string | null>(null);
@@ -1783,6 +1789,8 @@ export default function EventsClient({
         allAggregates: normalizeDiscoveryAggregateStats(next.allAggregates || next.aggregates),
         marketAnalytics: normalizeMarketViewAnalytics(next.marketAnalytics),
         allMarketAnalytics: normalizeMarketViewAnalytics(next.allMarketAnalytics || next.marketAnalytics),
+        marketViewIntelligence: next.marketViewIntelligence,
+        allMarketViewIntelligence: next.allMarketViewIntelligence || next.marketViewIntelligence,
       });
     } catch (error) {
       setEventLoadError(error instanceof Error ? error.message : "Unable to load conferences.");
@@ -5897,8 +5905,9 @@ useEffect(() => {
                 }}
               >
                 {(() => {
-                  const sourceEvents = filteredEvents.filter((event) => event.startDate);
-                  const intelligence = buildMarketViewIntelligence(sourceEvents, { asOfDate: new Date().toISOString().slice(0, 10) });
+                  const intelligence = marketViewDataset === "all"
+                    ? discoveryPage.allMarketViewIntelligence
+                    : discoveryPage.marketViewIntelligence;
                   const landscape = intelligence.landscapeSnapshot;
                   const access = intelligence.accessAndDealIntelligence.summary;
                   const sectorMomentum = intelligence.publicCompanySectorMomentum;
