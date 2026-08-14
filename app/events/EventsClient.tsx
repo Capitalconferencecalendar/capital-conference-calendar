@@ -1478,6 +1478,8 @@ export default function EventsClient({
   const [marketViewAccessTab, setMarketViewAccessTab] = useState<"issuerAccess" | "investorHeavy" | "structuredAccess" | "dealMaking">("issuerAccess");
   const [marketViewSignalTab, setMarketViewSignalTab] = useState<"sector" | "focus" | "character">("sector");
   const [marketViewGeographyTab, setMarketViewGeographyTab] = useState<"accessWeighted" | "dealAccess" | "total" | "issuerAccess" | "investorHeavy">("accessWeighted");
+  const [marketViewAccessWindowsOpen, setMarketViewAccessWindowsOpen] = useState(false);
+  const [marketViewWeeklyTableOpen, setMarketViewWeeklyTableOpen] = useState(false);
   const [concentrationExpanded, setConcentrationExpanded] = useState(false);
   const [insightsExpanded, setInsightsExpanded] = useState(false);
   const [filterGroupsOpen, setFilterGroupsOpen] = useState({
@@ -5942,9 +5944,7 @@ useEffect(() => {
                   const character = intelligence.eventCharacterMix;
                   const organizerTables = intelligence.organizerLeagueTables;
                   const geo = intelligence.geographyClusters;
-                  const asOfIso = new Date().toISOString().slice(0, 10);
                   const conferenceUniverse = Math.max(landscape.totalEvents, 1);
-                  const maxWeeklyScore = Math.max(...intelligence.weeklyIntensity.map((row) => row.intensityScore), 1);
                   const maxCharacterCount = Math.max(...character.rows.map((row) => row.count), 1);
                   const peakWeek = intelligence.weeklyIntensity.slice().sort((a, b) => b.intensityScore - a.intensityScore)[0];
                   const actionableColdWeeks = intelligence.coldWeeks.top.filter((row) => row.totalEvents > 0).slice(0, 5);
@@ -5997,6 +5997,7 @@ useEffect(() => {
                   const accessWeightedCityRows = (accessWeightedCityRowsBase.length >= 3 ? accessWeightedCityRowsBase : geo.topCitiesByTotalEvents)
                     .slice()
                     .sort((a, b) => (b.averageDealAccessScore * Math.sqrt(b.totalEvents)) - (a.averageDealAccessScore * Math.sqrt(a.totalEvents)) || b.totalEvents - a.totalEvents);
+                  const strongestAccessWindow = intelligence.issuerAccessWindows[0] || intelligence.structuredAccessWindows[0] || intelligence.investorHeavyWindows[0] || intelligence.dealMakingWindows[0];
                   const organizerTabLabels: Array<{ key: typeof marketViewOrganizerTab; label: string }> = [
                     { key: "overallVolume", label: "Overall Volume" },
                     { key: "issuerAccess", label: "Issuer Access" },
@@ -6034,6 +6035,25 @@ useEffect(() => {
                     if (!row) return;
                     applyAnalysisView({ type: "week", from: row.weekStart, to: row.weekEnd });
                   };
+                  const seasonOrder = ["Spring", "Summer", "Fall", "Year-End"];
+                  const seasonRunway = seasonOrder.map((season) => {
+                    const rows = intelligence.weeklyIntensity.filter((row) => phaseLabel(row.weekStart) === season);
+                    const peak = rows.slice().sort((a, b) => b.intensityScore - a.intensityScore)[0];
+                    return {
+                      season,
+                      eventCount: rows.reduce((sum, row) => sum + row.totalEvents, 0),
+                      accessCount: rows.reduce((sum, row) => sum + row.issuerAccessEvents + row.structuredAccessEvents, 0),
+                      peak,
+                    };
+                  });
+                  const maxSeasonEvents = Math.max(...seasonRunway.map((row) => row.eventCount), 1);
+                  const liveSignals = [
+                    { label: "Peak Week", value: peakWeek?.label || "N/A", note: peakWeek ? `${peakWeek.totalEvents} events · score ${peakWeek.intensityScore}` : "No dated peak available", action: () => openWeek(peakWeek) },
+                    { label: "Strongest Access Window", value: strongestAccessWindow?.label || "N/A", note: strongestAccessWindow ? `${strongestAccessWindow.topCity || "Market-wide"} · ${strongestAccessWindow.count} signals` : "Access window not classified", action: () => strongestAccessWindow && openWeek(strongestAccessWindow) },
+                    { label: "Top Market Focus", value: landscape.topMarketFocus || focus.rows[0]?.marketFocus || "N/A", note: focus.rows[0] ? `${focus.rows[0].count} signals · ${focus.rows[0].shareOfClassifiedSignals}% share` : "Focus mix unavailable", action: () => openDatabaseSearch(landscape.topMarketFocus || focus.rows[0]?.marketFocus || "") },
+                    { label: "Leading Organizer", value: landscape.topOrganizer || organizerTables.overallVolume[0]?.organizer || "N/A", note: organizerTables.overallVolume[0] ? `${organizerTables.overallVolume[0].totalEvents} events in pipeline` : "Organizer mix unavailable", action: () => openDatabaseSearch(landscape.topOrganizer || organizerTables.overallVolume[0]?.organizer || "") },
+                    { label: "Most Active City", value: landscape.topCity || geo.topCitiesByTotalEvents[0]?.city || "N/A", note: geo.topCitiesByTotalEvents[0] ? `${geo.topCitiesByTotalEvents[0].totalEvents} events · access-weighted view below` : "City activity unavailable", action: () => openDatabaseSearch(landscape.topCity || geo.topCitiesByTotalEvents[0]?.city || "") },
+                  ];
                   const sectionStyle: CSSProperties = {
                     gridColumn: "1 / -1",
                     display: "grid",
@@ -6063,6 +6083,9 @@ useEffect(() => {
                       <div style={{ color: "#f4f8ff", fontSize: "19px", lineHeight: 1.1, fontWeight: 900 }}>{title}</div>
                       <div style={{ color: "#a9bdd6", fontSize: "12px", lineHeight: 1.32 }}>{subtitle}</div>
                     </div>
+                  );
+                  const questionKicker = (question: string) => (
+                    <div style={{ color: "#5eead4", fontSize: "10px", fontWeight: 950, letterSpacing: "0.12em", textTransform: "uppercase" }}>{question}</div>
                   );
                   const stat = (label: string, value: ReactNode) => (
                     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "8px", alignItems: "baseline", borderBottom: "1px solid rgba(107,157,210,0.08)", padding: "4px 0" }}>
@@ -6110,17 +6133,13 @@ useEffect(() => {
                   const signed = (value: number) => value > 0 ? `+${value}` : String(value);
                   const percent = (value: number | null) => value === null ? "N/A" : `${signed(value)}%`;
                   const universeShare = (value: number) => `${Math.round((value / conferenceUniverse) * 100)}%`;
-                  const phaseLabel = (weekStart: string) => {
+                  function phaseLabel(weekStart: string) {
                     const month = Number(weekStart.slice(5, 7));
                     if (month >= 3 && month <= 5) return "Spring";
                     if (month >= 6 && month <= 8) return "Summer";
                     if (month >= 9 && month <= 11) return "Fall";
                     return "Year-End";
-                  };
-                  const monthLabel = (weekStart: string) => {
-                    const month = Number(weekStart.slice(5, 7));
-                    return ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][month] || "";
-                  };
+                  }
                   const TabButton = ({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) => (
                     <button type="button" onClick={onClick} style={{ flex: "0 0 auto", height: "26px", padding: "0 9px", borderRadius: "7px", border: active ? "1px solid rgba(125,180,255,0.34)" : "1px solid rgba(107,157,210,0.14)", background: active ? "rgba(47,111,243,0.72)" : "rgba(9,36,61,0.52)", color: active ? "#fff" : "#a8bdd8", fontSize: "11px", fontWeight: 850, cursor: "pointer" }}>{label}</button>
                   );
@@ -6188,10 +6207,10 @@ useEffect(() => {
                             Capital Markets Conference Intelligence
                           </div>
                           <div style={{ color: "#b9cce3", fontSize: "13px", lineHeight: 1.45, maxWidth: "820px" }}>
-                            A classified view of issuer access, institutional attendance, sector activity, organizer supply, and conference seasonality across the CCC conference universe.
+                            A classified view of issuer access, institutional attendance, sector activity, organizer supply, and conference seasonality across the Capital Conference Calendar universe.
                           </div>
                           <div style={{ color: "#d9e8fb", fontSize: "13px", lineHeight: 1.45, maxWidth: "840px", borderLeft: "2px solid rgba(94,234,212,0.58)", paddingLeft: "12px" }}>
-                            CCC is tracking {landscape.totalEvents} conferences across {landscape.organizersCount} organizers and {landscape.citiesCount} cities, with classification depth across issuer participation, market focus, public company sector, and event character. The current window is {intelligence.seasonPulse.currentSeasonLanguage.toLowerCase()}, while the peak window is {intelligence.seasonPulse.strongestSeasonLanguage.toLowerCase()}.
+                            Capital Conference Calendar is tracking {landscape.totalEvents} conferences across {landscape.organizersCount} organizers and {landscape.citiesCount} cities. The current window is {intelligence.seasonPulse.currentSeasonLanguage.toLowerCase()}, while the strongest planning window is {intelligence.seasonPulse.strongestSeasonLanguage.toLowerCase()}. The strongest signal is timing and access concentration, not raw event volume.
                           </div>
                         </div>
                         <div style={{ borderRadius: "12px", border: "1px solid rgba(147,197,253,0.18)", background: "rgba(4,18,32,0.62)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)", padding: "12px", display: "grid", gap: "8px", alignContent: "start" }}>
@@ -6219,7 +6238,7 @@ useEffect(() => {
 
                       <div style={{ ...sectionStyle, padding: "8px 10px" }}>
                         <div style={{ color: "#8fbfff", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>Capital Access Tape</div>
-                        <div style={{ display: "flex", gap: "6px", overflowX: "auto", flexWrap: isMobileViewport ? "wrap" : "nowrap" }}>
+                        <div style={{ display: "flex", gap: "6px", overflowX: "visible", flexWrap: "wrap" }}>
                           {tapeItem("Issuer Access", <OpenDatabaseLink query="Issuer Access">{access.issuerAccessCount}</OpenDatabaseLink>)}
                           {tapeItem("Investor-Heavy", <OpenDatabaseLink query="Investor">{access.investorHeavyCount}</OpenDatabaseLink>)}
                           {tapeItem("Structured Access", <OpenDatabaseLink query="1x1">{access.structuredAccessCount}</OpenDatabaseLink>)}
@@ -6232,7 +6251,42 @@ useEffect(() => {
                         </div>
                       </div>
 
+                      <div style={{ gridColumn: "1 / -1", display: "grid", gap: "8px", padding: "10px 2px 12px", borderTop: "1px solid rgba(94,234,212,0.20)", borderBottom: "1px solid rgba(96,165,250,0.10)", background: "linear-gradient(90deg, rgba(20,184,166,0.08), rgba(37,99,235,0.05), transparent)" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
+                          <div>
+                            <div style={{ color: "#5eead4", fontSize: "10px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>Live Market Signals</div>
+                            <div style={{ color: "#9fb7d2", fontSize: "11.5px", marginTop: "2px" }}>What to look at first in the forward conference calendar.</div>
+                          </div>
+                          <OpenDatabaseLink query={peakWeek?.topMarketFocus || landscape.topMarketFocus || ""}>See event records</OpenDatabaseLink>
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(5, minmax(0, 1fr))", gap: "7px" }}>
+                          {liveSignals.map((signal) => (
+                            <button
+                              key={signal.label}
+                              type="button"
+                              onClick={signal.action}
+                              style={{
+                                minWidth: 0,
+                                textAlign: "left",
+                                borderRadius: "9px",
+                                border: "1px solid rgba(94,234,212,0.14)",
+                                background: "linear-gradient(180deg, rgba(8,34,58,0.72), rgba(4,18,32,0.58))",
+                                padding: "9px",
+                                cursor: "pointer",
+                                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#86a7c9", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.11em", textTransform: "uppercase" }}><span style={{ width: "6px", height: "6px", borderRadius: "999px", background: "#5eead4", boxShadow: "0 0 10px rgba(94,234,212,0.45)", flex: "0 0 auto" }} />{signal.label}</div>
+                              <div style={{ color: "#f4f8ff", fontSize: "13px", lineHeight: 1.2, fontWeight: 900, marginTop: "5px", overflowWrap: "anywhere" }}>{signal.value}</div>
+                              <div style={{ color: "#9fc0df", fontSize: "11px", lineHeight: 1.28, marginTop: "4px" }}>{signal.note}</div>
+                              <div style={{ color: "#7dd3fc", fontSize: "10.5px", fontWeight: 850, marginTop: "6px" }}>View events</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
                       <div style={primarySectionStyle}>
+                        {questionKicker("Which events have the strongest access value?")}
                         {sectionHeader("Access Quality Breakdown", "Issuer participation, 1x1 formats, company presentations, and deal-flow signals inside the forward conference calendar.")}
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
                           <div style={{ color: "#9fc0df", fontSize: "12px", lineHeight: 1.35 }}>The first signal is access quality: which events carry issuer participation, meeting formats, and deal-flow relevance.</div>
@@ -6265,13 +6319,21 @@ useEffect(() => {
                             })}
                           </div>
                         </div>
-                        <div style={{ display: "grid", gap: "7px" }}>
-                          <div style={{ display: "flex", gap: "4px", overflowX: "auto" }}>{accessTabLabels.map((tab) => <TabButton key={tab.key} active={tab.key === marketViewAccessTab} label={tab.label} onClick={() => setMarketViewAccessTab(tab.key)} />)}</div>
-                          <AccessWindowTable rows={activeAccessRows} />
+                        <div style={{ display: "grid", gap: "7px", borderTop: "1px solid rgba(107,157,210,0.10)", paddingTop: "7px" }}>
+                          <button type="button" onClick={() => setMarketViewAccessWindowsOpen((v) => !v)} style={{ ...actionLinkStyle, justifySelf: "start", color: "#93c5fd" }}>
+                            {marketViewAccessWindowsOpen ? "Hide access-window detail" : "Show access-window detail"}
+                          </button>
+                          {marketViewAccessWindowsOpen ? (
+                            <>
+                              <div style={{ display: "flex", gap: "4px", overflowX: "auto", paddingBottom: "2px" }}>{accessTabLabels.map((tab) => <TabButton key={tab.key} active={tab.key === marketViewAccessTab} label={tab.label} onClick={() => setMarketViewAccessTab(tab.key)} />)}</div>
+                              <AccessWindowTable rows={activeAccessRows} />
+                            </>
+                          ) : null}
                         </div>
                       </div>
 
                       <div style={primarySectionStyle}>
+                        {questionKicker("When does the calendar get crowded?")}
                         {sectionHeader("Conference Season Curve", "Weekly conference supply and access intensity across spring, summer, fall, and year-end windows.")}
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
                           <div style={{ color: "#9fc0df", fontSize: "12px", lineHeight: 1.35 }}>Once access quality is established, timing shows when the market is crowded, opening, or thinning out.</div>
@@ -6283,35 +6345,45 @@ useEffect(() => {
                           <div style={subPanelStyle}><CompactReadMore text={intelligence.seasonPulse.interpretation} maxChars={145} /></div>
                         </div>
                         <div style={{ display: "grid", gap: "5px" }}>
-                          <div style={{ color: "#7f99b8", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.12em", textTransform: "uppercase" }}>Weekly Intensity Timeline</div>
-                          <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(intelligence.weeklyIntensity.length, 1)}, minmax(18px, 1fr))`, alignItems: "end", gap: "3px", minHeight: "124px", maxHeight: "160px", overflowX: "auto", padding: "5px 0 2px" }}>
-                            {intelligence.weeklyIntensity.map((row, index) => {
-                              const isPeak = row.weekKey === peakWeek?.weekKey;
-                              const isCurrent = row.weekStart <= asOfIso && row.weekEnd >= asOfIso;
-                              const showMonth = index === 0 || row.weekStart.slice(5, 7) !== (intelligence.weeklyIntensity[index - 1]?.weekStart || "").slice(5, 7);
+                          <div style={{ color: "#7f99b8", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.12em", textTransform: "uppercase" }}>Season Runway</div>
+                          <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(4, minmax(0, 1fr))", gap: "7px" }}>
+                            {seasonRunway.map((row) => {
+                              const isPeakSeason = row.season === phaseLabel(peakWeek?.weekStart || "");
                               return (
-                                <div key={row.weekKey} title={`${row.label}: ${row.intensityScore} · ${phaseLabel(row.weekStart)}`} style={{ display: "grid", alignItems: "end", gridTemplateRows: "16px 1fr 14px", gap: "3px", minWidth: "18px" }}>
-                                  <div style={{ color: isPeak ? "#fbbf24" : isCurrent ? "#5eead4" : "transparent", fontSize: "9px", textAlign: "center", fontWeight: 900 }}>{isPeak ? "Peak" : isCurrent ? "Now" : "·"}</div>
-                                  <div style={{ alignSelf: "end", height: `${Math.max(4, Math.round((row.intensityScore / maxWeeklyScore) * 92))}px`, borderRadius: "4px 4px 1px 1px", background: isPeak ? "linear-gradient(180deg,#fbbf24,#f97316)" : isCurrent ? "linear-gradient(180deg,#5eead4,#2563eb)" : phaseLabel(row.weekStart) === "Fall" ? "linear-gradient(180deg,#93c5fd,#1d4ed8)" : phaseLabel(row.weekStart) === "Spring" ? "linear-gradient(180deg,#86efac,#2563eb)" : "linear-gradient(180deg,#a5b4fc,#334155)" }} />
-                                  <div style={{ color: showMonth ? "#8fa8c8" : "transparent", fontSize: "8.5px", textAlign: "center", whiteSpace: "nowrap" }}>{showMonth ? monthLabel(row.weekStart) : "·"}</div>
+                                <div key={row.season} style={{ borderRadius: "8px", border: isPeakSeason ? "1px solid rgba(251,191,36,0.35)" : "1px solid rgba(107,157,210,0.12)", background: isPeakSeason ? "rgba(251,191,36,0.08)" : "rgba(7,28,50,0.44)", padding: "9px", display: "grid", gap: "6px" }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "baseline" }}>
+                                    <div style={{ color: isPeakSeason ? "#fbbf24" : "#dbeafe", fontSize: "12px", fontWeight: 900 }}>{row.season}</div>
+                                    {isPeakSeason ? <span style={{ color: "#fbbf24", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.1em", textTransform: "uppercase" }}>Peak</span> : null}
+                                  </div>
+                                  <div style={{ height: "7px", borderRadius: "999px", background: "rgba(11,42,70,0.82)" }}><div style={{ width: `${Math.max(row.eventCount ? 5 : 0, Math.round((row.eventCount / maxSeasonEvents) * 100))}%`, height: "100%", borderRadius: "999px", background: isPeakSeason ? "linear-gradient(90deg,#fbbf24,#f97316)" : "linear-gradient(90deg,#5eead4,#60a5fa)" }} /></div>
+                                  <div style={{ color: "#9fc0df", fontSize: "11px", lineHeight: 1.3 }}>{row.eventCount} events · {row.accessCount} access signals</div>
+                                  {row.peak ? <button type="button" onClick={() => openWeek(row.peak)} style={actionLinkStyle}>Peak: {row.peak.label}</button> : <span style={{ color: "#7890ad", fontSize: "11px" }}>No dated activity</span>}
                                 </div>
                               );
                             })}
                           </div>
                         </div>
-                        <CompactTable minWidth="840px" headers={["Week", "Events", "Issuer", "Investor", "Structured", "Deal", "Avg", "Read-Through"]} rows={intelligence.weeklyIntensity.slice().sort((a, b) => b.intensityScore - a.intensityScore).slice(0, 5).map((row) => [
-                          <button key="week" type="button" onClick={() => openWeek(row)} style={actionLinkStyle}>{row.label}</button>,
-                          row.totalEvents,
-                          row.issuerAccessEvents,
-                          row.investorHeavyEvents,
-                          row.structuredAccessEvents,
-                          row.dealMakingEvents,
-                          row.averageDealAccessScore,
-                          <CompactReadMore key="r" text={row.readThrough} maxChars={115} />,
-                        ])} />
+                        <div style={{ display: "grid", gap: "7px", borderTop: "1px solid rgba(107,157,210,0.10)", paddingTop: "7px" }}>
+                          <button type="button" onClick={() => setMarketViewWeeklyTableOpen((v) => !v)} style={{ ...actionLinkStyle, justifySelf: "start", color: "#93c5fd" }}>
+                            {marketViewWeeklyTableOpen ? "Hide weekly table" : "Show weekly table"}
+                          </button>
+                          {marketViewWeeklyTableOpen ? (
+                            <CompactTable minWidth="840px" headers={["Week", "Events", "Issuer", "Investor", "Structured", "Deal", "Avg", "Read-Through"]} rows={intelligence.weeklyIntensity.slice().sort((a, b) => b.intensityScore - a.intensityScore).slice(0, 5).map((row) => [
+                              <button key="week" type="button" onClick={() => openWeek(row)} style={actionLinkStyle}>{row.label}</button>,
+                              row.totalEvents,
+                              row.issuerAccessEvents,
+                              row.investorHeavyEvents,
+                              row.structuredAccessEvents,
+                              row.dealMakingEvents,
+                              row.averageDealAccessScore,
+                              <CompactReadMore key="r" text={row.readThrough} maxChars={115} />,
+                            ])} />
+                          ) : null}
+                        </div>
                       </div>
 
                       <div style={sectionStyle}>
+                        {questionKicker("Where are the planning conflicts and white-space windows?")}
                         {sectionHeader("Hot Weeks, Cold Weeks & Cluster Weeks", "Crowded calendar windows, actionable white-space weeks, and future city clusters across the planning horizon.")}
                         <div style={{ color: "#8fa8c8", fontSize: "11.5px" }}>Major holiday weeks are excluded from cold-week white-space rankings; future peaks and clusters remain valid planning signals.</div>
                         <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: "8px" }}>
@@ -6331,6 +6403,7 @@ useEffect(() => {
                       </div>
 
                       <div style={sectionStyle}>
+                        {questionKicker("Which markets are getting the most conference coverage?")}
                         {sectionHeader("Sector & Market Focus Read-Through", "Sector coverage, public company categories, market focus, and capital formation themes in the forward calendar.")}
                         <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
                           <div style={subPanelStyle}><CompactReadMore text={sectorMomentum.available ? sectorMomentum.interpretation : sectorMomentum.reason} maxChars={175} /></div>
@@ -6344,6 +6417,7 @@ useEffect(() => {
                       </div>
 
                       <div style={sectionStyle}>
+                        {questionKicker("Which specific events are driving the signal?")}
                         {sectionHeader("Events Behind the Signal", "Highest-scoring events in the underlying event book by access, meetings, presentations, and deal-flow classifications.")}
                         <CompactTable minWidth="980px" headers={["Event", "Date", "City", "Organizer", "Focus", "Issuer Participation", "Character", "Sector", "Score"]} rows={access.topDealAccessEvents.map((event) => [
                           <LinkButton key="event" query={event.title}><TruncatedText text={event.title} maxWidth={260} /></LinkButton>,
@@ -6359,6 +6433,7 @@ useEffect(() => {
                       </div>
 
                       <div style={sectionStyle}>
+                        {questionKicker("Who is creating the most supply?")}
                         {sectionHeader("Organizer League Tables", "Organizer supply, conference pipeline, access quality, and supply-side concentration by ranking family.")}
                         <div style={{ color: "#9fc0df", fontSize: "12px", lineHeight: 1.35 }}>Organizer volume explains conference supply, while issuer-access and structured-access rankings point to stronger capital markets relevance. The upcoming 30-day tab is intentionally near-term; the rest of the league table supports the broader planning horizon.</div>
                         <div style={{ display: "flex", gap: "4px", overflowX: "auto", paddingBottom: "2px" }}>{organizerTabLabels.map((tab) => <TabButton key={tab.key} active={tab.key === marketViewOrganizerTab} label={tab.label} onClick={() => setMarketViewOrganizerTab(tab.key)} />)}</div>
@@ -6368,6 +6443,7 @@ useEffect(() => {
                       </div>
 
                       <div style={sectionStyle}>
+                        {questionKicker("Where is activity physically clustering?")}
                         {sectionHeader("Geography & City Concentration", "City concentration, regional footprint, and physical clustering as supporting context for access planning.")}
                         {activeGeoRows[0] ? <OpenDatabaseLink query={[activeGeoRows[0].city, activeGeoRows[0].state].filter(Boolean).join(", ")}>View city events</OpenDatabaseLink> : null}
                         <div style={{ display: "flex", gap: "4px", overflowX: "auto", paddingBottom: "2px" }}>{geographyTabLabels.map((tab) => <TabButton key={tab.key} active={tab.key === marketViewGeographyTab} label={tab.label} onClick={() => setMarketViewGeographyTab(tab.key)} />)}</div>
@@ -6375,6 +6451,7 @@ useEffect(() => {
                       </div>
 
                       <div style={sectionStyle}>
+                        {questionKicker("How complete is the classification layer?")}
                         {sectionHeader("Classification Coverage & Diligence Support", "Mapped fields, classification coverage, and confidence caveats for diligence support.")}
                         <CompactTable minWidth="520px" headers={["Field", "Populated", "Coverage"]} rows={intelligence.dataReadiness.fields.map((row) => [row.field, row.populatedCount, `${row.coveragePct}%`])} />
                         <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(4, minmax(0, 1fr))", gap: "7px" }}>
