@@ -14,9 +14,15 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const params = (searchParams ? await searchParams : {}) as SearchParamsShape;
   const qParam = params.q;
   const initialSearchQuery = Array.isArray(qParam) ? qParam[0] || "" : qParam || "";
-  const initialPage = await getDiscoveryPage({ q: initialSearchQuery, limit: 30 });
   const eventIdParam = params.eventId;
   const initialEventId = Array.isArray(eventIdParam) ? eventIdParam[0] || "" : eventIdParam || "";
+  const initialPage = await getDiscoveryPage({
+    q: initialSearchQuery,
+    eventIds: initialEventId ? [initialEventId] : undefined,
+    limit: 30,
+  });
+  const tickerPage = await getDiscoveryPage({ limit: 20 });
+  const tickerEvents = tickerPage.events.length ? tickerPage.events : initialPage.events;
   const modeParam = params.mode;
   const initialModeRaw = Array.isArray(modeParam) ? modeParam[0] || "" : modeParam || "";
   const initialMode =
@@ -49,6 +55,13 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                   : "dashboard"
       }
       searchQuery={initialSearchQuery}
+      tickerEvents={tickerEvents.map((event) => ({
+        id: event.id,
+        title: event.title,
+        startDate: event.startDate,
+        endDate: event.endDate,
+        city: event.city,
+      }))}
       workspaceMode={
         initialMode === "getstarted"
           ? "getstarted"

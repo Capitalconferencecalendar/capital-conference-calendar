@@ -220,8 +220,13 @@ async function getEvents(): Promise<EventRow[]> {
     .filter((event) => event.startDate);
 }
 
+function splitMultiValue(value: string): string[] {
+  return value.split(/[;,]/).map((item) => item.trim()).filter(Boolean);
+}
+
 function matchesMulti(value: string, selected: string[]): boolean {
-  return selected.length === 0 || selected.includes(value);
+  const values = splitMultiValue(value);
+  return selected.length === 0 || selected.every((item) => values.includes(item));
 }
 
 function matchesQuery(event: EventRow, query: string): boolean {
@@ -313,14 +318,7 @@ export async function GET(request: NextRequest) {
       .filter((event) =>
         matchesMulti(event.issuerParticipation, issuerParticipation)
       )
-      .filter(
-        (event) =>
-          sectorThemes.length === 0 ||
-          event.sectorThemes
-            .split(";")
-            .map((value) => value.trim())
-            .some((value) => sectorThemes.includes(value))
-      )
+      .filter((event) => matchesMulti(event.sectorThemes, sectorThemes))
       .filter((event) => matchesMulti(event.city, cities))
       .filter((event) => matchesMulti(event.state, states))
       .filter((event) => matchesMulti(event.region, regions))

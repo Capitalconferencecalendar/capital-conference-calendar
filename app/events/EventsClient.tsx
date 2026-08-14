@@ -41,9 +41,9 @@ type RecentActivity = { id: string; type: "event" | "feed" | "view"; label: stri
 
 type FiltersState = {
   dateRange: "next30" | "next60" | "next90" | "all";
-  country: string;
-  region: string;
-  state: string;
+  country: string[];
+  region: string[];
+  state: string[];
   cities: string[];
   sectorThemes: string[];
   conferenceType: string[];
@@ -144,7 +144,9 @@ type DiscoveryAggregateStats = {
   verified: number;
   hotWeeks: number;
   highestActivityWeek: { label: string; count: number } | null;
+  lowestActivityWeek: { label: string; count: number } | null;
   leadingSector: { label: string; count: number } | null;
+  mostActiveDealWeek: { label: string; count: number } | null;
   earliestDate: string | null;
   latestDate: string | null;
   latestVerificationStamp: string | null;
@@ -252,7 +254,9 @@ function normalizeDiscoveryAggregateStats(stats?: Partial<DiscoveryAggregateStat
     verified: stats?.verified || 0,
     hotWeeks: stats?.hotWeeks || 0,
     highestActivityWeek: stats?.highestActivityWeek || null,
+    lowestActivityWeek: stats?.lowestActivityWeek || null,
     leadingSector: stats?.leadingSector || null,
+    mostActiveDealWeek: stats?.mostActiveDealWeek || null,
     earliestDate: stats?.earliestDate || null,
     latestDate: stats?.latestDate || null,
     latestVerificationStamp: stats?.latestVerificationStamp || null,
@@ -301,9 +305,9 @@ function normalizeMarketViewAnalytics(analytics?: Partial<MarketViewAnalytics>):
 
 const DEFAULT_FILTERS: FiltersState = {
   dateRange: "all",
-  country: "",
-  region: "",
-  state: "",
+  country: [],
+  region: [],
+  state: [],
   cities: [],
   sectorThemes: [],
   conferenceType: [],
@@ -311,6 +315,28 @@ const DEFAULT_FILTERS: FiltersState = {
   organizer: [],
   marketFocus: [],
 };
+
+type MultiFilterKey = Exclude<keyof FiltersState, "dateRange">;
+
+function toFilterValues(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string" && Boolean(item));
+  return typeof value === "string" && value ? [value] : [];
+}
+
+function normalizeFiltersState(value: Partial<FiltersState> | Record<string, unknown>): FiltersState {
+  return {
+    dateRange: value.dateRange === "next30" || value.dateRange === "next60" || value.dateRange === "next90" || value.dateRange === "all" ? value.dateRange : "all",
+    country: toFilterValues(value.country),
+    region: toFilterValues(value.region),
+    state: toFilterValues(value.state),
+    cities: toFilterValues(value.cities),
+    sectorThemes: toFilterValues(value.sectorThemes),
+    conferenceType: toFilterValues(value.conferenceType),
+    issuerParticipation: toFilterValues(value.issuerParticipation),
+    organizer: toFilterValues(value.organizer),
+    marketFocus: toFilterValues(value.marketFocus),
+  };
+}
 
 function unique(values: string[]) {
   return Array.from(new Set(values.filter(Boolean))).sort((a, b) => a.localeCompare(b));
@@ -1473,7 +1499,7 @@ export default function EventsClient({
       if (lists) setSavedLists(JSON.parse(lists));
       if (views) setSavedViews(JSON.parse(views));
       if (selected) setSelectedEvents(JSON.parse(selected));
-      if (recentFilters) setFilters({ ...DEFAULT_FILTERS, ...JSON.parse(recentFilters) });
+      if (recentFilters) setFilters(normalizeFiltersState(JSON.parse(recentFilters)));
       if (recentActivityRaw) setRecentActivity(JSON.parse(recentActivityRaw));
     } catch {
       // ignore local storage parse issues
@@ -1483,6 +1509,16 @@ export default function EventsClient({
   useEffect(() => {
     setDashboardMode(initialMode);
   }, [initialMode]);
+
+  const toggleFilterValue = useCallback((key: MultiFilterKey, value: string) => {
+    if (!value) return;
+    setFilters((previous) => ({
+      ...previous,
+      [key]: previous[key].includes(value)
+        ? previous[key].filter((item) => item !== value)
+        : [...previous[key], value],
+    }));
+  }, []);
 
   useEffect(() => {
     const mobileMq = window.matchMedia("(max-width: 767px)");
@@ -1692,9 +1728,9 @@ export default function EventsClient({
     if (searchQuery) params.set("q", searchQuery);
     if (fromDate) params.set("fromDate", fromDate);
     if (toDate) params.set("toDate", toDate);
-    if (filters.country) params.set("country", filters.country);
-    if (filters.region) params.set("region", filters.region);
-    if (filters.state) params.set("state", filters.state);
+    filters.country.forEach((value) => params.append("country", value));
+    filters.region.forEach((value) => params.append("region", value));
+    filters.state.forEach((value) => params.append("state", value));
     filters.cities.forEach((value) => params.append("city", value));
     filters.sectorThemes.forEach((value) => params.append("sectorTheme", value));
     filters.conferenceType.forEach((value) => params.append("conferenceType", value));
@@ -1772,15 +1808,24 @@ export default function EventsClient({
         },
       });
     }
-    if (filters.country) chips.push({ key: "country", label: filters.country, clear: () => setFilters((p) => ({ ...p, country: "" })) });
-    if (filters.region) chips.push({ key: "region", label: filters.region, clear: () => setFilters((p) => ({ ...p, region: "" })) });
-    if (filters.state) chips.push({ key: "state", label: filters.state, clear: () => setFilters((p) => ({ ...p, state: "" })) });
-    if (filters.cities[0]) chips.push({ key: "city", label: filters.cities[0], clear: () => setFilters((p) => ({ ...p, cities: [] })) });
-    if (filters.sectorThemes[0]) chips.push({ key: "theme", label: filters.sectorThemes[0], clear: () => setFilters((p) => ({ ...p, sectorThemes: [] })) });
-    if (filters.conferenceType[0]) chips.push({ key: "type", label: filters.conferenceType[0], clear: () => setFilters((p) => ({ ...p, conferenceType: [] })) });
-    if (filters.marketFocus[0]) chips.push({ key: "focus", label: filters.marketFocus[0], clear: () => setFilters((p) => ({ ...p, marketFocus: [] })) });
-    if (filters.issuerParticipation[0]) chips.push({ key: "issuer", label: filters.issuerParticipation[0], clear: () => setFilters((p) => ({ ...p, issuerParticipation: [] })) });
-    if (filters.organizer[0]) chips.push({ key: "organizer", label: filters.organizer[0], clear: () => setFilters((p) => ({ ...p, organizer: [] })) });
+    const addChips = (key: MultiFilterKey, labelPrefix = "") => {
+      filters[key].forEach((value) => {
+        chips.push({
+          key: `${key}:${value}`,
+          label: `${labelPrefix}${value}`,
+          clear: () => setFilters((p) => ({ ...p, [key]: p[key].filter((item) => item !== value) })),
+        });
+      });
+    };
+    addChips("country");
+    addChips("region");
+    addChips("state");
+    addChips("cities");
+    addChips("sectorThemes");
+    addChips("conferenceType");
+    addChips("marketFocus");
+    addChips("issuerParticipation");
+    addChips("organizer");
     if (filters.dateRange !== "all") chips.push({ key: "dateRange", label: `Date: ${filters.dateRange.replace("next", "Next ").toUpperCase()}`, clear: () => setFilters((p) => ({ ...p, dateRange: "all" })) });
     if (fromDate || toDate) {
       const fromLabel = fromDate ? formatMonthDay(fromDate) : "Start";
@@ -1826,10 +1871,10 @@ useEffect(() => {
     };
   }, [initialEventId, dashboardMode, workspaceViewMode, filteredEvents]);
 
-  const locationActiveCount = [filters.country, filters.region, filters.state, filters.cities[0]].filter(Boolean).length;
-  const marketSegmentsActiveCount = [filters.sectorThemes[0], filters.conferenceType[0], filters.marketFocus[0]].filter(Boolean).length;
-  const participationActiveCount = [filters.issuerParticipation[0]].filter(Boolean).length;
-  const organizersActiveCount = [filters.organizer[0]].filter(Boolean).length;
+  const locationActiveCount = filters.country.length + filters.region.length + filters.state.length + filters.cities.length;
+  const marketSegmentsActiveCount = filters.sectorThemes.length + filters.conferenceType.length + filters.marketFocus.length;
+  const participationActiveCount = filters.issuerParticipation.length;
+  const organizersActiveCount = filters.organizer.length;
 
   const selectedSet = useMemo(() => new Set(selectedEvents), [selectedEvents]);
   const buildCalendarWeeks = useCallback((source: WorkspaceEvent[]) => {
@@ -2708,7 +2753,9 @@ useEffect(() => {
         { label: "Investor-Heavy", value: stats.investorHeavy, tone: "#22c55e" },
         { label: "Issuer Access", value: stats.issuerAccess, tone: "#8b5cf6" },
         { label: "Highest Activity Week", value: stats.highestActivityWeek?.label || "—", detail: stats.highestActivityWeek ? `${stats.highestActivityWeek.count} events` : "", tone: "#38d5c4", compact: true },
+        { label: "Lowest Activity Week", value: stats.lowestActivityWeek?.label || "—", detail: stats.lowestActivityWeek ? `${stats.lowestActivityWeek.count} events` : "", tone: "#78aaff", compact: true },
         { label: "Leading Sector", value: stats.leadingSector?.label || "Not classified", detail: stats.leadingSector ? `${stats.leadingSector.count} events` : "", tone: "#8fbfff", compact: true },
+        { label: "Most Active Deal Week", value: stats.mostActiveDealWeek?.label || "—", detail: stats.mostActiveDealWeek ? `${stats.mostActiveDealWeek.count} deal-making events` : "", tone: "#fbbf24", compact: true },
       ],
       earliestDate: stats.earliestDate,
       latestDate: stats.latestDate,
@@ -3025,7 +3072,7 @@ useEffect(() => {
       return;
     }
     if (key === "canada-events") {
-      applyPreset({ country: "Canada" });
+      applyPreset({ country: ["Canada"] });
       return;
     }
     if (key === "upcoming-30-days") {
@@ -3037,7 +3084,7 @@ useEffect(() => {
       return;
     }
     if (key === "u-s-markets") {
-      applyPreset({ country: "United States", region: "" });
+      applyPreset({ country: ["United States"], region: [] });
       return;
     }
     if (key === "west-coast") {
@@ -3047,7 +3094,7 @@ useEffect(() => {
       } else {
         const westRegion = regions.find((r) => /west/i.test(r));
         if (westRegion) {
-          applyPreset({ region: westRegion });
+          applyPreset({ region: [westRegion] });
         } else {
           applyPreset({});
         }
@@ -3231,9 +3278,9 @@ useEffect(() => {
     const parts: string[] = [];
     const locationLabel =
       filters.cities[0] ||
-      filters.state ||
-      filters.region ||
-      filters.country ||
+      filters.state[0] ||
+      filters.region[0] ||
+      filters.country[0] ||
       "";
     const dateLabel =
       fromDate && toDate
@@ -3277,9 +3324,9 @@ useEffect(() => {
     })();
 
     if (searchQuery.trim()) params.set("q", searchQuery.trim());
-    appendMany("country", filters.country ? [filters.country] : []);
-    appendMany("region", filters.region ? [filters.region] : []);
-    appendMany("state", filters.state ? [filters.state] : []);
+    appendMany("country", filters.country);
+    appendMany("region", filters.region);
+    appendMany("state", filters.state);
     appendMany("city", filters.cities);
     appendMany("sectorTheme", filters.sectorThemes);
     appendMany("category", filters.conferenceType);
@@ -3735,15 +3782,15 @@ useEffect(() => {
                   </select>
                   <input type="date" value={fromDate} onChange={(e)=>{setFromDate(e.target.value); if (!toDate || e.target.value > toDate) setToDate(e.target.value);}} style={{ ...controlStyle, padding: "0 8px" }} />
                   <input type="date" value={toDate} min={fromDate || undefined} onChange={(e)=>setToDate(e.target.value)} style={{ ...controlStyle, padding: "0 8px" }} />
-                  <select value={filters.country} onChange={(e) => setFilters((p) => ({ ...p, country: e.target.value }))} style={controlStyle}><option value="">All Country</option>{countries.map((o, i) => <option key={`m-country-${o}-${i}`} value={o}>{o}</option>)}</select>
-                  <select value={filters.region} onChange={(e) => setFilters((p) => ({ ...p, region: e.target.value }))} style={controlStyle}><option value="">All Region</option>{regions.map((o, i) => <option key={`m-region-${o}-${i}`} value={o}>{o}</option>)}</select>
-                  <select value={filters.state} onChange={(e) => setFilters((p) => ({ ...p, state: e.target.value }))} style={controlStyle}><option value="">All State</option>{states.map((o, i) => <option key={`m-state-${o}-${i}`} value={o}>{o}</option>)}</select>
-                  <select value={filters.cities[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, cities: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Cities</option>{cities.map((o, i) => <option key={`m-city-${o}-${i}`} value={o}>{o}</option>)}</select>
-                  <select value={filters.conferenceType[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, conferenceType: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Types</option>{conferenceTypes.map((o, i) => <option key={`m-type-${o}-${i}`} value={o}>{o}</option>)}</select>
-                  <select value={filters.issuerParticipation[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, issuerParticipation: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Issuer Participation</option>{issuers.map((o, i) => <option key={`m-issuer-${o}-${i}`} value={o}>{o}</option>)}</select>
-                  <select value={filters.sectorThemes[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, sectorThemes: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Sectors / Themes</option>{themes.map((o, i) => <option key={`m-theme-${o}-${i}`} value={o}>{o}</option>)}</select>
-                  <select value={filters.marketFocus[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, marketFocus: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Market Focus</option>{marketFocusOptions.map((o, i) => <option key={`m-focus-${o}-${i}`} value={o}>{o}</option>)}</select>
-                  <select value={filters.organizer[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, organizer: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Organizers</option>{organizers.map((o, i) => <option key={`m-org-${o}-${i}`} value={o}>{o}</option>)}</select>
+                  <select aria-label="Country" value="" onChange={(e) => { toggleFilterValue("country", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.country.length ? `${filters.country.length} countries selected` : "All Country"}</option>{countries.map((o, i) => <option key={`m-country-${o}-${i}`} value={o}>{filters.country.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                  <select aria-label="Region" value="" onChange={(e) => { toggleFilterValue("region", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.region.length ? `${filters.region.length} regions selected` : "All Region"}</option>{regions.map((o, i) => <option key={`m-region-${o}-${i}`} value={o}>{filters.region.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                  <select aria-label="State" value="" onChange={(e) => { toggleFilterValue("state", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.state.length ? `${filters.state.length} states selected` : "All State"}</option>{states.map((o, i) => <option key={`m-state-${o}-${i}`} value={o}>{filters.state.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                  <select aria-label="Cities" value="" onChange={(e) => { toggleFilterValue("cities", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.cities.length ? `${filters.cities.length} cities selected` : "All Cities"}</option>{cities.map((o, i) => <option key={`m-city-${o}-${i}`} value={o}>{filters.cities.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                  <select aria-label="Conference types" value="" onChange={(e) => { toggleFilterValue("conferenceType", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.conferenceType.length ? `${filters.conferenceType.length} types selected` : "All Types"}</option>{conferenceTypes.map((o, i) => <option key={`m-type-${o}-${i}`} value={o}>{filters.conferenceType.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                  <select aria-label="Issuer participation" value="" onChange={(e) => { toggleFilterValue("issuerParticipation", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.issuerParticipation.length ? `${filters.issuerParticipation.length} selected` : "All Issuer Participation"}</option>{issuers.map((o, i) => <option key={`m-issuer-${o}-${i}`} value={o}>{filters.issuerParticipation.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                  <select aria-label="Sectors and themes" value="" onChange={(e) => { toggleFilterValue("sectorThemes", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.sectorThemes.length ? `${filters.sectorThemes.length} themes selected` : "All Sectors / Themes"}</option>{themes.map((o, i) => <option key={`m-theme-${o}-${i}`} value={o}>{filters.sectorThemes.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                  <select aria-label="Market focus" value="" onChange={(e) => { toggleFilterValue("marketFocus", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.marketFocus.length ? `${filters.marketFocus.length} focus areas selected` : "All Market Focus"}</option>{marketFocusOptions.map((o, i) => <option key={`m-focus-${o}-${i}`} value={o}>{filters.marketFocus.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                  <select aria-label="Organizers" value="" onChange={(e) => { toggleFilterValue("organizer", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.organizer.length ? `${filters.organizer.length} organizers selected` : "All Organizers"}</option>{organizers.map((o, i) => <option key={`m-org-${o}-${i}`} value={o}>{filters.organizer.includes(o) ? `✓ ${o}` : o}</option>)}</select>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", position: "sticky", bottom: 0, background: "linear-gradient(180deg, rgba(4,14,30,0), rgba(4,14,30,0.96) 26%)", paddingTop: "8px" }}>
                     <button type="button" onClick={clearWorkspaceView} style={{ height: "36px", borderRadius: "9px", border: "1px solid rgba(147,197,253,0.26)", background: "rgba(8,22,48,0.7)", color: "#dbeafe", fontWeight: 700 }}>Reset</button>
                     <button type="button" onClick={() => setMobilePanel(null)} style={{ height: "36px", borderRadius: "9px", border: "1px solid rgba(59,130,246,0.45)", background: "rgba(37,99,235,0.3)", color: "#fff", fontWeight: 700 }}>Apply</button>
@@ -3819,9 +3866,9 @@ useEffect(() => {
         style={{ position: "relative", alignSelf: "stretch", display: "grid", gap: "8px", minWidth: 0, minHeight: 0, width: "100%", maxWidth: "280px", height: PANEL_HEIGHT, maxHeight: PANEL_HEIGHT, overflow: "hidden", paddingRight: "2px" }}
       >
         <div style={{ height: "100%", maxHeight: "100%", overflowY: "auto", overflowX: "hidden", overscrollBehaviorY: "contain", WebkitOverflowScrolling: "touch", paddingRight: "4px", paddingBottom: "6px" }}>
-        <div style={{ ...leftRailSectionCardStyle, width: "100%", maxWidth: "100%", overflow: "hidden", padding: "10px" }}>
+        <div style={{ width: "100%", maxWidth: "100%", overflow: "visible", padding: "10px 0" }}>
           <div style={{ marginBottom: "10px" }}>
-            <div style={{ fontWeight: 900, color: "#dbeafe", fontSize: "20px", lineHeight: 1.05, marginBottom: "6px" }}>Refine Your Market View</div>
+            <div style={{ fontWeight: 900, color: "#dbeafe", fontSize: "20px", lineHeight: 1.05, marginBottom: "6px", textAlign: "center" }}>Refine Your Market View</div>
             <div style={{ color: "#93aeca", fontSize: "12px", lineHeight: 1.35, marginBottom: "8px" }}>
               Filter conferences by date, location, theme, and participation.
             </div>
@@ -3927,24 +3974,24 @@ useEffect(() => {
                     ) : null}
                     {group.key === "location" ? (
                       <>
-                        <select value={filters.country} onChange={(e) => setFilters((p) => ({ ...p, country: e.target.value }))} style={controlStyle}><option value="">All Country</option>{countries.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}</select>
-                        <select value={filters.region} onChange={(e) => setFilters((p) => ({ ...p, region: e.target.value }))} style={controlStyle}><option value="">All Region</option>{regions.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}</select>
-                        <select value={filters.state} onChange={(e) => setFilters((p) => ({ ...p, state: e.target.value }))} style={controlStyle}><option value="">All State</option>{states.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}</select>
-                        <select value={filters.cities[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, cities: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Cities</option>{cities.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}</select>
+                        <select aria-label="Country" value="" onChange={(e) => { toggleFilterValue("country", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.country.length ? `${filters.country.length} countries selected` : "All Country"}</option>{countries.map((o, index) => <option key={`${o}-${index}`} value={o}>{filters.country.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                        <select aria-label="Region" value="" onChange={(e) => { toggleFilterValue("region", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.region.length ? `${filters.region.length} regions selected` : "All Region"}</option>{regions.map((o, index) => <option key={`${o}-${index}`} value={o}>{filters.region.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                        <select aria-label="State" value="" onChange={(e) => { toggleFilterValue("state", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.state.length ? `${filters.state.length} states selected` : "All State"}</option>{states.map((o, index) => <option key={`${o}-${index}`} value={o}>{filters.state.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                        <select aria-label="Cities" value="" onChange={(e) => { toggleFilterValue("cities", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.cities.length ? `${filters.cities.length} cities selected` : "All Cities"}</option>{cities.map((o, index) => <option key={`${o}-${index}`} value={o}>{filters.cities.includes(o) ? `✓ ${o}` : o}</option>)}</select>
                       </>
                     ) : null}
                     {group.key === "marketSegments" ? (
                       <>
-                        <select value={filters.sectorThemes[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, sectorThemes: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Sectors / Themes</option>{themes.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}</select>
-                        <select value={filters.conferenceType[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, conferenceType: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Types</option>{conferenceTypes.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}</select>
-                        <select value={filters.marketFocus[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, marketFocus: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Market Focus</option>{marketFocusOptions.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}</select>
+                        <select aria-label="Sectors and themes" value="" onChange={(e) => { toggleFilterValue("sectorThemes", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.sectorThemes.length ? `${filters.sectorThemes.length} themes selected` : "All Sectors / Themes"}</option>{themes.map((o, index) => <option key={`${o}-${index}`} value={o}>{filters.sectorThemes.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                        <select aria-label="Conference types" value="" onChange={(e) => { toggleFilterValue("conferenceType", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.conferenceType.length ? `${filters.conferenceType.length} types selected` : "All Types"}</option>{conferenceTypes.map((o, index) => <option key={`${o}-${index}`} value={o}>{filters.conferenceType.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                        <select aria-label="Market focus" value="" onChange={(e) => { toggleFilterValue("marketFocus", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.marketFocus.length ? `${filters.marketFocus.length} focus areas selected` : "All Market Focus"}</option>{marketFocusOptions.map((o, index) => <option key={`${o}-${index}`} value={o}>{filters.marketFocus.includes(o) ? `✓ ${o}` : o}</option>)}</select>
                       </>
                     ) : null}
                     {group.key === "participation" ? (
-                      <select value={filters.issuerParticipation[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, issuerParticipation: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Issuer Participation</option>{issuers.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}</select>
+                      <select aria-label="Issuer participation" value="" onChange={(e) => { toggleFilterValue("issuerParticipation", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.issuerParticipation.length ? `${filters.issuerParticipation.length} selected` : "All Issuer Participation"}</option>{issuers.map((o, index) => <option key={`${o}-${index}`} value={o}>{filters.issuerParticipation.includes(o) ? `✓ ${o}` : o}</option>)}</select>
                     ) : null}
                     {group.key === "organizers" ? (
-                      <select value={filters.organizer[0] || ""} onChange={(e) => setFilters((p) => ({ ...p, organizer: e.target.value ? [e.target.value] : [] }))} style={controlStyle}><option value="">All Organizers</option>{organizers.map((o, index) => <option key={`${o}-${index}`} value={o}>{o}</option>)}</select>
+                      <select aria-label="Organizers" value="" onChange={(e) => { toggleFilterValue("organizer", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.organizer.length ? `${filters.organizer.length} organizers selected` : "All Organizers"}</option>{organizers.map((o, index) => <option key={`${o}-${index}`} value={o}>{filters.organizer.includes(o) ? `✓ ${o}` : o}</option>)}</select>
                     ) : null}
                   </div>
                 ) : null}
@@ -4406,13 +4453,10 @@ useEffect(() => {
           ) : null}
           <div
             style={{
-              borderRadius: "16px",
-              border: "1px solid rgba(107,157,210,0.18)",
-              background: "rgba(5, 24, 42, 0.82)",
-              padding: "14px 18px 10px",
+              padding: "8px 18px 12px",
               marginBottom: "14px",
               display: "grid",
-              gap: "8px",
+              gap: "12px",
             }}
           >
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "14px", flexWrap: "wrap" }}>
@@ -4423,7 +4467,7 @@ useEffect(() => {
                 <div style={{ fontSize: "24px", fontWeight: 900, lineHeight: 1.02, color: "#f8fbff", letterSpacing: "-0.03em" }}>
                   Conference Intelligence Discovery
                 </div>
-                <div style={{ fontSize: "13px", lineHeight: 1.3, color: "#b8cbe0", marginTop: "4px", maxWidth: "720px" }}>
+                <div style={{ fontSize: "13px", lineHeight: 1.3, color: "#b8cbe0", marginTop: "6px", maxWidth: "720px" }}>
                   Explore verified conferences with timing, audience, participation, and market-context signals.
                 </div>
               </div>
@@ -4468,46 +4512,36 @@ useEffect(() => {
             </div>
 
             <div
+              className="discovery-header-metrics"
               style={{
                 display: "grid",
-                gridTemplateColumns: isTabletViewport || isMobileViewport ? "repeat(2, minmax(0, 1fr))" : "repeat(5, minmax(0, 1fr))",
-                border: "1px solid rgba(107,157,210,0.14)",
-                borderRadius: "12px",
-                overflow: "hidden",
-                marginTop: "0",
+                gridTemplateColumns: "repeat(7, minmax(0, max-content))",
+                width: "100%",
+                maxWidth: "100%",
+                marginTop: "10px",
               }}
             >
               {discoveryHeaderMetrics.metrics.map((metric, index) => (
                 <div
                   key={metric.label}
+                  className="discovery-header-metric"
                   style={{
-                    padding: "7px 10px",
-                    minHeight: "38px",
+                    padding: "6px 14px",
+                    minHeight: "36px",
                     display: "grid",
-                    gap: "1px",
-                    borderLeft:
-                      isTabletViewport || isMobileViewport
-                        ? index % 2 === 0
-                          ? "none"
-                          : "1px solid rgba(107,157,210,0.14)"
-                        : index === 0
-                          ? "none"
-                          : "1px solid rgba(107,157,210,0.14)",
-                    borderTop:
-                      (isTabletViewport || isMobileViewport) && index > 1
-                        ? "1px solid rgba(107,157,210,0.14)"
-                        : "none",
-                    background: "rgba(7, 28, 48, 0.64)",
+                    gap: "2px",
+                    borderLeft: index === 0 ? "none" : "1px solid rgba(96,165,250,0.45)",
+                    boxShadow: index === 0 ? "none" : "-1px 0 10px rgba(59,130,246,0.16)",
                   }}
                 >
-                  <div style={{ fontSize: "8px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", color: metric.tone }}>
+                  <div style={{ fontSize: "9px", fontWeight: 900, letterSpacing: "0.1em", lineHeight: 1.05, textTransform: "uppercase", color: metric.tone, marginBottom: "1px" }}>
                     {metric.label}
                   </div>
-                  <div style={{ fontSize: metric.compact ? "13px" : "15px", fontWeight: 800, lineHeight: 1.05, color: "#ffffff" }}>
+                  <div style={{ fontSize: metric.compact ? "14px" : "17px", fontWeight: 800, lineHeight: 1.02, color: "#ffffff" }}>
                     {metric.value}
                   </div>
                   {metric.detail ? (
-                    <div style={{ fontSize: "8px", fontWeight: 600, color: "#8fa8c3", lineHeight: 1.15 }}>
+                    <div style={{ fontSize: "9px", fontWeight: 600, color: "#8fa8c3", lineHeight: 1.1, marginTop: "1px" }}>
                       {metric.detail}
                     </div>
                   ) : null}
@@ -4515,7 +4549,7 @@ useEffect(() => {
               ))}
             </div>
 
-            <div style={{ fontSize: "10px", color: "#9fb4ca", marginTop: "0", display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            <div style={{ fontSize: "10px", color: "#9fb4ca", marginTop: "2px", display: "flex", gap: "12px", flexWrap: "wrap" }}>
               <span style={{ fontSize: "9px", fontWeight: 700, color: "#8fa8c3" }}>
                 Stats based on filtered view.
               </span>
@@ -7001,51 +7035,6 @@ useEffect(() => {
                       <div style={{ color: "#8bbcff", fontSize: "11px", fontWeight: 900, letterSpacing: ".14em", textTransform: "uppercase" }}>Calendar View</div>
                     </div>
 
-                    <div
-                      style={{
-                        background: "linear-gradient(180deg, rgba(9,34,54,0.72), rgba(7,28,46,0.68))",
-                        border: "1px solid rgba(107, 157, 210, 0.12)",
-                        borderRadius: "14px",
-                        padding: "7px 9px",
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: "6px",
-                      }}
-                    >
-                      {[
-                        { label: `${calendarSummary.eventCount} conferences shown`, tone: "#dbeafe" },
-                        { label: `${calendarSummary.activeWeeks} active weeks`, tone: "#dbeafe" },
-                        { label: `Top city: ${calendarSummary.topCity}`, tone: "#2dd4bf" },
-                        { label: `Peak week: ${calendarSummary.nextHotWeek ? formatWeekLabel(calendarSummary.nextHotWeek.weekStart) : "N/A"}`, tone: "#f59e0b" },
-                        { label: `Top focus: ${calendarSummary.topFocus}`, tone: "#8b5cf6" },
-                        { label: `Top organizer: ${calendarSummary.topOrganizer}`, tone: "#60a5fa" },
-                        { label: `Investor-heavy: ${calendarSummary.investorHeavyCount}`, tone: "#22c55e" },
-                        { label: `Issuer-heavy: ${calendarSummary.issuerHeavyCount}`, tone: "#8b5cf6" },
-                        { label: `Cluster windows: ${calendarSummary.clusterWindows}`, tone: "#14b8a6" },
-                        ...(calendarSummary.limitedData ? [{ label: "Limited signal data for this filtered view", tone: "#fbbf24" }] : []),
-                      ].map((chip) => (
-                        <span
-                          key={chip.label}
-                          style={{
-                            height: "28px",
-                            padding: "0 10px",
-                            borderRadius: "999px",
-                            background: "rgba(4, 19, 34, 0.44)",
-                            border: "1px solid rgba(107, 157, 210, 0.12)",
-                            fontSize: "11px",
-                            fontWeight: 800,
-                            color: "#dbeafe",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "8px",
-                          }}
-                        >
-                          <span style={{ width: "8px", height: "8px", borderRadius: "999px", background: chip.tone, boxShadow: `0 0 0 3px ${chip.tone}22` }} />
-                          {chip.label}
-                        </span>
-                      ))}
-                    </div>
-
                     {filteredEvents.length === 0 ? (
                       <div style={{ border: "1px solid rgba(96,165,250,0.18)", borderRadius: "16px", background: "rgba(6,22,40,0.52)", padding: "20px 18px", color: "#c7dcf6", fontSize: "15px", lineHeight: 1.5 }}>
                         No conferences match this calendar view.
@@ -8594,9 +8583,6 @@ useEffect(() => {
             height: "100%",
             maxHeight: "100%",
             overflow: "hidden",
-            borderRadius: "18px",
-            background: "rgba(4, 18, 34, 0.92)",
-            border: "1px solid rgba(90, 130, 180, 0.22)",
           }}
         >
           <div style={{ height: "100%", maxHeight: "100%", overflowY: "auto", overflowX: "hidden", overscrollBehaviorY: "contain", WebkitOverflowScrolling: "touch", padding: "16px", display: "grid", gap: "10px" }}>

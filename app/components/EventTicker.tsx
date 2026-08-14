@@ -137,9 +137,11 @@ export default async function EventTicker({ events: providedEvents }: EventTicke
 
   const tickerLoops = events.length === 1 ? 12 : 3;
   const duplicated = Array.from({ length: tickerLoops }, () => events).flat();
-  // Keep movement readable, but do not let a larger event list turn the ticker
-  // into an almost-static multi-minute animation.
-  const tickerDurationSeconds = Math.min(72, Math.max(38, events.length * 3));
+  // The track repeats the same set three times for a seamless loop. Give each
+  // complete set its own slow reading interval rather than dividing that time
+  // across all duplicated copies.
+  const tickerPassSeconds = Math.max(55, events.length * 2.75);
+  const tickerDurationSeconds = tickerPassSeconds * tickerLoops;
 
   return (
     <div
@@ -199,12 +201,9 @@ export default async function EventTicker({ events: providedEvents }: EventTicke
 
       <div className="ccc-ticker-viewport" style={{ minWidth: 0, flex: 1, overflow: "hidden" }}>
         <div
-          className="ccc-ticker-track"
+          className={`ccc-ticker-track${duplicated.length > 1 ? "" : " ccc-ticker-track-static"}`}
           style={{
-            animation:
-              duplicated.length > 1
-                ? `cccTickerScroll ${tickerDurationSeconds}s linear infinite`
-                : "none",
+            animationDuration: `${tickerDurationSeconds}s`,
           }}
         >
           {duplicated.map((event, index) => (

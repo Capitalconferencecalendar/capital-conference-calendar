@@ -99,11 +99,11 @@ function TopNavLink({
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        minWidth: compact ? "62px" : "78px",
-        maxWidth: compact ? "74px" : label === "Contact" ? "84px" : "80px",
-        height: compact ? "44px" : "46px",
-        padding: compact ? "3px 5px" : "0 12px",
-        borderRadius: "10px",
+        minWidth: compact ? "62px" : label === "Submit" ? "72px" : "64px",
+        maxWidth: compact ? "74px" : label === "Contact" ? "74px" : label === "Submit" ? "76px" : "68px",
+        height: compact ? "44px" : "36px",
+        padding: compact ? "3px 5px" : "0 10px",
+        borderRadius: compact ? "10px" : "8px",
         color: isActive ? "#ffffff" : "#1e293b",
         background: isActive
           ? "linear-gradient(180deg, #1d4f91 0%, #0f3d75 100%)"
@@ -118,7 +118,7 @@ function TopNavLink({
           : isSubmit
             ? "0 0 0 1px rgba(113, 176, 255, 0.18), 0 0 14px rgba(65, 132, 255, 0.2)"
             : "0 1px 4px rgba(15, 23, 42, 0.05)",
-        fontSize: compact ? "9px" : "12px",
+        fontSize: compact ? "9px" : "10.5px",
         fontWeight: isDesktopSecondary ? 560 : 850,
         letterSpacing: compact ? "0" : "0.01em",
         lineHeight: 1,
@@ -162,7 +162,7 @@ function WorkspaceNavButton({
         boxShadow: isActive
           ? "0 0 0 1px rgba(59,130,246,0.18)"
           : "0 6px 16px rgba(22, 61, 145, 0.16), inset 0 1px 0 rgba(255,255,255,0.05)",
-        fontSize: "11px",
+        fontSize: label === "Discovery" || label === "Market View" ? "13px" : "11px",
         fontWeight: 850,
         letterSpacing: "0.01em",
         lineHeight: 1,
@@ -260,7 +260,7 @@ export default function Header({
             loading="eager"
             decoding="sync"
             style={{
-              height: compactNav ? "42px" : "58px",
+              height: compactNav ? "42px" : "38px",
               width: "auto",
               objectFit: "contain",
               display: "block",
@@ -524,6 +524,17 @@ export default function Header({
             </>
           ) : (
             <>
+              <span
+                aria-hidden="true"
+                style={{
+                  width: "1px",
+                  height: "28px",
+                  marginLeft: "10px",
+                  marginRight: "12px",
+                  background: "rgba(107,157,210,0.24)",
+                  flex: "0 0 auto",
+                }}
+              />
               <TopNavLink
                 href="/?mode=about"
                 label="About"
@@ -533,16 +544,6 @@ export default function Header({
                 href="/?mode=contact"
                 label="Contact"
                 isActive={active === "help"}
-              />
-              <TopNavLink
-                href="/?mode=legal"
-                label="Legal"
-                isActive={active === "legal"}
-              />
-              <TopNavLink
-                href="/?mode=subscribe"
-                label="Subscribe"
-                isActive={active === "subscribe"}
               />
               <TopNavLink
                 href="/?mode=submit"

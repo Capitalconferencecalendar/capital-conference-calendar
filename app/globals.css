@@ -255,11 +255,15 @@ body {
   will-change: transform;
 }
 
+.ccc-ticker-track-static {
+  animation-name: none;
+}
+
 .ccc-ticker-shell:hover .ccc-ticker-track,
 .ccc-ticker-shell:focus-within .ccc-ticker-track,
 .ccc-ticker-viewport:hover .ccc-ticker-track,
 .ccc-ticker-viewport:focus-within .ccc-ticker-track {
-  animation-play-state: paused;
+  animation-play-state: paused !important;
 }
 
 .ccc-ticker-item {
@@ -546,6 +550,22 @@ body {
   min-height: 0;
 }
 
+/* Keep the rails visually distinct from the working surface without adding another card layer. */
+.ccc-scroll-rail-left,
+.ccc-scroll-rail-right {
+  background: linear-gradient(180deg, rgba(2, 16, 30, 0.5), rgba(2, 16, 30, 0.18));
+}
+
+.ccc-scroll-rail-left {
+  border-right: 1px solid rgba(205, 220, 239, 0.2);
+  box-shadow: 10px 0 20px -22px rgba(196, 214, 238, 0.9);
+}
+
+.ccc-scroll-rail-right {
+  border-left: 1px solid rgba(205, 220, 239, 0.2);
+  box-shadow: -10px 0 20px -22px rgba(196, 214, 238, 0.9);
+}
+
 .center-workspace {
   min-width: 0;
   width: 100%;
@@ -573,6 +593,61 @@ body {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
+}
+
+.discovery-header-metrics {
+  align-items: stretch;
+  column-gap: 0;
+  row-gap: 12px;
+}
+
+.discovery-header-metric {
+  min-width: 0;
+}
+
+@media (max-width: 2000px) {
+  .discovery-header-metrics {
+    grid-template-columns: repeat(6, minmax(0, max-content)) !important;
+  }
+
+  .discovery-header-metric:nth-child(7) {
+    grid-column: 1 / span 2;
+    border-left: none !important;
+    box-shadow: none !important;
+  }
+}
+
+@media (max-width: 1600px) {
+  .discovery-header-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .discovery-header-metric:nth-child(4),
+  .discovery-header-metric:nth-child(7) {
+    border-left: none !important;
+    box-shadow: none !important;
+  }
+
+  .discovery-header-metric:nth-child(7) {
+    grid-column: 2;
+  }
+}
+
+@media (max-width: 980px) {
+  .discovery-header-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .discovery-header-metric:nth-child(3),
+  .discovery-header-metric:nth-child(5),
+  .discovery-header-metric:nth-child(7) {
+    border-left: none !important;
+    box-shadow: none !important;
+  }
+
+  .discovery-header-metric:nth-child(7) {
+    grid-column: auto;
+  }
 }
 
 .hero-grid {

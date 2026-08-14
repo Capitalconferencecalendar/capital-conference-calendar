@@ -54,7 +54,9 @@ export type DiscoveryAggregateStats = {
   verified: number;
   hotWeeks: number;
   highestActivityWeek: { label: string; count: number } | null;
+  lowestActivityWeek: { label: string; count: number } | null;
   leadingSector: { label: string; count: number } | null;
+  mostActiveDealWeek: { label: string; count: number } | null;
   earliestDate: string | null;
   latestDate: string | null;
   latestVerificationStamp: string | null;
@@ -157,9 +159,9 @@ export type DiscoveryQuery = {
   dateRange?: "next30" | "next60" | "next90" | "all";
   fromDate?: string;
   toDate?: string;
-  country?: string;
-  region?: string;
-  state?: string;
+  country?: string[];
+  region?: string[];
+  state?: string[];
   cities?: string[];
   sectorThemes?: string[];
   conferenceType?: string[];
@@ -249,34 +251,47 @@ async function fetchApprovedEvents(): Promise<DiscoveryEvent[]> {
   const token = process.env.AIRTABLE_TOKEN;
   if (!baseId || !tableName || !token) throw new Error("Missing Airtable environment variables.");
 
-  const records: AirtableRecord[] = [];
-  let offset: string | undefined;
-  do {
-    const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`);
-    url.searchParams.set("pageSize", "100");
-    if (offset) url.searchParams.set("offset", offset);
-    let response: Response | undefined;
-    let lastError: unknown;
-    // Airtable occasionally drops a connection; successful pages are cached briefly
-    // so ordinary navigation does not repeatedly re-fetch the entire dataset.
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        response = await fetch(url.toString(), {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: "force-cache",
-          next: { revalidate: 60 },
-        });
-        if (response.ok || response.status < 500) break;
-      } catch (error) {
-        lastError = error;
-      }
+  // Airtable cursors can be invalidated while a table is being updated. Restart
+  // the read-only collection once instead of letting that transient 422 take the
+  // whole application down.
+  let records: AirtableRecord[] = [];
+  let lastError: unknown;
+  for (let collectionAttempt = 0; collectionAttempt < 2; collectionAttempt += 1) {
+    records = [];
+    let offset: string | undefined;
+    try {
+      do {
+        const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`);
+        url.searchParams.set("pageSize", "100");
+        if (offset) url.searchParams.set("offset", offset);
+        let response: Response | undefined;
+        let pageError: unknown;
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          try {
+            response = await fetch(url.toString(), {
+              headers: { Authorization: `Bearer ${token}` },
+              cache: "force-cache",
+              next: { revalidate: 60 },
+            });
+            if (response.ok) break;
+            pageError = new Error(`Airtable fetch failed: ${response.status} ${response.statusText}`);
+          } catch (error) {
+            pageError = error;
+          }
+        }
+        if (!response?.ok) throw pageError || new Error("Airtable request did not return a response.");
+        const data = await response.json();
+        records.push(...(data.records || []));
+        offset = data.offset;
+      } while (offset);
+      break;
+    } catch (error) {
+      lastError = error;
+      if (collectionAttempt === 1) throw error;
     }
-    if (!response) throw lastError || new Error("Airtable request did not return a response.");
-    if (!response.ok) throw new Error(`Airtable fetch failed: ${response.status} ${response.statusText}`);
-    const data = await response.json();
-    records.push(...(data.records || []));
-    offset = data.offset;
-  } while (offset);
+  }
+
+  if (!records.length && lastError) throw lastError;
 
   return records
     .filter((record) => isWebsiteApproved(record.fields || {}))
@@ -597,7 +612,9 @@ function aggregate(events: DiscoveryEvent[]): DiscoveryAggregateStats {
     weekCounts.set(weekStart, (weekCounts.get(weekStart) || 0) + 1);
   });
 
-  const highestWeek = Array.from(weekCounts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+  const rankedWeeks = Array.from(weekCounts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const highestWeek = rankedWeeks[0];
+  const lowestWeek = rankedWeeks.slice().sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))[0];
   const hotWeekCount = Array.from(weekCounts.values()).filter((count) => count >= 8).length;
   const sectorCounts = new Map<string, number>();
   events.forEach((event) => {
@@ -607,6 +624,25 @@ function aggregate(events: DiscoveryEvent[]): DiscoveryAggregateStats {
     sectors.forEach((sector) => sectorCounts.set(sector, (sectorCounts.get(sector) || 0) + 1));
   });
   const leadingSector = Array.from(sectorCounts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+  const formatWeek = (week: [string, number]) => {
+    const start = new Date(`${week[0]}T00:00:00Z`);
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 6);
+    return `${start.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}–${end.toLocaleDateString("en-US", { day: "numeric", timeZone: "UTC" })}`;
+  };
+  const dealWeekCounts = new Map<string, number>();
+  events
+    .filter((event) => splitCsv(event.eventCharacter || "").some((value) => value.toLowerCase() === "deal-making and partnering"))
+    .forEach((event) => {
+      const start = new Date(`${event.startDate}T00:00:00Z`);
+      const timestamp = start.getTime();
+      if (!Number.isFinite(timestamp) || timestamp < todayUtc) return;
+      const day = start.getUTCDay();
+      start.setUTCDate(start.getUTCDate() + (day === 0 ? -6 : 1 - day));
+      const week = start.toISOString().slice(0, 10);
+      dealWeekCounts.set(week, (dealWeekCounts.get(week) || 0) + 1);
+    });
+  const mostActiveDealWeek = Array.from(dealWeekCounts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
   const dated = events.filter((event) => event.startDate).slice().sort((a, b) => a.startDate.localeCompare(b.startDate));
   const verificationStamps = unique(events.map((event) => event.verificationStamp?.slice(0, 10) || "")).sort((a, b) => a.localeCompare(b));
 
@@ -623,16 +659,13 @@ function aggregate(events: DiscoveryEvent[]): DiscoveryAggregateStats {
     hotWeeks: hotWeekCount,
     highestActivityWeek: highestWeek
       ? {
-          label: (() => {
-            const start = new Date(`${highestWeek[0]}T00:00:00Z`);
-            const end = new Date(start);
-            end.setUTCDate(end.getUTCDate() + 6);
-            return `${start.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}–${end.toLocaleDateString("en-US", { day: "numeric", timeZone: "UTC" })}`;
-          })(),
+          label: formatWeek(highestWeek),
           count: highestWeek[1],
         }
       : null,
+    lowestActivityWeek: lowestWeek ? { label: formatWeek(lowestWeek), count: lowestWeek[1] } : null,
     leadingSector: leadingSector ? { label: leadingSector[0], count: leadingSector[1] } : null,
+    mostActiveDealWeek: mostActiveDealWeek ? { label: formatWeek(mostActiveDealWeek), count: mostActiveDealWeek[1] } : null,
     earliestDate: dated[0]?.startDate || null,
     latestDate: dated[dated.length - 1]?.endDate || dated[dated.length - 1]?.startDate || null,
     latestVerificationStamp: verificationStamps[verificationStamps.length - 1] || null,
@@ -664,8 +697,8 @@ function encodeCursor(index: number) {
   return Buffer.from(String(index), "utf8").toString("base64url");
 }
 
-function hasAnyMatch(values: string[], candidates: string[]) {
-  return values.length === 0 || candidates.some((candidate) => values.includes(candidate));
+function hasAllMatches(values: string[], candidates: string[]) {
+  return values.length === 0 || values.every((value) => candidates.includes(value));
 }
 
 function filterEvents(events: DiscoveryEvent[], query: DiscoveryQuery) {
@@ -685,15 +718,15 @@ function filterEvents(events: DiscoveryEvent[], query: DiscoveryQuery) {
     if (futureOnly && startTime < todayTime) return false;
     if (query.fromDate && event.startDate < query.fromDate) return false;
     if (query.toDate && event.startDate > query.toDate) return false;
-    if (query.country && event.country !== query.country) return false;
-    if (query.region && event.region !== query.region) return false;
-    if (query.state && event.state !== query.state) return false;
-    if (!hasAnyMatch(query.cities || [], [[event.city, event.state].filter(Boolean).join(", ")])) return false;
-    if (!hasAnyMatch(query.conferenceType || [], [event.primaryCategory])) return false;
-    if (!hasAnyMatch(query.issuerParticipation || [], [event.issuerParticipation])) return false;
-    if (!hasAnyMatch(query.organizer || [], [event.organizer])) return false;
-    if (!hasAnyMatch(query.marketFocus || [], splitCsv(event.marketFocus))) return false;
-    if (!hasAnyMatch(query.sectorThemes || [], splitCsv(event.sectorThemes))) return false;
+    if (!hasAllMatches(query.country || [], [event.country])) return false;
+    if (!hasAllMatches(query.region || [], [event.region])) return false;
+    if (!hasAllMatches(query.state || [], [event.state])) return false;
+    if (!hasAllMatches(query.cities || [], [[event.city, event.state].filter(Boolean).join(", ")])) return false;
+    if (!hasAllMatches(query.conferenceType || [], [event.primaryCategory])) return false;
+    if (!hasAllMatches(query.issuerParticipation || [], splitCsv(event.issuerParticipation))) return false;
+    if (!hasAllMatches(query.organizer || [], [event.organizer])) return false;
+    if (!hasAllMatches(query.marketFocus || [], splitCsv(event.marketFocus))) return false;
+    if (!hasAllMatches(query.sectorThemes || [], splitCsv(event.sectorThemes))) return false;
     if (ids.size && !ids.has(event.id)) return false;
     if (!search) return true;
     return [event.title, event.organizer, event.city, event.state, event.primaryCategory, event.marketFocus, event.sectorThemes]
