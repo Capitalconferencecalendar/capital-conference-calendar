@@ -1474,6 +1474,9 @@ export default function EventsClient({
   const [marketViewDataset, setMarketViewDataset] = useState<"all" | "filtered">("all");
   const [marketViewRange, setMarketViewRange] = useState<"8w" | "30d" | "90d">("8w");
   const [marketViewOrganizerTab, setMarketViewOrganizerTab] = useState<"overallVolume" | "issuerAccess" | "investorHeavy" | "structuredAccess" | "dealAccess" | "upcoming30Days" | "geographicBreadth">("overallVolume");
+  const [marketViewAccessTab, setMarketViewAccessTab] = useState<"issuerAccess" | "investorHeavy" | "structuredAccess" | "dealMaking">("issuerAccess");
+  const [marketViewSignalTab, setMarketViewSignalTab] = useState<"sector" | "focus" | "character">("sector");
+  const [marketViewGeographyTab, setMarketViewGeographyTab] = useState<"dealAccess" | "total" | "issuerAccess" | "investorHeavy">("dealAccess");
   const [concentrationExpanded, setConcentrationExpanded] = useState(false);
   const [insightsExpanded, setInsightsExpanded] = useState(false);
   const [filterGroupsOpen, setFilterGroupsOpen] = useState({
@@ -5915,8 +5918,26 @@ useEffect(() => {
                   const character = intelligence.eventCharacterMix;
                   const organizerTables = intelligence.organizerLeagueTables;
                   const geo = intelligence.geographyClusters;
+                  const asOfIso = new Date().toISOString().slice(0, 10);
                   const maxWeeklyScore = Math.max(...intelligence.weeklyIntensity.map((row) => row.intensityScore), 1);
                   const maxCharacterCount = Math.max(...character.rows.map((row) => row.count), 1);
+                  const peakWeek = intelligence.weeklyIntensity.slice().sort((a, b) => b.intensityScore - a.intensityScore)[0];
+                  const actionableColdWeeks = intelligence.coldWeeks.top.filter((row) => row.totalEvents > 0).slice(0, 5);
+                  const dedupedClusters = intelligence.clusterWeeks.top.reduce<typeof intelligence.clusterWeeks.top>((acc, cluster) => {
+                    const existingIndex = acc.findIndex((item) => {
+                      const overlap = cluster.events.filter((event) => item.events.includes(event)).length;
+                      const overlapShare = overlap / Math.max(1, Math.min(cluster.events.length, item.events.length));
+                      return item.city === cluster.city && overlapShare >= 0.6;
+                    });
+                    if (existingIndex === -1) return [...acc, cluster];
+                    const existing = acc[existingIndex];
+                    if (cluster.clusterScore > existing.clusterScore || (cluster.clusterScore === existing.clusterScore && cluster.eventCount > existing.eventCount)) {
+                      const next = acc.slice();
+                      next[existingIndex] = cluster;
+                      return next;
+                    }
+                    return acc;
+                  }, []).slice(0, 5);
                   const organizerTabLabels: Array<{ key: typeof marketViewOrganizerTab; label: string }> = [
                     { key: "overallVolume", label: "Overall Volume" },
                     { key: "issuerAccess", label: "Issuer Access" },
@@ -5926,44 +5947,79 @@ useEffect(() => {
                     { key: "upcoming30Days", label: "Upcoming 30 Days" },
                     { key: "geographicBreadth", label: "Geographic Breadth" },
                   ];
+                  const accessTabLabels: Array<{ key: typeof marketViewAccessTab; label: string; rows: typeof intelligence.issuerAccessWindows }> = [
+                    { key: "issuerAccess", label: "Issuer Access", rows: intelligence.issuerAccessWindows },
+                    { key: "investorHeavy", label: "Investor-Heavy", rows: intelligence.investorHeavyWindows },
+                    { key: "structuredAccess", label: "Structured Access", rows: intelligence.structuredAccessWindows },
+                    { key: "dealMaking", label: "Deal-Making", rows: intelligence.dealMakingWindows },
+                  ];
+                  const signalTabLabels: Array<{ key: typeof marketViewSignalTab; label: string }> = [
+                    { key: "sector", label: "Public Company Sector" },
+                    { key: "focus", label: "Market Focus" },
+                    { key: "character", label: "Event Character" },
+                  ];
+                  const geographyTabLabels: Array<{ key: typeof marketViewGeographyTab; label: string; rows: typeof geo.topCitiesByTotalEvents }> = [
+                    { key: "dealAccess", label: "Deal/Access Score", rows: geo.topCitiesByDealAccessScore },
+                    { key: "total", label: "Total Events", rows: geo.topCitiesByTotalEvents },
+                    { key: "issuerAccess", label: "Issuer Access", rows: geo.topCitiesByIssuerAccess },
+                    { key: "investorHeavy", label: "Investor-Heavy", rows: geo.topCitiesByInvestorHeavyEvents },
+                  ];
+                  const activeAccessRows = accessTabLabels.find((tab) => tab.key === marketViewAccessTab)?.rows || [];
                   const activeOrganizerRows = organizerTables[marketViewOrganizerTab];
                   const activeOrganizerInterpretation = organizerTables.interpretations[marketViewOrganizerTab];
+                  const activeGeoRows = geographyTabLabels.find((tab) => tab.key === marketViewGeographyTab)?.rows || [];
                   const viewLabel = marketViewDataset === "all" ? "All Conferences" : "Current Filtered View";
                   const sectionStyle: CSSProperties = {
                     gridColumn: "1 / -1",
                     display: "grid",
-                    gap: "10px",
-                    padding: "13px",
-                    borderRadius: "10px",
+                    gap: "8px",
+                    padding: "10px",
+                    borderRadius: "8px",
                     border: "1px solid rgba(107,157,210,0.14)",
                     background: "linear-gradient(180deg, rgba(7,28,50,0.96), rgba(4,18,32,0.98))",
-                    boxShadow: "0 10px 20px rgba(0,0,0,0.12)",
+                    boxShadow: "0 8px 16px rgba(0,0,0,0.12)",
                     minWidth: 0,
                   };
+                  const subPanelStyle: CSSProperties = { borderRadius: "7px", border: "1px solid rgba(107,157,210,0.10)", background: "rgba(9,36,61,0.48)", padding: "8px", minWidth: 0 };
                   const sectionHeader = (title: string, subtitle: string) => (
-                    <div style={{ display: "grid", gap: "3px", minWidth: 0 }}>
-                      <div style={{ color: "#8fbfff", fontSize: "10px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>{viewLabel}</div>
-                      <div style={{ color: "#f4f8ff", fontSize: "20px", lineHeight: 1.12, fontWeight: 900 }}>{title}</div>
-                      <div style={{ color: "#a9bdd6", fontSize: "12.5px", lineHeight: 1.35 }}>{subtitle}</div>
+                    <div style={{ display: "grid", gap: "2px", minWidth: 0 }}>
+                      <div style={{ color: "#8fbfff", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>{viewLabel}</div>
+                      <div style={{ color: "#f4f8ff", fontSize: "19px", lineHeight: 1.1, fontWeight: 900 }}>{title}</div>
+                      <div style={{ color: "#a9bdd6", fontSize: "12px", lineHeight: 1.32 }}>{subtitle}</div>
                     </div>
                   );
-                  const metric = (label: string, value: ReactNode, sub?: ReactNode) => (
-                    <div style={{ minWidth: 0, borderRadius: "8px", border: "1px solid rgba(107,157,210,0.11)", background: "rgba(9,36,61,0.58)", padding: "9px 10px", display: "grid", gap: "3px" }}>
-                      <div style={{ color: "#7f99b8", fontSize: "10px", fontWeight: 950, letterSpacing: "0.11em", textTransform: "uppercase" }}>{label}</div>
-                      <div style={{ color: "#f4f8ff", fontSize: "21px", lineHeight: 1, fontWeight: 900, overflowWrap: "anywhere" }}>{value}</div>
-                      {sub ? <div style={{ color: "#adc2db", fontSize: "11.5px", lineHeight: 1.3 }}>{sub}</div> : null}
+                  const stat = (label: string, value: ReactNode) => (
+                    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "8px", alignItems: "baseline", borderBottom: "1px solid rgba(107,157,210,0.08)", padding: "4px 0" }}>
+                      <span style={{ color: "#7f99b8", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.11em", textTransform: "uppercase", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+                      <span style={{ color: "#f4f8ff", fontSize: "18px", lineHeight: 1, fontWeight: 900 }}>{value}</span>
                     </div>
                   );
-                  const tableWrap: CSSProperties = { overflowX: "auto", borderRadius: "8px", border: "1px solid rgba(107,157,210,0.12)", background: "rgba(4,18,32,0.32)" };
-                  const tableStyle: CSSProperties = { width: "100%", minWidth: "860px", borderCollapse: "collapse", fontSize: "12px" };
-                  const thStyle: CSSProperties = { padding: "7px 8px", color: "#7f99b8", fontSize: "10px", fontWeight: 950, letterSpacing: "0.11em", textTransform: "uppercase", borderBottom: "1px solid rgba(107,157,210,0.13)", textAlign: "left", whiteSpace: "nowrap" };
-                  const tdStyle: CSSProperties = { padding: "7px 8px", color: "#c8d8ec", borderBottom: "1px solid rgba(107,157,210,0.08)", verticalAlign: "top", lineHeight: 1.32 };
+                  const tapeItem = (label: string, value: ReactNode) => (
+                    <div style={{ flex: "0 0 auto", display: "inline-flex", alignItems: "baseline", gap: "7px", height: "28px", padding: "0 10px", borderRadius: "999px", border: "1px solid rgba(107,157,210,0.16)", background: "rgba(9,36,61,0.62)" }}>
+                      <span style={{ color: "#8fa8c8", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.12em", textTransform: "uppercase" }}>{label}</span>
+                      <span style={{ color: "#f4f8ff", fontSize: "16px", fontWeight: 900 }}>{value}</span>
+                    </div>
+                  );
+                  const tableWrap: CSSProperties = { overflowX: "auto", borderRadius: "7px", border: "1px solid rgba(107,157,210,0.12)", background: "rgba(4,18,32,0.32)" };
+                  const tableStyle: CSSProperties = { width: "100%", minWidth: "760px", borderCollapse: "collapse", fontSize: "11.5px" };
+                  const thStyle: CSSProperties = { padding: "6px 7px", color: "#7f99b8", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.11em", textTransform: "uppercase", borderBottom: "1px solid rgba(107,157,210,0.13)", textAlign: "left", whiteSpace: "nowrap" };
+                  const tdStyle: CSSProperties = { padding: "6px 7px", color: "#c8d8ec", borderBottom: "1px solid rgba(107,157,210,0.08)", verticalAlign: "top", lineHeight: 1.28 };
                   const eventSearchHref = (title: string) => `/?mode=market&workspace=database&q=${encodeURIComponent(title)}`;
                   const signed = (value: number) => value > 0 ? `+${value}` : String(value);
                   const percent = (value: number | null) => value === null ? "N/A" : `${signed(value)}%`;
-                  const CompactTable = ({ headers, rows }: { headers: string[]; rows: ReactNode[][] }) => (
+                  const phaseLabel = (weekStart: string) => {
+                    const month = Number(weekStart.slice(5, 7));
+                    if (month >= 3 && month <= 5) return "Spring";
+                    if (month >= 6 && month <= 8) return "Summer";
+                    if (month >= 9 && month <= 11) return "Fall";
+                    return "Year-End";
+                  };
+                  const TabButton = ({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) => (
+                    <button type="button" onClick={onClick} style={{ flex: "0 0 auto", height: "26px", padding: "0 9px", borderRadius: "7px", border: active ? "1px solid rgba(125,180,255,0.34)" : "1px solid rgba(107,157,210,0.14)", background: active ? "rgba(47,111,243,0.72)" : "rgba(9,36,61,0.52)", color: active ? "#fff" : "#a8bdd8", fontSize: "11px", fontWeight: 850, cursor: "pointer" }}>{label}</button>
+                  );
+                  const CompactTable = ({ headers, rows, minWidth = "760px" }: { headers: string[]; rows: ReactNode[][]; minWidth?: string }) => (
                     <div style={tableWrap}>
-                      <table style={tableStyle}>
+                      <table style={{ ...tableStyle, minWidth }}>
                         <thead><tr>{headers.map((header) => <th key={header} style={thStyle}>{header}</th>)}</tr></thead>
                         <tbody>
                           {rows.length ? rows.map((row, rowIndex) => (
@@ -5974,7 +6030,7 @@ useEffect(() => {
                     </div>
                   );
                   const AccessWindowTable = ({ rows }: { rows: typeof intelligence.issuerAccessWindows }) => (
-                    <CompactTable headers={["Week", "Count", "Share", "Top City", "Top Organizer", "Top Sector", "Top Focus", "Interpretation"]} rows={rows.map((row) => [
+                    <CompactTable minWidth="900px" headers={["Week", "Count", "Share", "Top City", "Top Organizer", "Top Sector", "Top Focus", "Interpretation"]} rows={rows.map((row) => [
                       row.label,
                       row.count,
                       `${row.shareOfWeekActivity}%`,
@@ -5982,11 +6038,11 @@ useEffect(() => {
                       row.topOrganizer || "N/A",
                       row.topSector || "N/A",
                       row.topMarketFocus || "N/A",
-                      <CompactReadMore key="i" text={row.interpretation} maxChars={120} />,
+                      <CompactReadMore key="i" text={row.interpretation} maxChars={115} />,
                     ])} />
                   );
                   const GeographyTable = ({ rows }: { rows: typeof geo.topCitiesByTotalEvents }) => (
-                    <CompactTable headers={["City", "Events", "Issuer Access", "Investor-Heavy", "Structured", "Deal-Making", "Avg Score", "Top Focus", "Top Sector", "Next Event"]} rows={rows.map((row) => [
+                    <CompactTable minWidth="940px" headers={["City", "Events", "Issuer", "Investor", "Structured", "Deal", "Avg", "Top Focus", "Top Sector", "Next Event"]} rows={rows.map((row) => [
                       [row.city, row.state].filter(Boolean).join(", "),
                       row.totalEvents,
                       row.issuerAccessEvents,
@@ -6001,52 +6057,160 @@ useEffect(() => {
                   );
 
                   return (
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(12, minmax(0, 1fr))", gap: "12px", width: "100%" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(12, minmax(0, 1fr))", gap: "10px", width: "100%" }}>
                       <div style={sectionStyle}>
-                        <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "minmax(0, 1fr) auto", gap: "12px", alignItems: "start" }}>
-                          {sectionHeader("Market Landscape Snapshot", "CCC's current conference universe by classification depth, capital access, issuer participation, organizer supply, and market focus.")}
-                          <div style={{ display: "inline-flex", maxWidth: "100%", gap: "4px", padding: "4px", borderRadius: "10px", background: "rgba(4,18,34,0.72)", border: "1px solid rgba(107,157,210,0.20)", flexWrap: "wrap", justifySelf: isMobileViewport ? "stretch" : "end" }}>
-                            {[{ key: "all" as const, label: "All Conferences" }, { key: "filtered" as const, label: "Current Filtered View" }].map((option) => (
-                              <button key={option.key} type="button" onClick={() => setMarketViewDataset(option.key)} style={{ height: "28px", padding: "0 11px", borderRadius: "8px", border: option.key === marketViewDataset ? "1px solid rgba(125,180,255,0.26)" : "1px solid transparent", background: option.key === marketViewDataset ? "rgba(47,111,243,0.84)" : "transparent", color: option.key === marketViewDataset ? "#ffffff" : "#a8bdd8", fontSize: "11.5px", fontWeight: 850, cursor: "pointer" }}>{option.label}</button>
-                            ))}
+                        <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "minmax(0, 1.3fr) minmax(260px, 0.7fr)", gap: "12px", alignItems: "start" }}>
+                          <div style={{ display: "grid", gap: "8px" }}>
+                            {sectionHeader("Market Readout", "Capital markets conference intelligence from CCC's classified event universe.")}
+                            <div style={{ color: "#d9e8fb", fontSize: "13px", lineHeight: 1.45 }}>
+                              CCC is tracking {intelligence.coverage.dedupedEventCount} deduped conferences across {landscape.organizersCount} organizers and {landscape.citiesCount} cities. The current conference universe shows {access.issuerAccessCount} issuer-access events, {access.structuredAccessCount} structured-access events, and {access.dealMakingCount} deal-making / partnering events, with {intelligence.seasonPulse.strongestSeasonLanguage.toLowerCase()} emerging as the strongest visible phase.
+                            </div>
+                            <div style={{ color: "#a9bdd6", fontSize: "12.5px", lineHeight: 1.42 }}>
+                              The primary read-through is access quality, not geography: issuer participation, 1x1 formats, company presentations, and meeting-driven activity are concentrated in a smaller subset of the overall conference market.
+                            </div>
+                          </div>
+                          <div style={{ ...subPanelStyle, display: "grid", gap: "2px" }}>
+                            <div style={{ display: "inline-flex", maxWidth: "100%", gap: "4px", padding: "3px", borderRadius: "8px", background: "rgba(4,18,34,0.72)", border: "1px solid rgba(107,157,210,0.18)", flexWrap: "wrap", marginBottom: "5px" }}>
+                              {[{ key: "all" as const, label: "All Conferences" }, { key: "filtered" as const, label: "Current Filtered View" }].map((option) => (
+                                <button key={option.key} type="button" onClick={() => setMarketViewDataset(option.key)} style={{ height: "24px", padding: "0 9px", borderRadius: "6px", border: option.key === marketViewDataset ? "1px solid rgba(125,180,255,0.26)" : "1px solid transparent", background: option.key === marketViewDataset ? "rgba(47,111,243,0.84)" : "transparent", color: option.key === marketViewDataset ? "#ffffff" : "#a8bdd8", fontSize: "11px", fontWeight: 850, cursor: "pointer" }}>{option.label}</button>
+                              ))}
+                            </div>
+                            {stat("Deduped", intelligence.coverage.dedupedEventCount)}
+                            {stat("Raw Records", intelligence.coverage.rawEventCount)}
+                            {stat("Suppressed", intelligence.coverage.duplicateSuppressionCount)}
+                            {stat("Organizers", landscape.organizersCount)}
+                            {stat("Cities", landscape.citiesCount)}
+                            {stat("Focus Areas", landscape.marketFocusCount)}
+                            {stat("Public Co. Sectors", landscape.publicCompanySectorCount)}
+                            {stat("Event Characters", landscape.eventCharacterCount)}
+                            {stat("Current Season", landscape.seasonLanguage)}
                           </div>
                         </div>
-                        <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "repeat(2, minmax(0, 1fr))" : "repeat(5, minmax(0, 1fr))", gap: "7px" }}>
-                          {metric("Deduped Conferences", intelligence.coverage.dedupedEventCount)}
-                          {metric("Raw Records", intelligence.coverage.rawEventCount)}
-                          {metric("Duplicate Suppression", intelligence.coverage.duplicateSuppressionCount)}
-                          {metric("Organizers", landscape.organizersCount)}
-                          {metric("Cities", landscape.citiesCount)}
-                          {metric("Market Focus Areas", landscape.marketFocusCount)}
-                          {metric("Public Company Sectors", landscape.publicCompanySectorCount)}
-                          {metric("Event Characters", landscape.eventCharacterCount)}
-                          {metric("Current Season", landscape.seasonLanguage, "season pulse")}
-                        </div>
-                        <div style={{ borderRadius: "8px", background: "rgba(37,99,235,0.10)", border: "1px solid rgba(96,165,250,0.15)", padding: "9px 10px", color: "#cbe1fb", fontSize: "12.5px", lineHeight: 1.4 }}>
-                          CCC is tracking {intelligence.coverage.dedupedEventCount} deduped conferences across {landscape.organizersCount} organizers and {landscape.citiesCount} cities, with classification coverage across market focus, issuer participation, sector/category, and event character.
+                      </div>
+
+                      <div style={{ ...sectionStyle, padding: "8px 10px" }}>
+                        <div style={{ color: "#8fbfff", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>Capital Access Tape</div>
+                        <div style={{ display: "flex", gap: "6px", overflowX: "auto", flexWrap: isMobileViewport ? "wrap" : "nowrap" }}>
+                          {tapeItem("Issuer Access", access.issuerAccessCount)}
+                          {tapeItem("Investor-Heavy", access.investorHeavyCount)}
+                          {tapeItem("Structured Access", access.structuredAccessCount)}
+                          {tapeItem("Deal-Making", access.dealMakingCount)}
+                          {tapeItem("Company Presentations", access.companyPresentationCount)}
+                          {tapeItem("1x1", access.oneOnOneCount)}
+                          {tapeItem("Mixed", access.mixedParticipationCount)}
+                          {tapeItem("No Issuer", access.noIssuerParticipationCount)}
+                          {tapeItem("Avg Access Score", access.averageDealAccessScore)}
                         </div>
                       </div>
 
                       <div style={sectionStyle}>
-                        {sectionHeader("Where Are the Deals?", "Issuer access, structured meetings, company presentations, and deal-making signals across the current conference universe.")}
-                        <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "repeat(2, minmax(0, 1fr))" : "repeat(9, minmax(0, 1fr))", gap: "7px" }}>
-                          {metric("Issuer Access", access.issuerAccessCount)}
-                          {metric("Investor-Heavy", access.investorHeavyCount)}
-                          {metric("Structured Access", access.structuredAccessCount)}
-                          {metric("Deal-Making", access.dealMakingCount)}
-                          {metric("Company Presentations", access.companyPresentationCount)}
-                          {metric("1x1 Meetings", access.oneOnOneCount)}
-                          {metric("Mixed Participation", access.mixedParticipationCount)}
-                          {metric("No Issuer", access.noIssuerParticipationCount)}
-                          {metric("Avg Score", access.averageDealAccessScore)}
+                        {sectionHeader("Access Quality Breakdown", "Issuer access, meeting-driven formats, company presentations, and deal-making signals inside the current conference universe.")}
+                        <div style={{ color: "#9fc0df", fontSize: "12px", lineHeight: 1.35 }}>The first read-through is access quality: where issuer participation, structured meetings, and deal-making formats concentrate.</div>
+                        <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "minmax(0, 1fr) minmax(280px, 0.9fr)", gap: "10px" }}>
+                          <div style={subPanelStyle}>
+                            <CompactReadMore text={access.interpretation.headline} maxChars={180} />
+                            <CompactReadMore text={access.interpretation.readThrough} maxChars={160} />
+                            <CompactReadMore text={access.interpretation.caveat} maxChars={150} />
+                          </div>
+                          <div style={{ ...subPanelStyle, display: "grid", gap: "7px" }}>
+                            {[
+                              ["Issuer Access", access.issuerAccessCount],
+                              ["Structured Access", access.structuredAccessCount],
+                              ["Deal-Making", access.dealMakingCount],
+                              ["Company Presentations", access.companyPresentationCount],
+                              ["1x1 Meetings", access.oneOnOneCount],
+                              ["No Issuer", access.noIssuerParticipationCount],
+                            ].map(([label, value]) => {
+                              const count = Number(value);
+                              const max = Math.max(access.issuerAccessCount, access.structuredAccessCount, access.dealMakingCount, access.companyPresentationCount, access.oneOnOneCount, access.noIssuerParticipationCount, 1);
+                              return (
+                                <div key={String(label)} style={{ display: "grid", gridTemplateColumns: "130px minmax(0, 1fr) 42px", gap: "7px", alignItems: "center" }}>
+                                  <div style={{ color: "#dbeafe", fontSize: "11.5px", fontWeight: 800 }}>{label}</div>
+                                  <div style={{ height: "7px", borderRadius: "999px", background: "rgba(11,42,70,0.82)" }}><div style={{ width: `${Math.max(count ? 4 : 0, Math.round((count / max) * 100))}%`, height: "100%", borderRadius: "999px", background: /No Issuer/.test(String(label)) ? "#64748b" : "linear-gradient(90deg,#5eead4,#60a5fa)" }} /></div>
+                                  <div style={{ color: "#b8cce4", fontSize: "11.5px", fontWeight: 850, textAlign: "right" }}>{count}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
+                        <div style={{ display: "grid", gap: "7px" }}>
+                          <div style={{ display: "flex", gap: "4px", overflowX: "auto" }}>{accessTabLabels.map((tab) => <TabButton key={tab.key} active={tab.key === marketViewAccessTab} label={tab.label} onClick={() => setMarketViewAccessTab(tab.key)} />)}</div>
+                          <AccessWindowTable rows={activeAccessRows} />
+                        </div>
+                      </div>
+
+                      <div style={sectionStyle}>
+                        {sectionHeader("Conference Season Curve", "Weekly conference supply and access intensity across spring, summer, fall, and year-end windows.")}
+                        <div style={{ color: "#9fc0df", fontSize: "12px", lineHeight: 1.35 }}>Timing matters after access quality. The next layer is where the conference season is peaking or thinning out.</div>
+                        <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: "7px" }}>
+                          <div style={subPanelStyle}>{stat("Current", intelligence.seasonPulse.currentSeasonLanguage)}</div>
+                          <div style={subPanelStyle}>{stat("Strongest", intelligence.seasonPulse.strongestSeasonLanguage)}</div>
+                          <div style={subPanelStyle}><CompactReadMore text={intelligence.seasonPulse.interpretation} maxChars={145} /></div>
+                        </div>
+                        <div style={{ display: "grid", gap: "5px" }}>
+                          <div style={{ color: "#7f99b8", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.12em", textTransform: "uppercase" }}>Weekly Market Intensity Curve</div>
+                          <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(intelligence.weeklyIntensity.length, 1)}, minmax(14px, 1fr))`, alignItems: "end", gap: "3px", minHeight: "100px", overflowX: "auto", paddingTop: "4px" }}>
+                            {intelligence.weeklyIntensity.map((row, index) => {
+                              const isPeak = row.weekKey === peakWeek?.weekKey;
+                              const isCurrent = row.weekStart <= asOfIso && row.weekEnd >= asOfIso;
+                              const showPhase = index === 0 || phaseLabel(row.weekStart) !== phaseLabel(intelligence.weeklyIntensity[index - 1]?.weekStart || "");
+                              return (
+                                <div key={row.weekKey} title={`${row.label}: ${row.intensityScore} · ${phaseLabel(row.weekStart)}`} style={{ display: "grid", alignItems: "end", gap: "3px", minWidth: "14px" }}>
+                                  <div style={{ color: isPeak ? "#fbbf24" : isCurrent ? "#5eead4" : "transparent", fontSize: "9px", textAlign: "center", fontWeight: 900 }}>{isPeak ? "P" : isCurrent ? "N" : "·"}</div>
+                                  <div style={{ height: `${Math.max(3, Math.round((row.intensityScore / maxWeeklyScore) * 72))}px`, borderRadius: "4px 4px 1px 1px", background: isPeak ? "linear-gradient(180deg,#fbbf24,#f97316)" : isCurrent ? "linear-gradient(180deg,#5eead4,#2563eb)" : phaseLabel(row.weekStart) === "Fall" ? "linear-gradient(180deg,#93c5fd,#1d4ed8)" : phaseLabel(row.weekStart) === "Spring" ? "linear-gradient(180deg,#86efac,#2563eb)" : "linear-gradient(180deg,#a5b4fc,#334155)" }} />
+                                  <div style={{ color: showPhase ? "#8fa8c8" : "transparent", fontSize: "8.5px", textAlign: "center", whiteSpace: "nowrap" }}>{phaseLabel(row.weekStart)}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <CompactTable minWidth="840px" headers={["Week", "Events", "Issuer", "Investor", "Structured", "Deal", "Avg", "Read-Through"]} rows={intelligence.weeklyIntensity.slice().sort((a, b) => b.intensityScore - a.intensityScore).slice(0, 5).map((row) => [
+                          row.label,
+                          row.totalEvents,
+                          row.issuerAccessEvents,
+                          row.investorHeavyEvents,
+                          row.structuredAccessEvents,
+                          row.dealMakingEvents,
+                          row.averageDealAccessScore,
+                          <CompactReadMore key="r" text={row.readThrough} maxChars={115} />,
+                        ])} />
+                      </div>
+
+                      <div style={sectionStyle}>
+                        {sectionHeader("Hot Weeks, Cold Weeks & Cluster Weeks", "High-density weeks, actionable white-space weeks, and dense city/event clusters.")}
+                        <div style={{ color: "#8fa8c8", fontSize: "11.5px" }}>Major holiday weeks are excluded from cold-week white-space rankings.</div>
                         <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: "8px" }}>
-                          <CompactReadMore text={access.interpretation.headline} maxChars={140} />
-                          <CompactReadMore text={access.interpretation.readThrough} maxChars={150} />
-                          <CompactReadMore text={access.interpretation.caveat} maxChars={150} />
+                          <div style={subPanelStyle}>
+                            <div style={{ color: "#dbeafe", fontSize: "12.5px", fontWeight: 900, marginBottom: "5px" }}>Hot Weeks</div>
+                            <div style={{ display: "grid", gap: "5px" }}>{intelligence.hotWeeks.top.slice(0, 5).map((row) => <div key={row.weekKey} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: "6px", borderBottom: "1px solid rgba(107,157,210,0.08)", paddingBottom: "5px" }}><span style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 850 }}>{row.label}<br /><span style={{ color: "#9fc0df", fontSize: "11px" }}>{row.totalEvents} events · {row.issuerAccessEvents} issuer · {row.investorHeavyEvents} investor</span></span><span style={{ color: "#fbbf24", fontSize: "14px", fontWeight: 900 }}>{row.intensityScore}</span></div>)}</div>
+                          </div>
+                          <div style={subPanelStyle}>
+                            <div style={{ color: "#dbeafe", fontSize: "12.5px", fontWeight: 900, marginBottom: "5px" }}>Cold Weeks</div>
+                            {actionableColdWeeks.length ? <div style={{ display: "grid", gap: "5px" }}>{actionableColdWeeks.map((row) => <div key={row.weekKey} style={{ borderBottom: "1px solid rgba(107,157,210,0.08)", paddingBottom: "5px" }}><div style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 850 }}>{row.label} · {row.totalEvents} events</div><CompactReadMore text={row.planningInterpretation} maxChars={105} /></div>)}</div> : <div style={{ color: "#a9bdd6", fontSize: "12px", lineHeight: 1.35 }}>No actionable cold-week signal is available in the current view.</div>}
+                          </div>
+                          <div style={subPanelStyle}>
+                            <div style={{ color: "#dbeafe", fontSize: "12.5px", fontWeight: 900, marginBottom: "5px" }}>Cluster Weeks</div>
+                            <div style={{ display: "grid", gap: "6px" }}>{dedupedClusters.map((row) => <div key={`${row.city}-${row.dateWindow}`} style={{ borderBottom: "1px solid rgba(107,157,210,0.08)", paddingBottom: "6px" }}><div style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 850 }}>{[row.city, row.state].filter(Boolean).join(", ")} · {row.dateWindow}</div><div style={{ color: "#9fc0df", fontSize: "11.5px" }}>{row.eventCount} events · {row.dominantMarketFocus || "N/A"} · {row.dominantSector || "N/A"} · issuer {row.issuerAccessCount} · investor {row.investorHeavyCount} · score {row.clusterScore}</div><CompactReadMore text={row.events.join(" · ")} maxChars={95} /></div>)}</div>
+                          </div>
                         </div>
-                        <div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 900 }}>Top Deal/Access Events</div>
-                        <CompactTable headers={["Event", "Date", "City", "Organizer", "Market Focus", "Issuer Participation", "Event Character", "Sector", "Score"]} rows={access.topDealAccessEvents.map((event) => [
+                      </div>
+
+                      <div style={sectionStyle}>
+                        {sectionHeader("Sector & Market Focus Read-Through", "Where the conference universe is weighted by public company sector, market focus, and institutional coverage profile.")}
+                        <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
+                          <div style={subPanelStyle}><CompactReadMore text={sectorMomentum.available ? sectorMomentum.interpretation : sectorMomentum.reason} maxChars={175} /></div>
+                          <div style={subPanelStyle}><div style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 850 }}>{focus.concentrationLabel}</div><div style={{ color: "#9fc0df", fontSize: "11.5px" }}>{focus.classifiedSignalCount} focus signals · top 3 share {focus.top3Share}% · HHI {focus.hhiScore}</div></div>
+                        </div>
+                        {sectorMomentum.available ? <div style={{ display: "flex", gap: "6px", overflowX: "auto", paddingBottom: "2px" }}>{sectorMomentum.rows.slice(0, 10).map((row) => <div key={row.sector} style={{ flex: "0 0 auto", borderRadius: "999px", padding: "5px 9px", background: row.countChange >= 0 ? "rgba(34,197,94,0.12)" : "rgba(248,113,113,0.12)", border: "1px solid rgba(107,157,210,0.14)", color: row.countChange >= 0 ? "#86efac" : "#fca5a5", fontSize: "11px", fontWeight: 900 }}>{row.sector} {signed(row.countChange)}</div>)}</div> : null}
+                        <div style={{ display: "flex", gap: "4px", overflowX: "auto" }}>{signalTabLabels.map((tab) => <TabButton key={tab.key} active={tab.key === marketViewSignalTab} label={tab.label} onClick={() => setMarketViewSignalTab(tab.key)} />)}</div>
+                        {marketViewSignalTab === "sector" ? <CompactTable minWidth="980px" headers={["Sector", "Current Month", "Previous Month", "Change", "% Change", "Current Q", "Previous Q", "Issuer", "Investor", "Next Event"]} rows={sectorMomentum.available ? sectorMomentum.rows.map((row) => [row.sector, row.currentMonthCount, row.previousMonthCount, signed(row.countChange), percent(row.percentChange), row.currentQuarterCount, row.previousQuarterCount, row.issuerAccessCount, row.investorHeavyCount, row.nextUpcomingEvent ? `${row.nextUpcomingEvent.title} · ${row.nextUpcomingEvent.date}` : "N/A"]) : []} /> : null}
+                        {marketViewSignalTab === "focus" ? <CompactTable minWidth="980px" headers={["Market Focus", "Count", "Share", "Issuer", "Investor", "Structured", "Deal", "Leading Week", "Leading City", "Interpretation"]} rows={focus.rows.map((row) => [row.marketFocus, row.count, `${row.shareOfClassifiedSignals}%`, row.issuerAccessCount, row.investorHeavyCount, row.structuredAccessCount, row.dealMakingCount, row.leadingWeek || "N/A", row.leadingCity || "N/A", <CompactReadMore key="m" text={row.interpretation} maxChars={115} />])} /> : null}
+                        {marketViewSignalTab === "character" ? <div style={{ display: "grid", gap: "7px" }}><div style={{ display: "grid", gap: "5px" }}>{character.rows.slice(0, 8).map((row) => <div key={row.eventCharacter} style={{ display: "grid", gridTemplateColumns: "minmax(150px, 0.8fr) minmax(0, 1.4fr) 54px", gap: "7px", alignItems: "center" }}><div style={{ color: "#dbeafe", fontSize: "11.5px", fontWeight: 800, overflowWrap: "anywhere" }}>{row.eventCharacter}</div><div style={{ height: "7px", borderRadius: "999px", background: "rgba(11,42,70,0.82)" }}><div style={{ width: `${Math.max(4, Math.round((row.count / maxCharacterCount) * 100))}%`, height: "100%", borderRadius: "999px", background: "linear-gradient(90deg,#5eead4,#60a5fa)" }} /></div><div style={{ color: "#b8cce4", fontSize: "11px", fontWeight: 850 }}>{row.count} / {row.averageDealAccessScore}</div></div>)}</div><CompactTable minWidth="820px" headers={["Event Character", "Count", "Share", "Issuer", "Investor", "Avg", "Interpretation"]} rows={character.rows.map((row) => [row.eventCharacter, row.count, `${row.shareOfClassifiedEvents}%`, row.issuerAccessCount, row.investorHeavyCount, row.averageDealAccessScore, <CompactReadMore key="ec" text={row.interpretation} maxChars={115} />])} /></div> : null}
+                      </div>
+
+                      <div style={sectionStyle}>
+                        {sectionHeader("Events Behind the Signal", "Highest-scoring events based on issuer access, structured access, deal-making, company presentations, and 1x1 classifications.")}
+                        <CompactTable minWidth="980px" headers={["Event", "Date", "City", "Organizer", "Focus", "Issuer Participation", "Character", "Sector", "Score"]} rows={access.topDealAccessEvents.map((event) => [
                           <a key="event" href={eventSearchHref(event.title)} style={{ color: "#dbeafe", fontWeight: 850, textDecoration: "none" }}>{event.title}</a>,
                           event.date,
                           [event.city, event.state].filter(Boolean).join(", ") || "N/A",
@@ -6060,134 +6224,27 @@ useEffect(() => {
                       </div>
 
                       <div style={sectionStyle}>
-                        {sectionHeader("Conference Season Pulse", "Seasonality, conference supply, and weekly market intensity across the dated event universe.")}
-                        <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: "7px" }}>
-                          {metric("Current Season", intelligence.seasonPulse.currentSeasonLanguage)}
-                          {metric("Strongest Season", intelligence.seasonPulse.strongestSeasonLanguage)}
-                          <div style={{ borderRadius: "8px", background: "rgba(9,36,61,0.58)", padding: "9px 10px" }}><CompactReadMore text={intelligence.seasonPulse.interpretation} maxChars={150} /></div>
-                        </div>
-                        <div style={{ display: "grid", gap: "5px" }}>
-                          <div style={{ color: "#7f99b8", fontSize: "10px", fontWeight: 950, letterSpacing: "0.12em", textTransform: "uppercase" }}>Weekly Market Intensity</div>
-                          <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(intelligence.weeklyIntensity.length, 1)}, minmax(22px, 1fr))`, alignItems: "end", gap: "4px", minHeight: "104px", overflowX: "auto" }}>
-                            {intelligence.weeklyIntensity.map((row) => (
-                              <div key={row.weekKey} title={`${row.label}: ${row.intensityScore}`} style={{ display: "grid", alignItems: "end", gap: "4px", minWidth: "22px" }}>
-                                <div style={{ height: `${Math.max(4, Math.round((row.intensityScore / maxWeeklyScore) * 78))}px`, borderRadius: "5px 5px 2px 2px", background: row.issuerAccessEvents || row.structuredAccessEvents ? "linear-gradient(180deg,#5eead4,#2563eb)" : "linear-gradient(180deg,#8fbfff,#1d4ed8)" }} />
-                                <div style={{ color: "#7f99b8", fontSize: "9px", textAlign: "center", whiteSpace: "nowrap" }}>{row.label.split("-")[0]}</div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        <CompactTable headers={["Week", "Events", "Issuer", "Investor", "Structured", "Deal", "Avg Score", "Top Focus", "Read-Through"]} rows={intelligence.weeklyIntensity.slice().sort((a, b) => b.intensityScore - a.intensityScore).slice(0, 8).map((row) => [
-                          row.label,
-                          row.totalEvents,
-                          row.issuerAccessEvents,
-                          row.investorHeavyEvents,
-                          row.structuredAccessEvents,
-                          row.dealMakingEvents,
-                          row.averageDealAccessScore,
-                          row.topMarketFocus || "N/A",
-                          <CompactReadMore key="r" text={row.readThrough} maxChars={130} />,
-                        ])} />
-                      </div>
-
-                      <div style={sectionStyle}>
-                        {sectionHeader("Hot Weeks, Cold Weeks & Cluster Weeks", "High-density weeks, actionable white-space weeks, and dense city/event clusters.")}
-                        <div style={{ color: "#8fa8c8", fontSize: "11.5px" }}>Major holiday weeks are excluded from cold-week white-space rankings.</div>
-                        <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: "10px" }}>
-                          <div style={{ display: "grid", gap: "7px", minWidth: 0 }}>
-                            <div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 900 }}>Hot Weeks</div>
-                            <CompactTable headers={["Week", "Score", "Events", "Issuer", "Investor", "Reason"]} rows={intelligence.hotWeeks.top.map((row) => [row.label, row.intensityScore, row.totalEvents, row.issuerAccessEvents, row.investorHeavyEvents, <CompactReadMore key="h" text={row.primaryReason} maxChars={100} />])} />
-                          </div>
-                          <div style={{ display: "grid", gap: "7px", minWidth: 0 }}>
-                            <div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 900 }}>Cold Weeks</div>
-                            <CompactTable headers={["Week", "Events", "Score", "Interpretation"]} rows={intelligence.coldWeeks.top.map((row) => [row.label, row.totalEvents, row.intensityScore, <CompactReadMore key="c" text={row.planningInterpretation} maxChars={105} />])} />
-                          </div>
-                          <div style={{ display: "grid", gap: "7px", minWidth: 0 }}>
-                            <div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 900 }}>Cluster Weeks</div>
-                            <CompactTable headers={["City", "Window", "Events", "Focus", "Sector", "Issuer", "Investor", "Score", "List"]} rows={intelligence.clusterWeeks.top.slice(0, 6).map((row) => [
-                              [row.city, row.state].filter(Boolean).join(", "), row.dateWindow, row.eventCount, row.dominantMarketFocus || "N/A", row.dominantSector || "N/A", row.issuerAccessCount, row.investorHeavyCount, row.clusterScore, <CompactReadMore key="e" text={row.events.join(" · ")} maxChars={90} />,
-                            ])} />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div style={sectionStyle}>
-                        {sectionHeader("Access Windows", "Ranked weeks by issuer access, institutional investor concentration, structured access, and deal-making activity.")}
-                        <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
-                          <div><div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 900, marginBottom: "6px" }}>Issuer Access</div><AccessWindowTable rows={intelligence.issuerAccessWindows} /></div>
-                          <div><div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 900, marginBottom: "6px" }}>Investor-Heavy</div><AccessWindowTable rows={intelligence.investorHeavyWindows} /></div>
-                          <div><div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 900, marginBottom: "6px" }}>Structured Access</div><AccessWindowTable rows={intelligence.structuredAccessWindows} /></div>
-                          <div><div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 900, marginBottom: "6px" }}>Deal-Making</div><AccessWindowTable rows={intelligence.dealMakingWindows} /></div>
-                        </div>
-                      </div>
-
-                      <div style={sectionStyle}>
-                        {sectionHeader("Public Company Sector Momentum", "Directional category movement by public company sector across the current and prior period.")}
-                        {sectorMomentum.available ? (
-                          <>
-                            <CompactReadMore text={sectorMomentum.interpretation} maxChars={170} />
-                            <div style={{ display: "flex", gap: "6px", overflowX: "auto", paddingBottom: "2px" }}>
-                              {sectorMomentum.rows.slice(0, 10).map((row) => <div key={row.sector} style={{ flex: "0 0 auto", borderRadius: "999px", padding: "6px 10px", background: row.countChange >= 0 ? "rgba(34,197,94,0.12)" : "rgba(248,113,113,0.12)", border: "1px solid rgba(107,157,210,0.14)", color: row.countChange >= 0 ? "#86efac" : "#fca5a5", fontSize: "11.5px", fontWeight: 900 }}>{row.sector} {signed(row.countChange)}</div>)}
-                            </div>
-                            <CompactTable headers={["Sector", "Current Month", "Previous Month", "Change", "% Change", "Current Q", "Previous Q", "Issuer", "Investor", "Next Event"]} rows={sectorMomentum.rows.map((row) => [row.sector, row.currentMonthCount, row.previousMonthCount, signed(row.countChange), percent(row.percentChange), row.currentQuarterCount, row.previousQuarterCount, row.issuerAccessCount, row.investorHeavyCount, row.nextUpcomingEvent ? `${row.nextUpcomingEvent.title} · ${row.nextUpcomingEvent.date}` : "N/A"])} />
-                          </>
-                        ) : <div style={{ color: "#a9bdd6", fontSize: "12.5px" }}>{sectorMomentum.reason}</div>}
-                      </div>
-
-                      <div style={sectionStyle}>
-                        {sectionHeader("Market Focus Concentration", "How the current conference universe is weighted across institutional investor, family office, private markets, venture, and other market-focus signals.")}
-                        <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "repeat(2, minmax(0,1fr))" : "repeat(6, minmax(0, 1fr))", gap: "7px" }}>
-                          {metric("Classified Events", focus.classifiedEventCount)}
-                          {metric("Classified Signals", focus.classifiedSignalCount)}
-                          {metric("Top 3 Share", `${focus.top3Share}%`)}
-                          {metric("Top 5 Share", `${focus.top5Share}%`)}
-                          {metric("HHI Score", focus.hhiScore)}
-                          {metric("Concentration", focus.concentrationLabel)}
-                        </div>
-                        <CompactTable headers={["Market Focus", "Count", "Share of Signals", "Issuer", "Investor", "Structured", "Deal", "Leading Week", "Leading City", "Interpretation"]} rows={focus.rows.map((row) => [row.marketFocus, row.count, `${row.shareOfClassifiedSignals}%`, row.issuerAccessCount, row.investorHeavyCount, row.structuredAccessCount, row.dealMakingCount, row.leadingWeek || "N/A", row.leadingCity || "N/A", <CompactReadMore key="m" text={row.interpretation} maxChars={130} />])} />
-                      </div>
-
-                      <div style={sectionStyle}>
-                        {sectionHeader("Event Character Mix", "Meeting-driven, presentation-heavy, industry/thematic, and deal-making character across classified events.")}
-                        <div style={{ display: "grid", gap: "6px" }}>
-                          {character.rows.slice(0, 8).map((row) => (
-                            <div key={row.eventCharacter} style={{ display: "grid", gridTemplateColumns: "minmax(160px, 0.85fr) minmax(0, 1.4fr) 54px", gap: "8px", alignItems: "center" }}>
-                              <div style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 800, overflowWrap: "anywhere" }}>{row.eventCharacter}</div>
-                              <div style={{ height: "8px", borderRadius: "999px", background: "rgba(11,42,70,0.82)" }}><div style={{ width: `${Math.max(4, Math.round((row.count / maxCharacterCount) * 100))}%`, height: "100%", borderRadius: "999px", background: "linear-gradient(90deg,#5eead4,#60a5fa)" }} /></div>
-                              <div style={{ color: "#b8cce4", fontSize: "11.5px", fontWeight: 850 }}>{row.count} / {row.averageDealAccessScore}</div>
-                            </div>
-                          ))}
-                        </div>
-                        <CompactTable headers={["Event Character", "Count", "Share", "Issuer", "Investor", "Avg Score", "Interpretation"]} rows={character.rows.map((row) => [row.eventCharacter, row.count, `${row.shareOfClassifiedEvents}%`, row.issuerAccessCount, row.investorHeavyCount, row.averageDealAccessScore, <CompactReadMore key="ec" text={row.interpretation} maxChars={130} />])} />
-                      </div>
-
-                      <div style={sectionStyle}>
                         {sectionHeader("Organizer League Tables", "Organizer rankings by conference supply, issuer access, investor-heavy activity, structured access, deal/access score, near-term pipeline, and geographic breadth.")}
-                        <div style={{ display: "flex", gap: "4px", overflowX: "auto", paddingBottom: "2px" }}>
-                          {organizerTabLabels.map((tab) => <button key={tab.key} type="button" onClick={() => setMarketViewOrganizerTab(tab.key)} style={{ flex: "0 0 auto", height: "28px", padding: "0 10px", borderRadius: "8px", border: tab.key === marketViewOrganizerTab ? "1px solid rgba(125,180,255,0.34)" : "1px solid rgba(107,157,210,0.14)", background: tab.key === marketViewOrganizerTab ? "rgba(47,111,243,0.72)" : "rgba(9,36,61,0.58)", color: tab.key === marketViewOrganizerTab ? "#fff" : "#a8bdd8", fontSize: "11.5px", fontWeight: 850, cursor: "pointer" }}>{tab.label}</button>)}
-                        </div>
-                        <CompactReadMore text={activeOrganizerInterpretation} maxChars={180} />
-                        <CompactTable headers={["Rank", "Organizer", "Events", "Issuer", "Investor", "Structured", "Deal", "Avg Score", "Cities", "Next Event", "Next Date", "Next City"]} rows={activeOrganizerRows.map((row) => [row.rank, row.organizer, row.totalEvents, row.issuerAccessEvents, row.investorHeavyEvents, row.structuredAccessEvents, row.dealMakingEvents, row.averageDealAccessScore, row.citiesCount, row.nextEventTitle || "N/A", row.nextEventDate || "N/A", row.nextEventCity || "N/A"])} />
+                        <div style={{ color: "#9fc0df", fontSize: "12px", lineHeight: 1.35 }}>Organizer volume explains supply, but access-oriented rankings are more useful than raw event count alone. Organizer volume is a supply-side signal; issuer-access and structured-access tables are stronger indicators of capital markets relevance.</div>
+                        <div style={{ display: "flex", gap: "4px", overflowX: "auto", paddingBottom: "2px" }}>{organizerTabLabels.map((tab) => <TabButton key={tab.key} active={tab.key === marketViewOrganizerTab} label={tab.label} onClick={() => setMarketViewOrganizerTab(tab.key)} />)}</div>
+                        <CompactReadMore text={activeOrganizerInterpretation} maxChars={175} />
+                        <CompactTable minWidth="1050px" headers={["Rank", "Organizer", "Events", "Issuer", "Investor", "Structured", "Deal", "Avg", "Cities", "Next Event", "Next Date", "Next City"]} rows={activeOrganizerRows.map((row) => [row.rank, row.organizer, row.totalEvents, row.issuerAccessEvents, row.investorHeavyEvents, row.structuredAccessEvents, row.dealMakingEvents, row.averageDealAccessScore, row.citiesCount, row.nextEventTitle || "N/A", row.nextEventDate || "N/A", row.nextEventCity || "N/A"])} />
                       </div>
 
                       <div style={sectionStyle}>
-                        {sectionHeader("Geography & City Clusters", "Geographic concentration is secondary to access and market classification, but it shows where conference supply is physically clustering.")}
-                        <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
-                          <div><div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 900, marginBottom: "6px" }}>Top Cities by Total Events</div><GeographyTable rows={geo.topCitiesByTotalEvents} /></div>
-                          <div><div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 900, marginBottom: "6px" }}>Top Cities by Issuer Access</div><GeographyTable rows={geo.topCitiesByIssuerAccess} /></div>
-                          <div><div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 900, marginBottom: "6px" }}>Top Cities by Investor-Heavy Activity</div><GeographyTable rows={geo.topCitiesByInvestorHeavyEvents} /></div>
-                          <div><div style={{ color: "#dbeafe", fontSize: "13px", fontWeight: 900, marginBottom: "6px" }}>Top Cities by Deal/Access Score</div><GeographyTable rows={geo.topCitiesByDealAccessScore} /></div>
-                        </div>
+                        {sectionHeader("Geography & City Concentration", "Geographic concentration is secondary to access and market classification, but it shows where conference supply is physically clustering.")}
+                        <div style={{ display: "flex", gap: "4px", overflowX: "auto", paddingBottom: "2px" }}>{geographyTabLabels.map((tab) => <TabButton key={tab.key} active={tab.key === marketViewGeographyTab} label={tab.label} onClick={() => setMarketViewGeographyTab(tab.key)} />)}</div>
+                        <GeographyTable rows={activeGeoRows} />
                       </div>
 
                       <div style={sectionStyle}>
                         {sectionHeader("Classification Coverage & Diligence Support", "Coverage depth across CCC's classification fields and supporting diligence signals.")}
-                        <CompactTable headers={["Field", "Populated Count", "Coverage %"]} rows={intelligence.dataReadiness.fields.map((row) => [row.field, row.populatedCount, `${row.coveragePct}%`])} />
-                        <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(4, minmax(0, 1fr))", gap: "8px" }}>
-                          {metric("Strongest Fields", intelligence.dataReadiness.strongestFields.length, intelligence.dataReadiness.strongestFields.join(" · ") || "N/A")}
-                          {metric("Weakest Fields", intelligence.dataReadiness.weakestFields.length, intelligence.dataReadiness.weakestFields.join(" · ") || "N/A")}
-                          <div style={{ borderRadius: "8px", background: "rgba(9,36,61,0.58)", padding: "9px 10px" }}><CompactReadMore text={intelligence.dataReadiness.recommendedCaveats.join(" ")} maxChars={150} /></div>
-                          <div style={{ borderRadius: "8px", background: "rgba(9,36,61,0.58)", padding: "9px 10px" }}><CompactReadMore text={intelligence.notes.join(" ")} maxChars={150} /></div>
+                        <CompactTable minWidth="520px" headers={["Field", "Populated", "Coverage"]} rows={intelligence.dataReadiness.fields.map((row) => [row.field, row.populatedCount, `${row.coveragePct}%`])} />
+                        <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(4, minmax(0, 1fr))", gap: "7px" }}>
+                          <div style={subPanelStyle}>{stat("Strongest Fields", intelligence.dataReadiness.strongestFields.length)}<div style={{ color: "#9fc0df", fontSize: "11.5px", lineHeight: 1.35 }}>{intelligence.dataReadiness.strongestFields.join(" · ") || "N/A"}</div></div>
+                          <div style={subPanelStyle}>{stat("Weakest Fields", intelligence.dataReadiness.weakestFields.length)}<div style={{ color: "#9fc0df", fontSize: "11.5px", lineHeight: 1.35 }}>{intelligence.dataReadiness.weakestFields.join(" · ") || "N/A"}</div></div>
+                          <div style={subPanelStyle}><CompactReadMore text={intelligence.dataReadiness.recommendedCaveats.join(" ")} maxChars={135} /></div>
+                          <div style={subPanelStyle}><CompactReadMore text={intelligence.notes.join(" ")} maxChars={135} /></div>
                         </div>
                       </div>
                     </div>
