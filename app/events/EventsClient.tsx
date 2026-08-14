@@ -1476,7 +1476,7 @@ export default function EventsClient({
   const [marketViewOrganizerTab, setMarketViewOrganizerTab] = useState<"overallVolume" | "issuerAccess" | "investorHeavy" | "structuredAccess" | "dealAccess" | "upcoming30Days" | "geographicBreadth">("overallVolume");
   const [marketViewAccessTab, setMarketViewAccessTab] = useState<"issuerAccess" | "investorHeavy" | "structuredAccess" | "dealMaking">("issuerAccess");
   const [marketViewSignalTab, setMarketViewSignalTab] = useState<"sector" | "focus" | "character">("sector");
-  const [marketViewGeographyTab, setMarketViewGeographyTab] = useState<"dealAccess" | "total" | "issuerAccess" | "investorHeavy">("dealAccess");
+  const [marketViewGeographyTab, setMarketViewGeographyTab] = useState<"accessWeighted" | "dealAccess" | "total" | "issuerAccess" | "investorHeavy">("accessWeighted");
   const [concentrationExpanded, setConcentrationExpanded] = useState(false);
   const [insightsExpanded, setInsightsExpanded] = useState(false);
   const [filterGroupsOpen, setFilterGroupsOpen] = useState({
@@ -5919,15 +5919,46 @@ useEffect(() => {
                   const organizerTables = intelligence.organizerLeagueTables;
                   const geo = intelligence.geographyClusters;
                   const asOfIso = new Date().toISOString().slice(0, 10);
+                  const conferenceUniverse = Math.max(landscape.totalEvents, 1);
                   const maxWeeklyScore = Math.max(...intelligence.weeklyIntensity.map((row) => row.intensityScore), 1);
                   const maxCharacterCount = Math.max(...character.rows.map((row) => row.count), 1);
                   const peakWeek = intelligence.weeklyIntensity.slice().sort((a, b) => b.intensityScore - a.intensityScore)[0];
                   const actionableColdWeeks = intelligence.coldWeeks.top.filter((row) => row.totalEvents > 0).slice(0, 5);
+                  const monthStarts = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+                  const monthNameToIndex: Record<string, number> = { Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6, Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12 };
+                  const parseClusterWindow = (dateWindow: string) => {
+                    const parts = dateWindow.split("-");
+                    const parsePart = (part: string, fallbackMonth?: string) => {
+                      const match = part.trim().match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*(\d{1,2})$/);
+                      if (!match) return null;
+                      const month = match[1] || fallbackMonth;
+                      if (!month) return null;
+                      const monthIndex = monthNameToIndex[month];
+                      const day = Number(match[2]);
+                      return monthIndex ? monthStarts[monthIndex - 1] + day : null;
+                    };
+                    const startMonth = parts[0]?.trim().match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/)?.[1];
+                    const start = parsePart(parts[0] || "");
+                    const end = parsePart(parts[1] || "", startMonth || undefined);
+                    return start && end ? { start, end: end < start ? end + 365 : end } : null;
+                  };
+                  const clusterWindowsOverlap = (left: string, right: string) => {
+                    const a = parseClusterWindow(left);
+                    const b = parseClusterWindow(right);
+                    if (!a || !b) return false;
+                    return a.start <= b.end && b.start <= a.end;
+                  };
+                  const clusterWindowsClose = (left: string, right: string) => {
+                    const a = parseClusterWindow(left);
+                    const b = parseClusterWindow(right);
+                    if (!a || !b) return false;
+                    return Math.abs(a.start - b.start) <= 14;
+                  };
                   const dedupedClusters = intelligence.clusterWeeks.top.reduce<typeof intelligence.clusterWeeks.top>((acc, cluster) => {
                     const existingIndex = acc.findIndex((item) => {
                       const overlap = cluster.events.filter((event) => item.events.includes(event)).length;
                       const overlapShare = overlap / Math.max(1, Math.min(cluster.events.length, item.events.length));
-                      return item.city === cluster.city && overlapShare >= 0.6;
+                      return item.city === cluster.city && (overlapShare >= 0.5 || clusterWindowsOverlap(item.dateWindow, cluster.dateWindow) || clusterWindowsClose(item.dateWindow, cluster.dateWindow));
                     });
                     if (existingIndex === -1) return [...acc, cluster];
                     const existing = acc[existingIndex];
@@ -5938,6 +5969,10 @@ useEffect(() => {
                     }
                     return acc;
                   }, []).slice(0, 5);
+                  const accessWeightedCityRowsBase = geo.topCitiesByTotalEvents.filter((row) => row.totalEvents >= 3);
+                  const accessWeightedCityRows = (accessWeightedCityRowsBase.length >= 3 ? accessWeightedCityRowsBase : geo.topCitiesByTotalEvents)
+                    .slice()
+                    .sort((a, b) => (b.averageDealAccessScore * Math.sqrt(b.totalEvents)) - (a.averageDealAccessScore * Math.sqrt(a.totalEvents)) || b.totalEvents - a.totalEvents);
                   const organizerTabLabels: Array<{ key: typeof marketViewOrganizerTab; label: string }> = [
                     { key: "overallVolume", label: "Overall Volume" },
                     { key: "issuerAccess", label: "Issuer Access" },
@@ -5959,6 +5994,7 @@ useEffect(() => {
                     { key: "character", label: "Event Character" },
                   ];
                   const geographyTabLabels: Array<{ key: typeof marketViewGeographyTab; label: string; rows: typeof geo.topCitiesByTotalEvents }> = [
+                    { key: "accessWeighted", label: "Access-Weighted Cities", rows: accessWeightedCityRows },
                     { key: "dealAccess", label: "Deal/Access Score", rows: geo.topCitiesByDealAccessScore },
                     { key: "total", label: "Total Events", rows: geo.topCitiesByTotalEvents },
                     { key: "issuerAccess", label: "Issuer Access", rows: geo.topCitiesByIssuerAccess },
@@ -5969,6 +6005,7 @@ useEffect(() => {
                   const activeOrganizerInterpretation = organizerTables.interpretations[marketViewOrganizerTab];
                   const activeGeoRows = geographyTabLabels.find((tab) => tab.key === marketViewGeographyTab)?.rows || [];
                   const viewLabel = marketViewDataset === "all" ? "All Conferences" : "Current Filtered View";
+                  const scopeDescription = marketViewDataset === "all" ? "Full conference database" : "Active filter set";
                   const sectionStyle: CSSProperties = {
                     gridColumn: "1 / -1",
                     display: "grid",
@@ -5983,7 +6020,6 @@ useEffect(() => {
                   const subPanelStyle: CSSProperties = { borderRadius: "7px", border: "1px solid rgba(107,157,210,0.10)", background: "rgba(9,36,61,0.48)", padding: "8px", minWidth: 0 };
                   const sectionHeader = (title: string, subtitle: string) => (
                     <div style={{ display: "grid", gap: "2px", minWidth: 0 }}>
-                      <div style={{ color: "#8fbfff", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>{viewLabel}</div>
                       <div style={{ color: "#f4f8ff", fontSize: "19px", lineHeight: 1.1, fontWeight: 900 }}>{title}</div>
                       <div style={{ color: "#a9bdd6", fontSize: "12px", lineHeight: 1.32 }}>{subtitle}</div>
                     </div>
@@ -6007,12 +6043,17 @@ useEffect(() => {
                   const eventSearchHref = (title: string) => `/?mode=market&workspace=database&q=${encodeURIComponent(title)}`;
                   const signed = (value: number) => value > 0 ? `+${value}` : String(value);
                   const percent = (value: number | null) => value === null ? "N/A" : `${signed(value)}%`;
+                  const universeShare = (value: number) => `${Math.round((value / conferenceUniverse) * 100)}%`;
                   const phaseLabel = (weekStart: string) => {
                     const month = Number(weekStart.slice(5, 7));
                     if (month >= 3 && month <= 5) return "Spring";
                     if (month >= 6 && month <= 8) return "Summer";
                     if (month >= 9 && month <= 11) return "Fall";
                     return "Year-End";
+                  };
+                  const monthLabel = (weekStart: string) => {
+                    const month = Number(weekStart.slice(5, 7));
+                    return ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][month] || "";
                   };
                   const TabButton = ({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) => (
                     <button type="button" onClick={onClick} style={{ flex: "0 0 auto", height: "26px", padding: "0 9px", borderRadius: "7px", border: active ? "1px solid rgba(125,180,255,0.34)" : "1px solid rgba(107,157,210,0.14)", background: active ? "rgba(47,111,243,0.72)" : "rgba(9,36,61,0.52)", color: active ? "#fff" : "#a8bdd8", fontSize: "11px", fontWeight: 850, cursor: "pointer" }}>{label}</button>
@@ -6042,7 +6083,7 @@ useEffect(() => {
                     ])} />
                   );
                   const GeographyTable = ({ rows }: { rows: typeof geo.topCitiesByTotalEvents }) => (
-                    <CompactTable minWidth="940px" headers={["City", "Events", "Issuer", "Investor", "Structured", "Deal", "Avg", "Top Focus", "Top Sector", "Next Event"]} rows={rows.map((row) => [
+                    <CompactTable minWidth="980px" headers={["City", "Events", "Issuer", "Investor", "Structured", "Deal", "Avg", "Access Wtd", "Top Focus", "Top Sector", "Next Event"]} rows={rows.map((row) => [
                       [row.city, row.state].filter(Boolean).join(", "),
                       row.totalEvents,
                       row.issuerAccessEvents,
@@ -6050,6 +6091,7 @@ useEffect(() => {
                       row.structuredAccessEvents,
                       row.dealMakingEvents,
                       row.averageDealAccessScore,
+                      Math.round(row.averageDealAccessScore * Math.sqrt(row.totalEvents)),
                       row.topMarketFocus || "N/A",
                       row.topSector || "N/A",
                       row.nextEvent ? `${row.nextEvent.title} · ${row.nextEvent.date}` : "N/A",
@@ -6063,10 +6105,10 @@ useEffect(() => {
                           <div style={{ display: "grid", gap: "8px" }}>
                             {sectionHeader("Market Readout", "Capital markets conference intelligence from CCC's classified event universe.")}
                             <div style={{ color: "#d9e8fb", fontSize: "13px", lineHeight: 1.45 }}>
-                              CCC is tracking {intelligence.coverage.dedupedEventCount} deduped conferences across {landscape.organizersCount} organizers and {landscape.citiesCount} cities. The current conference universe shows {access.issuerAccessCount} issuer-access events, {access.structuredAccessCount} structured-access events, and {access.dealMakingCount} deal-making / partnering events, with {intelligence.seasonPulse.strongestSeasonLanguage.toLowerCase()} emerging as the strongest visible phase.
+                              CCC is tracking {landscape.totalEvents} conferences across {landscape.organizersCount} organizers and {landscape.citiesCount} cities, with classification depth across issuer participation, market focus, public company sector, and event character.
                             </div>
                             <div style={{ color: "#a9bdd6", fontSize: "12.5px", lineHeight: 1.42 }}>
-                              The primary read-through is access quality, not geography: issuer participation, 1x1 formats, company presentations, and meeting-driven activity are concentrated in a smaller subset of the overall conference market.
+                              The current window is {intelligence.seasonPulse.currentSeasonLanguage.toLowerCase()}, while the peak window is {intelligence.seasonPulse.strongestSeasonLanguage.toLowerCase()}. Across the planning horizon, the sharper signal is quality of access: a narrower portion of the conference universe carries the strongest meeting and deal-flow evidence.
                             </div>
                           </div>
                           <div style={{ ...subPanelStyle, display: "grid", gap: "2px" }}>
@@ -6075,15 +6117,17 @@ useEffect(() => {
                                 <button key={option.key} type="button" onClick={() => setMarketViewDataset(option.key)} style={{ height: "24px", padding: "0 9px", borderRadius: "6px", border: option.key === marketViewDataset ? "1px solid rgba(125,180,255,0.26)" : "1px solid transparent", background: option.key === marketViewDataset ? "rgba(47,111,243,0.84)" : "transparent", color: option.key === marketViewDataset ? "#ffffff" : "#a8bdd8", fontSize: "11px", fontWeight: 850, cursor: "pointer" }}>{option.label}</button>
                               ))}
                             </div>
-                            {stat("Deduped", intelligence.coverage.dedupedEventCount)}
-                            {stat("Raw Records", intelligence.coverage.rawEventCount)}
-                            {stat("Suppressed", intelligence.coverage.duplicateSuppressionCount)}
+                            <div style={{ color: "#8fa8c8", fontSize: "10.5px", fontWeight: 850, marginBottom: "2px" }}>Scope: {scopeDescription}</div>
+                            {stat("Conference Universe", landscape.totalEvents)}
                             {stat("Organizers", landscape.organizersCount)}
                             {stat("Cities", landscape.citiesCount)}
-                            {stat("Focus Areas", landscape.marketFocusCount)}
-                            {stat("Public Co. Sectors", landscape.publicCompanySectorCount)}
-                            {stat("Event Characters", landscape.eventCharacterCount)}
-                            {stat("Current Season", landscape.seasonLanguage)}
+                            {stat("Market Focus Areas", landscape.marketFocusCount)}
+                            {stat("Public Company Sectors", landscape.publicCompanySectorCount)}
+                            {stat("Event Character Types", landscape.eventCharacterCount)}
+                            {stat("Current Window", intelligence.seasonPulse.currentSeasonLanguage)}
+                            {stat("Peak Window", intelligence.seasonPulse.strongestSeasonLanguage)}
+                            {stat("Issuer Access Events", access.issuerAccessCount)}
+                            {stat("Structured Access Events", access.structuredAccessCount)}
                           </div>
                         </div>
                       </div>
@@ -6104,8 +6148,8 @@ useEffect(() => {
                       </div>
 
                       <div style={sectionStyle}>
-                        {sectionHeader("Access Quality Breakdown", "Issuer access, meeting-driven formats, company presentations, and deal-making signals inside the current conference universe.")}
-                        <div style={{ color: "#9fc0df", fontSize: "12px", lineHeight: 1.35 }}>The first read-through is access quality: where issuer participation, structured meetings, and deal-making formats concentrate.</div>
+                        {sectionHeader("Access Quality Breakdown", "Issuer participation, 1x1 formats, company presentations, and deal-flow signals inside the forward conference calendar.")}
+                        <div style={{ color: "#9fc0df", fontSize: "12px", lineHeight: 1.35 }}>This layer separates meeting-driven conferences from general industry presence and shows which formats carry the strongest access evidence.</div>
                         <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "minmax(0, 1fr) minmax(280px, 0.9fr)", gap: "10px" }}>
                           <div style={subPanelStyle}>
                             <CompactReadMore text={access.interpretation.headline} maxChars={180} />
@@ -6115,19 +6159,19 @@ useEffect(() => {
                           <div style={{ ...subPanelStyle, display: "grid", gap: "7px" }}>
                             {[
                               ["Issuer Access", access.issuerAccessCount],
+                              ["Investor-Heavy", access.investorHeavyCount],
                               ["Structured Access", access.structuredAccessCount],
-                              ["Deal-Making", access.dealMakingCount],
+                              ["Deal-Making / Partnering", access.dealMakingCount],
                               ["Company Presentations", access.companyPresentationCount],
                               ["1x1 Meetings", access.oneOnOneCount],
                               ["No Issuer", access.noIssuerParticipationCount],
                             ].map(([label, value]) => {
                               const count = Number(value);
-                              const max = Math.max(access.issuerAccessCount, access.structuredAccessCount, access.dealMakingCount, access.companyPresentationCount, access.oneOnOneCount, access.noIssuerParticipationCount, 1);
                               return (
-                                <div key={String(label)} style={{ display: "grid", gridTemplateColumns: "130px minmax(0, 1fr) 42px", gap: "7px", alignItems: "center" }}>
+                                <div key={String(label)} style={{ display: "grid", gridTemplateColumns: "150px minmax(0, 1fr) 74px", gap: "7px", alignItems: "center" }}>
                                   <div style={{ color: "#dbeafe", fontSize: "11.5px", fontWeight: 800 }}>{label}</div>
-                                  <div style={{ height: "7px", borderRadius: "999px", background: "rgba(11,42,70,0.82)" }}><div style={{ width: `${Math.max(count ? 4 : 0, Math.round((count / max) * 100))}%`, height: "100%", borderRadius: "999px", background: /No Issuer/.test(String(label)) ? "#64748b" : "linear-gradient(90deg,#5eead4,#60a5fa)" }} /></div>
-                                  <div style={{ color: "#b8cce4", fontSize: "11.5px", fontWeight: 850, textAlign: "right" }}>{count}</div>
+                                  <div style={{ height: "7px", borderRadius: "999px", background: "rgba(11,42,70,0.82)" }}><div style={{ width: `${Math.max(count ? 4 : 0, Math.round((count / conferenceUniverse) * 100))}%`, height: "100%", borderRadius: "999px", background: /No Issuer/.test(String(label)) ? "#64748b" : "linear-gradient(90deg,#5eead4,#60a5fa)" }} /></div>
+                                  <div style={{ color: "#b8cce4", fontSize: "11.5px", fontWeight: 850, textAlign: "right" }}>{count} · {universeShare(count)}</div>
                                 </div>
                               );
                             })}
@@ -6141,24 +6185,24 @@ useEffect(() => {
 
                       <div style={sectionStyle}>
                         {sectionHeader("Conference Season Curve", "Weekly conference supply and access intensity across spring, summer, fall, and year-end windows.")}
-                        <div style={{ color: "#9fc0df", fontSize: "12px", lineHeight: 1.35 }}>Timing matters after access quality. The next layer is where the conference season is peaking or thinning out.</div>
+                        <div style={{ color: "#9fc0df", fontSize: "12px", lineHeight: 1.35 }}>Seasonality defines the calendar runway: spring and fall can move into full swing quickly, while shoulder periods reveal where outreach and sponsorship windows may have more room.</div>
                         <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: "7px" }}>
-                          <div style={subPanelStyle}>{stat("Current", intelligence.seasonPulse.currentSeasonLanguage)}</div>
-                          <div style={subPanelStyle}>{stat("Strongest", intelligence.seasonPulse.strongestSeasonLanguage)}</div>
+                          <div style={subPanelStyle}>{stat("Current Window", intelligence.seasonPulse.currentSeasonLanguage)}</div>
+                          <div style={subPanelStyle}>{stat("Peak Window", intelligence.seasonPulse.strongestSeasonLanguage)}</div>
                           <div style={subPanelStyle}><CompactReadMore text={intelligence.seasonPulse.interpretation} maxChars={145} /></div>
                         </div>
                         <div style={{ display: "grid", gap: "5px" }}>
-                          <div style={{ color: "#7f99b8", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.12em", textTransform: "uppercase" }}>Weekly Market Intensity Curve</div>
-                          <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(intelligence.weeklyIntensity.length, 1)}, minmax(14px, 1fr))`, alignItems: "end", gap: "3px", minHeight: "100px", overflowX: "auto", paddingTop: "4px" }}>
+                          <div style={{ color: "#7f99b8", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.12em", textTransform: "uppercase" }}>Weekly Intensity Timeline</div>
+                          <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(intelligence.weeklyIntensity.length, 1)}, minmax(18px, 1fr))`, alignItems: "end", gap: "3px", minHeight: "124px", maxHeight: "160px", overflowX: "auto", padding: "5px 0 2px" }}>
                             {intelligence.weeklyIntensity.map((row, index) => {
                               const isPeak = row.weekKey === peakWeek?.weekKey;
                               const isCurrent = row.weekStart <= asOfIso && row.weekEnd >= asOfIso;
-                              const showPhase = index === 0 || phaseLabel(row.weekStart) !== phaseLabel(intelligence.weeklyIntensity[index - 1]?.weekStart || "");
+                              const showMonth = index === 0 || row.weekStart.slice(5, 7) !== (intelligence.weeklyIntensity[index - 1]?.weekStart || "").slice(5, 7);
                               return (
-                                <div key={row.weekKey} title={`${row.label}: ${row.intensityScore} · ${phaseLabel(row.weekStart)}`} style={{ display: "grid", alignItems: "end", gap: "3px", minWidth: "14px" }}>
-                                  <div style={{ color: isPeak ? "#fbbf24" : isCurrent ? "#5eead4" : "transparent", fontSize: "9px", textAlign: "center", fontWeight: 900 }}>{isPeak ? "P" : isCurrent ? "N" : "·"}</div>
-                                  <div style={{ height: `${Math.max(3, Math.round((row.intensityScore / maxWeeklyScore) * 72))}px`, borderRadius: "4px 4px 1px 1px", background: isPeak ? "linear-gradient(180deg,#fbbf24,#f97316)" : isCurrent ? "linear-gradient(180deg,#5eead4,#2563eb)" : phaseLabel(row.weekStart) === "Fall" ? "linear-gradient(180deg,#93c5fd,#1d4ed8)" : phaseLabel(row.weekStart) === "Spring" ? "linear-gradient(180deg,#86efac,#2563eb)" : "linear-gradient(180deg,#a5b4fc,#334155)" }} />
-                                  <div style={{ color: showPhase ? "#8fa8c8" : "transparent", fontSize: "8.5px", textAlign: "center", whiteSpace: "nowrap" }}>{phaseLabel(row.weekStart)}</div>
+                                <div key={row.weekKey} title={`${row.label}: ${row.intensityScore} · ${phaseLabel(row.weekStart)}`} style={{ display: "grid", alignItems: "end", gridTemplateRows: "16px 1fr 14px", gap: "3px", minWidth: "18px" }}>
+                                  <div style={{ color: isPeak ? "#fbbf24" : isCurrent ? "#5eead4" : "transparent", fontSize: "9px", textAlign: "center", fontWeight: 900 }}>{isPeak ? "Peak" : isCurrent ? "Now" : "·"}</div>
+                                  <div style={{ alignSelf: "end", height: `${Math.max(4, Math.round((row.intensityScore / maxWeeklyScore) * 92))}px`, borderRadius: "4px 4px 1px 1px", background: isPeak ? "linear-gradient(180deg,#fbbf24,#f97316)" : isCurrent ? "linear-gradient(180deg,#5eead4,#2563eb)" : phaseLabel(row.weekStart) === "Fall" ? "linear-gradient(180deg,#93c5fd,#1d4ed8)" : phaseLabel(row.weekStart) === "Spring" ? "linear-gradient(180deg,#86efac,#2563eb)" : "linear-gradient(180deg,#a5b4fc,#334155)" }} />
+                                  <div style={{ color: showMonth ? "#8fa8c8" : "transparent", fontSize: "8.5px", textAlign: "center", whiteSpace: "nowrap" }}>{showMonth ? monthLabel(row.weekStart) : "·"}</div>
                                 </div>
                               );
                             })}
@@ -6177,12 +6221,12 @@ useEffect(() => {
                       </div>
 
                       <div style={sectionStyle}>
-                        {sectionHeader("Hot Weeks, Cold Weeks & Cluster Weeks", "High-density weeks, actionable white-space weeks, and dense city/event clusters.")}
-                        <div style={{ color: "#8fa8c8", fontSize: "11.5px" }}>Major holiday weeks are excluded from cold-week white-space rankings.</div>
+                        {sectionHeader("Hot Weeks, Cold Weeks & Cluster Weeks", "Crowded calendar windows, actionable white-space weeks, and future city clusters across the planning horizon.")}
+                        <div style={{ color: "#8fa8c8", fontSize: "11.5px" }}>Major holiday weeks are excluded from cold-week white-space rankings; future peaks and clusters remain valid planning signals.</div>
                         <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: "8px" }}>
                           <div style={subPanelStyle}>
                             <div style={{ color: "#dbeafe", fontSize: "12.5px", fontWeight: 900, marginBottom: "5px" }}>Hot Weeks</div>
-                            <div style={{ display: "grid", gap: "5px" }}>{intelligence.hotWeeks.top.slice(0, 5).map((row) => <div key={row.weekKey} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: "6px", borderBottom: "1px solid rgba(107,157,210,0.08)", paddingBottom: "5px" }}><span style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 850 }}>{row.label}<br /><span style={{ color: "#9fc0df", fontSize: "11px" }}>{row.totalEvents} events · {row.issuerAccessEvents} issuer · {row.investorHeavyEvents} investor</span></span><span style={{ color: "#fbbf24", fontSize: "14px", fontWeight: 900 }}>{row.intensityScore}</span></div>)}</div>
+                            <div style={{ display: "grid", gap: "5px" }}>{intelligence.hotWeeks.top.slice(0, 5).map((row) => <div key={row.weekKey} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: "6px", borderBottom: "1px solid rgba(107,157,210,0.08)", paddingBottom: "5px" }}><span style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 850 }}>{row.label}<br /><span style={{ color: "#9fc0df", fontSize: "11px" }}>Crowded window · {row.totalEvents} events · {row.issuerAccessEvents} issuer · {row.investorHeavyEvents} investor</span></span><span style={{ color: "#fbbf24", fontSize: "14px", fontWeight: 900 }}>{row.intensityScore}</span></div>)}</div>
                           </div>
                           <div style={subPanelStyle}>
                             <div style={{ color: "#dbeafe", fontSize: "12.5px", fontWeight: 900, marginBottom: "5px" }}>Cold Weeks</div>
@@ -6190,16 +6234,16 @@ useEffect(() => {
                           </div>
                           <div style={subPanelStyle}>
                             <div style={{ color: "#dbeafe", fontSize: "12.5px", fontWeight: 900, marginBottom: "5px" }}>Cluster Weeks</div>
-                            <div style={{ display: "grid", gap: "6px" }}>{dedupedClusters.map((row) => <div key={`${row.city}-${row.dateWindow}`} style={{ borderBottom: "1px solid rgba(107,157,210,0.08)", paddingBottom: "6px" }}><div style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 850 }}>{[row.city, row.state].filter(Boolean).join(", ")} · {row.dateWindow}</div><div style={{ color: "#9fc0df", fontSize: "11.5px" }}>{row.eventCount} events · {row.dominantMarketFocus || "N/A"} · {row.dominantSector || "N/A"} · issuer {row.issuerAccessCount} · investor {row.investorHeavyCount} · score {row.clusterScore}</div><CompactReadMore text={row.events.join(" · ")} maxChars={95} /></div>)}</div>
+                            <div style={{ display: "grid", gap: "6px" }}>{dedupedClusters.map((row) => <div key={`${row.city}-${row.dateWindow}`} style={{ borderBottom: "1px solid rgba(107,157,210,0.08)", paddingBottom: "6px" }}><div style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 850 }}>{[row.city, row.state].filter(Boolean).join(", ")} · {row.dateWindow}</div><div style={{ color: "#9fc0df", fontSize: "11.5px" }}>Future city cluster · {row.eventCount} events · {row.dominantMarketFocus || "N/A"} · {row.dominantSector || "N/A"} · issuer {row.issuerAccessCount} · investor {row.investorHeavyCount} · score {row.clusterScore}</div><CompactReadMore text={row.events.join(" · ")} maxChars={95} /></div>)}</div>
                           </div>
                         </div>
                       </div>
 
                       <div style={sectionStyle}>
-                        {sectionHeader("Sector & Market Focus Read-Through", "Where the conference universe is weighted by public company sector, market focus, and institutional coverage profile.")}
+                        {sectionHeader("Sector & Market Focus Read-Through", "Sector coverage, public company categories, market focus, and capital formation themes in the forward calendar.")}
                         <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
                           <div style={subPanelStyle}><CompactReadMore text={sectorMomentum.available ? sectorMomentum.interpretation : sectorMomentum.reason} maxChars={175} /></div>
-                          <div style={subPanelStyle}><div style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 850 }}>{focus.concentrationLabel}</div><div style={{ color: "#9fc0df", fontSize: "11.5px" }}>{focus.classifiedSignalCount} focus signals · top 3 share {focus.top3Share}% · HHI {focus.hhiScore}</div></div>
+                          <div style={subPanelStyle}><div style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 850 }}>Coverage mix: {focus.concentrationLabel}</div><div style={{ color: "#9fc0df", fontSize: "11.5px" }}>{focus.classifiedSignalCount} market-focus signals · top 3 share {focus.top3Share}% · HHI {focus.hhiScore}</div></div>
                         </div>
                         {sectorMomentum.available ? <div style={{ display: "flex", gap: "6px", overflowX: "auto", paddingBottom: "2px" }}>{sectorMomentum.rows.slice(0, 10).map((row) => <div key={row.sector} style={{ flex: "0 0 auto", borderRadius: "999px", padding: "5px 9px", background: row.countChange >= 0 ? "rgba(34,197,94,0.12)" : "rgba(248,113,113,0.12)", border: "1px solid rgba(107,157,210,0.14)", color: row.countChange >= 0 ? "#86efac" : "#fca5a5", fontSize: "11px", fontWeight: 900 }}>{row.sector} {signed(row.countChange)}</div>)}</div> : null}
                         <div style={{ display: "flex", gap: "4px", overflowX: "auto" }}>{signalTabLabels.map((tab) => <TabButton key={tab.key} active={tab.key === marketViewSignalTab} label={tab.label} onClick={() => setMarketViewSignalTab(tab.key)} />)}</div>
@@ -6209,7 +6253,7 @@ useEffect(() => {
                       </div>
 
                       <div style={sectionStyle}>
-                        {sectionHeader("Events Behind the Signal", "Highest-scoring events based on issuer access, structured access, deal-making, company presentations, and 1x1 classifications.")}
+                        {sectionHeader("Events Behind the Signal", "Highest-scoring events in the underlying event book by access, meetings, presentations, and deal-flow classifications.")}
                         <CompactTable minWidth="980px" headers={["Event", "Date", "City", "Organizer", "Focus", "Issuer Participation", "Character", "Sector", "Score"]} rows={access.topDealAccessEvents.map((event) => [
                           <a key="event" href={eventSearchHref(event.title)} style={{ color: "#dbeafe", fontWeight: 850, textDecoration: "none" }}>{event.title}</a>,
                           event.date,
@@ -6224,21 +6268,21 @@ useEffect(() => {
                       </div>
 
                       <div style={sectionStyle}>
-                        {sectionHeader("Organizer League Tables", "Organizer rankings by conference supply, issuer access, investor-heavy activity, structured access, deal/access score, near-term pipeline, and geographic breadth.")}
-                        <div style={{ color: "#9fc0df", fontSize: "12px", lineHeight: 1.35 }}>Organizer volume explains supply, but access-oriented rankings are more useful than raw event count alone. Organizer volume is a supply-side signal; issuer-access and structured-access tables are stronger indicators of capital markets relevance.</div>
+                        {sectionHeader("Organizer League Tables", "Organizer supply, conference pipeline, access quality, and supply-side concentration by ranking family.")}
+                        <div style={{ color: "#9fc0df", fontSize: "12px", lineHeight: 1.35 }}>Organizer volume explains conference supply, while issuer-access and structured-access rankings point to stronger capital markets relevance. The upcoming 30-day tab is intentionally near-term; the rest of the league table supports the broader planning horizon.</div>
                         <div style={{ display: "flex", gap: "4px", overflowX: "auto", paddingBottom: "2px" }}>{organizerTabLabels.map((tab) => <TabButton key={tab.key} active={tab.key === marketViewOrganizerTab} label={tab.label} onClick={() => setMarketViewOrganizerTab(tab.key)} />)}</div>
                         <CompactReadMore text={activeOrganizerInterpretation} maxChars={175} />
                         <CompactTable minWidth="1050px" headers={["Rank", "Organizer", "Events", "Issuer", "Investor", "Structured", "Deal", "Avg", "Cities", "Next Event", "Next Date", "Next City"]} rows={activeOrganizerRows.map((row) => [row.rank, row.organizer, row.totalEvents, row.issuerAccessEvents, row.investorHeavyEvents, row.structuredAccessEvents, row.dealMakingEvents, row.averageDealAccessScore, row.citiesCount, row.nextEventTitle || "N/A", row.nextEventDate || "N/A", row.nextEventCity || "N/A"])} />
                       </div>
 
                       <div style={sectionStyle}>
-                        {sectionHeader("Geography & City Concentration", "Geographic concentration is secondary to access and market classification, but it shows where conference supply is physically clustering.")}
+                        {sectionHeader("Geography & City Concentration", "City concentration, regional footprint, and physical clustering as supporting context for access planning.")}
                         <div style={{ display: "flex", gap: "4px", overflowX: "auto", paddingBottom: "2px" }}>{geographyTabLabels.map((tab) => <TabButton key={tab.key} active={tab.key === marketViewGeographyTab} label={tab.label} onClick={() => setMarketViewGeographyTab(tab.key)} />)}</div>
                         <GeographyTable rows={activeGeoRows} />
                       </div>
 
                       <div style={sectionStyle}>
-                        {sectionHeader("Classification Coverage & Diligence Support", "Coverage depth across CCC's classification fields and supporting diligence signals.")}
+                        {sectionHeader("Classification Coverage & Diligence Support", "Mapped fields, classification coverage, and confidence caveats for diligence support.")}
                         <CompactTable minWidth="520px" headers={["Field", "Populated", "Coverage"]} rows={intelligence.dataReadiness.fields.map((row) => [row.field, row.populatedCount, `${row.coveragePct}%`])} />
                         <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(4, minmax(0, 1fr))", gap: "7px" }}>
                           <div style={subPanelStyle}>{stat("Strongest Fields", intelligence.dataReadiness.strongestFields.length)}<div style={{ color: "#9fc0df", fontSize: "11.5px", lineHeight: 1.35 }}>{intelligence.dataReadiness.strongestFields.join(" · ") || "N/A"}</div></div>
