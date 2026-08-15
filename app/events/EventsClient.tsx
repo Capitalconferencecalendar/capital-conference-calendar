@@ -6089,9 +6089,9 @@ useEffect(() => {
                     boxShadow: "0 16px 34px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.04)",
                   };
                   const heroMetric = (label: string, value: ReactNode) => (
-                    <div style={{ display: "grid", gap: "2px", padding: "5px 0", borderBottom: "1px solid rgba(147,197,253,0.10)" }}>
-                      <div style={{ color: "#86a7c9", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.11em", textTransform: "uppercase", whiteSpace: "normal" }}>{label}</div>
-                      <div style={{ color: "#f8fbff", fontSize: "17px", lineHeight: 1.08, fontWeight: 900 }}>{value}</div>
+                    <div style={{ display: "grid", gap: "1px", padding: "3px 0", borderBottom: "1px solid rgba(147,197,253,0.10)" }}>
+                      <div style={{ color: "#86a7c9", fontSize: "9px", fontWeight: 950, letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "normal" }}>{label}</div>
+                      <div style={{ color: "#f8fbff", fontSize: "16px", lineHeight: 1.05, fontWeight: 900 }}>{value}</div>
                     </div>
                   );
                   const subPanelStyle: CSSProperties = { borderRadius: "8px", border: "1px solid rgba(107,157,210,0.10)", background: "linear-gradient(180deg, rgba(9,36,61,0.54), rgba(5,20,35,0.46))", padding: "9px", minWidth: 0 };
@@ -6111,9 +6111,9 @@ useEffect(() => {
                     </div>
                   );
                   const tapeItem = (label: string, value: ReactNode) => (
-                    <div style={{ flex: "0 0 auto", display: "inline-flex", alignItems: "baseline", gap: "7px", height: "28px", padding: "0 10px", borderRadius: "999px", border: "1px solid rgba(107,157,210,0.16)", background: "rgba(9,36,61,0.62)" }}>
-                      <span style={{ color: "#8fa8c8", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.12em", textTransform: "uppercase" }}>{label}</span>
-                      <span style={{ color: "#f4f8ff", fontSize: "16px", fontWeight: 900 }}>{value}</span>
+                    <div style={{ flex: "0 0 auto", display: "inline-flex", alignItems: "baseline", gap: "6px", height: "26px", padding: "0 8px", borderRadius: "999px", border: "1px solid rgba(107,157,210,0.16)", background: "rgba(9,36,61,0.62)" }}>
+                      <span style={{ color: "#8fa8c8", fontSize: "9px", fontWeight: 950, letterSpacing: "0.1em", textTransform: "uppercase" }}>{label}</span>
+                      <span style={{ color: "#f4f8ff", fontSize: "13px", fontWeight: 900 }}>{value}</span>
                     </div>
                   );
                   const tableWrap: CSSProperties = { overflowX: "auto", borderRadius: "9px", border: "1px solid rgba(107,157,210,0.10)", background: "linear-gradient(180deg, rgba(4,18,32,0.42), rgba(4,18,32,0.24))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)" };
@@ -6205,49 +6205,49 @@ useEffect(() => {
                       <div
                         style={{
                           gridColumn: "1 / -1",
-                          minHeight: isMobileViewport ? "auto" : "232px",
+                          minHeight: isMobileViewport ? "auto" : "184px",
                           borderRadius: "14px",
                           border: "1px solid rgba(96,165,250,0.28)",
                           background: "radial-gradient(circle at 16% 0%, rgba(56,189,248,0.24), transparent 34%), radial-gradient(circle at 86% 20%, rgba(129,140,248,0.16), transparent 31%), linear-gradient(135deg, rgba(5,18,34,0.99), rgba(8,38,66,0.97) 56%, rgba(3,14,27,0.99))",
                           boxShadow: "0 24px 60px rgba(0,0,0,0.32), 0 0 34px rgba(37,99,235,0.12), inset 0 1px 0 rgba(255,255,255,0.06)",
-                          padding: isMobileViewport ? "16px" : "20px",
+                          padding: isMobileViewport ? "14px" : "14px 16px",
                           display: "grid",
-                          gridTemplateColumns: isMobileViewport ? "1fr" : "minmax(0, 1.24fr) minmax(286px, 0.76fr)",
-                          gap: "16px",
+                          gridTemplateColumns: isMobileViewport ? "1fr" : "minmax(0, 1.18fr) minmax(360px, 0.82fr)",
+                          gap: "12px",
                           alignItems: "stretch",
                           overflow: "hidden",
                         }}
                       >
-                        <div style={{ display: "grid", alignContent: "center", gap: "12px", minWidth: 0 }}>
+                        <div style={{ display: "grid", alignContent: "center", gap: "8px", minWidth: 0 }}>
                           <div style={{ color: "#67e8f9", fontSize: "10px", fontWeight: 950, letterSpacing: "0.18em", textTransform: "uppercase" }}>MARKET VIEW</div>
-                          <div style={{ color: "#f8fbff", fontSize: isMobileViewport ? "30px" : "40px", lineHeight: 1.02, fontWeight: 950, maxWidth: "780px" }}>
+                          <div style={{ color: "#f8fbff", fontSize: isMobileViewport ? "29px" : "36px", lineHeight: 0.98, fontWeight: 950, maxWidth: "720px" }}>
                             Capital Markets Conference Intelligence
                           </div>
-                          <div style={{ color: "#b9cce3", fontSize: "13px", lineHeight: 1.45, maxWidth: "820px" }}>
+                          <div style={{ color: "#b9cce3", fontSize: "13px", lineHeight: 1.35, maxWidth: "700px" }}>
                             Real-time intelligence on where issuer access, investor concentration, sector activity, organizer supply, and conference seasonality are building.
                           </div>
-                          <div style={{ color: "#d9e8fb", fontSize: "13px", lineHeight: 1.45, maxWidth: "840px", borderLeft: "2px solid rgba(94,234,212,0.58)", paddingLeft: "12px" }}>
+                          <div style={{ color: "#d9e8fb", fontSize: "12.5px", lineHeight: 1.4, maxWidth: "620px", borderLeft: "2px solid rgba(94,234,212,0.58)", paddingLeft: "10px" }}>
                             Capital Conference Calendar is tracking {landscape.totalEvents} conferences across {landscape.organizersCount} organizers and {landscape.citiesCount} cities. The current window is {intelligence.seasonPulse.currentSeasonLanguage.toLowerCase()}, while the strongest planning window is {intelligence.seasonPulse.strongestSeasonLanguage.toLowerCase()}.
                           </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#c7d8ee", fontSize: "11.5px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "7px", color: "#c7d8ee", fontSize: "11px" }}>
                             <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: "#5eead4", boxShadow: "0 0 10px rgba(94,234,212,0.5)", flex: "0 0 auto" }} />
                             Proprietary classification-driven conference intelligence. Continuously updated.
                           </div>
                         </div>
-                        <div style={{ borderRadius: "12px", border: "1px solid rgba(147,197,253,0.22)", background: "linear-gradient(180deg, rgba(4,18,32,0.72), rgba(3,13,25,0.64))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05), 0 0 22px rgba(56,189,248,0.08)", padding: "12px", display: "grid", gap: "8px", alignContent: "start" }}>
+                        <div style={{ borderRadius: "12px", border: "1px solid rgba(147,197,253,0.22)", background: "linear-gradient(180deg, rgba(4,18,32,0.72), rgba(3,13,25,0.64))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05), 0 0 22px rgba(56,189,248,0.08)", padding: "10px 12px", display: "grid", gap: "6px", alignContent: "start" }}>
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
                             <div>
                               <div style={{ color: "#8fbfff", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>MARKET READOUT</div>
-                              <div style={{ color: "#8fa8c8", fontSize: "10.5px", fontWeight: 850, marginTop: "2px" }}>Scope: {scopeDescription}</div>
+                              <div style={{ color: "#8fa8c8", fontSize: "10px", fontWeight: 850, marginTop: "1px" }}>Scope: {scopeDescription}</div>
                             </div>
                             <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#5eead4", fontSize: "10px", fontWeight: 900 }}>
                               <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: "#5eead4", boxShadow: "0 0 10px rgba(94,234,212,0.45)" }} />
                               Live
                             </div>
                           </div>
-                          <div style={{ display: "inline-flex", maxWidth: "100%", gap: "4px", padding: "3px", borderRadius: "8px", background: "rgba(3,13,25,0.72)", border: "1px solid rgba(107,157,210,0.18)", flexWrap: "wrap" }}>
+                          <div style={{ display: "inline-flex", maxWidth: "100%", gap: "4px", padding: "2px", borderRadius: "8px", background: "rgba(3,13,25,0.72)", border: "1px solid rgba(107,157,210,0.18)", flexWrap: "wrap" }}>
                               {[{ key: "all" as const, label: "All Conferences" }, { key: "filtered" as const, label: "Current Filtered View" }].map((option) => (
-                                <button key={option.key} type="button" onClick={() => setMarketViewDataset(option.key)} style={{ height: "24px", padding: "0 9px", borderRadius: "6px", border: option.key === marketViewDataset ? "1px solid rgba(125,180,255,0.26)" : "1px solid transparent", background: option.key === marketViewDataset ? "rgba(47,111,243,0.84)" : "transparent", color: option.key === marketViewDataset ? "#ffffff" : "#a8bdd8", fontSize: "11px", fontWeight: 850, cursor: "pointer" }}>{option.label}</button>
+                                <button key={option.key} type="button" onClick={() => setMarketViewDataset(option.key)} style={{ height: "22px", padding: "0 8px", borderRadius: "6px", border: option.key === marketViewDataset ? "1px solid rgba(125,180,255,0.26)" : "1px solid transparent", background: option.key === marketViewDataset ? "rgba(47,111,243,0.84)" : "transparent", color: option.key === marketViewDataset ? "#ffffff" : "#a8bdd8", fontSize: "10.5px", fontWeight: 850, cursor: "pointer" }}>{option.label}</button>
                               ))}
                           </div>
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", columnGap: "14px", rowGap: "0" }}>
@@ -6258,12 +6258,12 @@ useEffect(() => {
                             {heroMetric("Current Window", intelligence.seasonPulse.currentSeasonLanguage)}
                             {heroMetric("Peak Window", intelligence.seasonPulse.strongestSeasonLanguage)}
                           </div>
-                          <button type="button" onClick={openDatabase} style={{ ...actionLinkStyle, justifySelf: "start", color: "#7dd3fc", fontSize: "11.5px" }}>Open in Database →</button>
+                          <button type="button" onClick={openDatabase} style={{ ...actionLinkStyle, justifySelf: "start", color: "#7dd3fc", fontSize: "11px" }}>Open in Database →</button>
                         </div>
                       </div>
 
-                      <div style={{ ...sectionStyle, padding: "8px 10px" }}>
-                        <div style={{ color: "#8fbfff", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>CAPITAL ACCESS TAPE</div>
+                      <div style={{ ...sectionStyle, gap: "6px", padding: "8px 10px" }}>
+                        <div style={{ color: "#8fbfff", fontSize: "10px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>CAPITAL ACCESS TAPE</div>
                         <div style={{ display: "flex", gap: "6px", overflowX: "visible", flexWrap: "wrap" }}>
                           {tapeItem("Issuer Access", <OpenDatabaseLink query="Issuer Access">{access.issuerAccessCount}</OpenDatabaseLink>)}
                           {tapeItem("Investor-Heavy", <OpenDatabaseLink query="Investor">{access.investorHeavyCount}</OpenDatabaseLink>)}
@@ -6277,15 +6277,15 @@ useEffect(() => {
                         </div>
                       </div>
 
-                      <div style={{ gridColumn: "1 / -1", display: "grid", gap: "8px", padding: "10px 2px 12px", borderTop: "1px solid rgba(94,234,212,0.20)", borderBottom: "1px solid rgba(96,165,250,0.10)", background: "linear-gradient(90deg, rgba(20,184,166,0.08), rgba(37,99,235,0.05), transparent)" }}>
+                      <div style={{ gridColumn: "1 / -1", display: "grid", gap: "8px", padding: "10px 2px", borderTop: "1px solid rgba(94,234,212,0.20)", borderBottom: "1px solid rgba(96,165,250,0.10)", background: "linear-gradient(90deg, rgba(20,184,166,0.08), rgba(37,99,235,0.05), transparent)" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
                           <div>
                             <div style={{ color: "#67e8f9", fontSize: "10px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>LIVE MARKET SIGNALS</div>
-                            <div style={{ color: "#9fb7d2", fontSize: "11.5px", marginTop: "2px" }}>What to watch first in the forward conference calendar.</div>
+                            <div style={{ color: "#9fb7d2", fontSize: "12px", marginTop: "1px" }}>What to watch first in the forward conference calendar.</div>
                           </div>
                           <OpenDatabaseLink query={peakWeek?.topMarketFocus || landscape.topMarketFocus || ""}>See event records</OpenDatabaseLink>
                         </div>
-                        <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(5, minmax(0, 1fr))", gap: "7px" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(5, minmax(0, 1fr))", gap: "8px" }}>
                           {liveSignals.map((signal) => (
                             <button
                               key={signal.label}
@@ -6297,15 +6297,16 @@ useEffect(() => {
                                 borderRadius: "9px",
                                 border: "1px solid rgba(94,234,212,0.14)",
                                 background: "linear-gradient(180deg, rgba(8,34,58,0.72), rgba(4,18,32,0.58))",
-                                padding: "9px",
+                                padding: "10px",
                                 cursor: "pointer",
                                 boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+                                minHeight: "92px",
                               }}
                             >
-                              <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#86a7c9", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.11em", textTransform: "uppercase" }}><span style={{ width: "6px", height: "6px", borderRadius: "999px", background: "#5eead4", boxShadow: "0 0 10px rgba(94,234,212,0.45)", flex: "0 0 auto" }} />{signal.label}</div>
-                              <div style={{ color: "#f4f8ff", fontSize: "13px", lineHeight: 1.2, fontWeight: 900, marginTop: "5px", overflowWrap: "anywhere" }}>{signal.value}</div>
-                              <div style={{ color: "#9fc0df", fontSize: "11px", lineHeight: 1.28, marginTop: "4px" }}>{signal.note}</div>
-                              <div style={{ color: "#7dd3fc", fontSize: "10.5px", fontWeight: 850, marginTop: "6px" }}>View events</div>
+                              <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#86a7c9", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.1em", textTransform: "uppercase" }}><span style={{ width: "5px", height: "5px", borderRadius: "999px", background: "#5eead4", boxShadow: "0 0 8px rgba(94,234,212,0.38)", flex: "0 0 auto" }} />{signal.label}</div>
+                              <div style={{ color: "#f4f8ff", fontSize: "15px", lineHeight: 1.12, fontWeight: 900, marginTop: "4px", overflowWrap: "anywhere" }}>{signal.value}</div>
+                              <div style={{ color: "#9fc0df", fontSize: "11px", lineHeight: 1.22, marginTop: "3px" }}>{signal.note}</div>
+                              <div style={{ color: "#7dd3fc", fontSize: "11px", fontWeight: 850, marginTop: "5px" }}>{signal.actionText} →</div>
                             </button>
                           ))}
                         </div>
