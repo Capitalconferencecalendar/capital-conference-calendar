@@ -3505,6 +3505,23 @@ useEffect(() => {
     scrollToResultsAnchor();
   };
 
+  const openDatabase = () => {
+    setDashboardMode("market");
+    setWorkspaceViewMode("database");
+    setSelectedEvents([]);
+    setActiveQuickView("");
+    setActiveSavedListId(null);
+    if (typeof window !== "undefined") {
+      const next = new URL(window.location.href);
+      next.searchParams.set("mode", "market");
+      next.searchParams.set("workspace", "database");
+      next.searchParams.delete("eventId");
+      window.location.assign(`${next.pathname}${next.search}${next.hash}`);
+      return;
+    }
+    scrollToResultsAnchor();
+  };
+
   const handleSubmitConferenceUrl = () => {
     const normalized = normalizeExternalUrl(submitForm.url);
     if (!normalized) {
@@ -6048,11 +6065,11 @@ useEffect(() => {
                   });
                   const maxSeasonEvents = Math.max(...seasonRunway.map((row) => row.eventCount), 1);
                   const liveSignals = [
-                    { label: "Peak Week", value: peakWeek?.label || "N/A", note: peakWeek ? `${peakWeek.totalEvents} events · score ${peakWeek.intensityScore}` : "No dated peak available", action: () => openWeek(peakWeek) },
-                    { label: "Strongest Access Window", value: strongestAccessWindow?.label || "N/A", note: strongestAccessWindow ? `${strongestAccessWindow.topCity || "Market-wide"} · ${strongestAccessWindow.count} signals` : "Access window not classified", action: () => strongestAccessWindow && openWeek(strongestAccessWindow) },
-                    { label: "Top Market Focus", value: landscape.topMarketFocus || focus.rows[0]?.marketFocus || "N/A", note: focus.rows[0] ? `${focus.rows[0].count} signals · ${focus.rows[0].shareOfClassifiedSignals}% share` : "Focus mix unavailable", action: () => openDatabaseSearch(landscape.topMarketFocus || focus.rows[0]?.marketFocus || "") },
-                    { label: "Leading Organizer", value: landscape.topOrganizer || organizerTables.overallVolume[0]?.organizer || "N/A", note: organizerTables.overallVolume[0] ? `${organizerTables.overallVolume[0].totalEvents} events in pipeline` : "Organizer mix unavailable", action: () => openDatabaseSearch(landscape.topOrganizer || organizerTables.overallVolume[0]?.organizer || "") },
-                    { label: "Most Active City", value: landscape.topCity || geo.topCitiesByTotalEvents[0]?.city || "N/A", note: geo.topCitiesByTotalEvents[0] ? `${geo.topCitiesByTotalEvents[0].totalEvents} events · access-weighted view below` : "City activity unavailable", action: () => openDatabaseSearch(landscape.topCity || geo.topCitiesByTotalEvents[0]?.city || "") },
+                    { label: "Peak Week", value: peakWeek?.label || "N/A", note: peakWeek ? `${peakWeek.totalEvents} events · score ${peakWeek.intensityScore}` : "No dated peak available", actionText: "View events", action: () => openWeek(peakWeek) },
+                    { label: "Strongest Access Window", value: strongestAccessWindow?.label || "N/A", note: strongestAccessWindow ? `${strongestAccessWindow.topCity || "Market-wide"} · ${strongestAccessWindow.count} signals` : "Access window not classified", actionText: "View events", action: () => strongestAccessWindow && openWeek(strongestAccessWindow) },
+                    { label: "Top Market Focus", value: landscape.topMarketFocus || focus.rows[0]?.marketFocus || "N/A", note: focus.rows[0] ? `${focus.rows[0].count} signals · ${focus.rows[0].shareOfClassifiedSignals}% share` : "Focus mix unavailable", actionText: "View focus", action: () => openDatabaseSearch(landscape.topMarketFocus || focus.rows[0]?.marketFocus || "") },
+                    { label: "Leading Organizer", value: landscape.topOrganizer || organizerTables.overallVolume[0]?.organizer || "N/A", note: organizerTables.overallVolume[0] ? `${organizerTables.overallVolume[0].totalEvents} events in pipeline` : "Organizer mix unavailable", actionText: "View organizer", action: () => openDatabaseSearch(landscape.topOrganizer || organizerTables.overallVolume[0]?.organizer || "") },
+                    { label: "Most Active City", value: landscape.topCity || geo.topCitiesByTotalEvents[0]?.city || "N/A", note: geo.topCitiesByTotalEvents[0] ? `${geo.topCitiesByTotalEvents[0].totalEvents} events · access-weighted` : "City activity unavailable", actionText: "View city", action: () => openDatabaseSearch(landscape.topCity || geo.topCitiesByTotalEvents[0]?.city || "") },
                   ];
                   const sectionStyle: CSSProperties = {
                     gridColumn: "1 / -1",
@@ -6188,11 +6205,11 @@ useEffect(() => {
                       <div
                         style={{
                           gridColumn: "1 / -1",
-                          minHeight: isMobileViewport ? "auto" : "205px",
+                          minHeight: isMobileViewport ? "auto" : "232px",
                           borderRadius: "14px",
-                          border: "1px solid rgba(94,234,212,0.22)",
-                          background: "radial-gradient(circle at 12% 0%, rgba(45,212,191,0.18), transparent 32%), linear-gradient(135deg, rgba(5,18,34,0.98), rgba(8,38,66,0.96) 58%, rgba(3,14,27,0.98))",
-                          boxShadow: "0 22px 55px rgba(0,0,0,0.30), 0 0 0 1px rgba(96,165,250,0.08), inset 0 1px 0 rgba(255,255,255,0.06)",
+                          border: "1px solid rgba(96,165,250,0.28)",
+                          background: "radial-gradient(circle at 16% 0%, rgba(56,189,248,0.24), transparent 34%), radial-gradient(circle at 86% 20%, rgba(129,140,248,0.16), transparent 31%), linear-gradient(135deg, rgba(5,18,34,0.99), rgba(8,38,66,0.97) 56%, rgba(3,14,27,0.99))",
+                          boxShadow: "0 24px 60px rgba(0,0,0,0.32), 0 0 34px rgba(37,99,235,0.12), inset 0 1px 0 rgba(255,255,255,0.06)",
                           padding: isMobileViewport ? "16px" : "20px",
                           display: "grid",
                           gridTemplateColumns: isMobileViewport ? "1fr" : "minmax(0, 1.24fr) minmax(286px, 0.76fr)",
@@ -6202,28 +6219,36 @@ useEffect(() => {
                         }}
                       >
                         <div style={{ display: "grid", alignContent: "center", gap: "12px", minWidth: 0 }}>
-                          <div style={{ color: "#5eead4", fontSize: "10px", fontWeight: 950, letterSpacing: "0.18em", textTransform: "uppercase" }}>Market View</div>
+                          <div style={{ color: "#67e8f9", fontSize: "10px", fontWeight: 950, letterSpacing: "0.18em", textTransform: "uppercase" }}>MARKET VIEW</div>
                           <div style={{ color: "#f8fbff", fontSize: isMobileViewport ? "30px" : "40px", lineHeight: 1.02, fontWeight: 950, maxWidth: "780px" }}>
                             Capital Markets Conference Intelligence
                           </div>
                           <div style={{ color: "#b9cce3", fontSize: "13px", lineHeight: 1.45, maxWidth: "820px" }}>
-                            A classified view of issuer access, institutional attendance, sector activity, organizer supply, and conference seasonality across the Capital Conference Calendar universe.
+                            Real-time intelligence on where issuer access, investor concentration, sector activity, organizer supply, and conference seasonality are building.
                           </div>
                           <div style={{ color: "#d9e8fb", fontSize: "13px", lineHeight: 1.45, maxWidth: "840px", borderLeft: "2px solid rgba(94,234,212,0.58)", paddingLeft: "12px" }}>
-                            Capital Conference Calendar is tracking {landscape.totalEvents} conferences across {landscape.organizersCount} organizers and {landscape.citiesCount} cities. The current window is {intelligence.seasonPulse.currentSeasonLanguage.toLowerCase()}, while the strongest planning window is {intelligence.seasonPulse.strongestSeasonLanguage.toLowerCase()}. The strongest signal is timing and access concentration, not raw event volume.
+                            Capital Conference Calendar is tracking {landscape.totalEvents} conferences across {landscape.organizersCount} organizers and {landscape.citiesCount} cities. The current window is {intelligence.seasonPulse.currentSeasonLanguage.toLowerCase()}, while the strongest planning window is {intelligence.seasonPulse.strongestSeasonLanguage.toLowerCase()}.
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#c7d8ee", fontSize: "11.5px" }}>
+                            <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: "#5eead4", boxShadow: "0 0 10px rgba(94,234,212,0.5)", flex: "0 0 auto" }} />
+                            Proprietary classification-driven conference intelligence. Continuously updated.
                           </div>
                         </div>
-                        <div style={{ borderRadius: "12px", border: "1px solid rgba(147,197,253,0.18)", background: "rgba(4,18,32,0.62)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)", padding: "12px", display: "grid", gap: "8px", alignContent: "start" }}>
+                        <div style={{ borderRadius: "12px", border: "1px solid rgba(147,197,253,0.22)", background: "linear-gradient(180deg, rgba(4,18,32,0.72), rgba(3,13,25,0.64))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05), 0 0 22px rgba(56,189,248,0.08)", padding: "12px", display: "grid", gap: "8px", alignContent: "start" }}>
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
                             <div>
-                              <div style={{ color: "#8fbfff", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>Market Readout</div>
+                              <div style={{ color: "#8fbfff", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>MARKET READOUT</div>
                               <div style={{ color: "#8fa8c8", fontSize: "10.5px", fontWeight: 850, marginTop: "2px" }}>Scope: {scopeDescription}</div>
                             </div>
-                            <div style={{ display: "inline-flex", maxWidth: "100%", gap: "4px", padding: "3px", borderRadius: "8px", background: "rgba(3,13,25,0.72)", border: "1px solid rgba(107,157,210,0.18)", flexWrap: "wrap" }}>
+                            <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#5eead4", fontSize: "10px", fontWeight: 900 }}>
+                              <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: "#5eead4", boxShadow: "0 0 10px rgba(94,234,212,0.45)" }} />
+                              Live
+                            </div>
+                          </div>
+                          <div style={{ display: "inline-flex", maxWidth: "100%", gap: "4px", padding: "3px", borderRadius: "8px", background: "rgba(3,13,25,0.72)", border: "1px solid rgba(107,157,210,0.18)", flexWrap: "wrap" }}>
                               {[{ key: "all" as const, label: "All Conferences" }, { key: "filtered" as const, label: "Current Filtered View" }].map((option) => (
                                 <button key={option.key} type="button" onClick={() => setMarketViewDataset(option.key)} style={{ height: "24px", padding: "0 9px", borderRadius: "6px", border: option.key === marketViewDataset ? "1px solid rgba(125,180,255,0.26)" : "1px solid transparent", background: option.key === marketViewDataset ? "rgba(47,111,243,0.84)" : "transparent", color: option.key === marketViewDataset ? "#ffffff" : "#a8bdd8", fontSize: "11px", fontWeight: 850, cursor: "pointer" }}>{option.label}</button>
                               ))}
-                            </div>
                           </div>
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", columnGap: "14px", rowGap: "0" }}>
                             {heroMetric("Conference Universe", landscape.totalEvents)}
@@ -6233,11 +6258,12 @@ useEffect(() => {
                             {heroMetric("Current Window", intelligence.seasonPulse.currentSeasonLanguage)}
                             {heroMetric("Peak Window", intelligence.seasonPulse.strongestSeasonLanguage)}
                           </div>
+                          <button type="button" onClick={openDatabase} style={{ ...actionLinkStyle, justifySelf: "start", color: "#7dd3fc", fontSize: "11.5px" }}>Open in Database →</button>
                         </div>
                       </div>
 
                       <div style={{ ...sectionStyle, padding: "8px 10px" }}>
-                        <div style={{ color: "#8fbfff", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>Capital Access Tape</div>
+                        <div style={{ color: "#8fbfff", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>CAPITAL ACCESS TAPE</div>
                         <div style={{ display: "flex", gap: "6px", overflowX: "visible", flexWrap: "wrap" }}>
                           {tapeItem("Issuer Access", <OpenDatabaseLink query="Issuer Access">{access.issuerAccessCount}</OpenDatabaseLink>)}
                           {tapeItem("Investor-Heavy", <OpenDatabaseLink query="Investor">{access.investorHeavyCount}</OpenDatabaseLink>)}
@@ -6245,8 +6271,8 @@ useEffect(() => {
                           {tapeItem("Deal-Making", <OpenDatabaseLink query="Deal-Making Partnering">{access.dealMakingCount}</OpenDatabaseLink>)}
                           {tapeItem("Company Presentations", <OpenDatabaseLink query="Company Presentations">{access.companyPresentationCount}</OpenDatabaseLink>)}
                           {tapeItem("1x1", <OpenDatabaseLink query="1x1">{access.oneOnOneCount}</OpenDatabaseLink>)}
-                          {tapeItem("Mixed", access.mixedParticipationCount)}
-                          {tapeItem("No Issuer", access.noIssuerParticipationCount)}
+                          {tapeItem("Mixed", <OpenDatabaseLink query="Mixed Participation">{access.mixedParticipationCount}</OpenDatabaseLink>)}
+                          {tapeItem("No Issuer", <OpenDatabaseLink query="No Issuer Participation">{access.noIssuerParticipationCount}</OpenDatabaseLink>)}
                           {tapeItem("Avg Access Score", access.averageDealAccessScore)}
                         </div>
                       </div>
@@ -6254,8 +6280,8 @@ useEffect(() => {
                       <div style={{ gridColumn: "1 / -1", display: "grid", gap: "8px", padding: "10px 2px 12px", borderTop: "1px solid rgba(94,234,212,0.20)", borderBottom: "1px solid rgba(96,165,250,0.10)", background: "linear-gradient(90deg, rgba(20,184,166,0.08), rgba(37,99,235,0.05), transparent)" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
                           <div>
-                            <div style={{ color: "#5eead4", fontSize: "10px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>Live Market Signals</div>
-                            <div style={{ color: "#9fb7d2", fontSize: "11.5px", marginTop: "2px" }}>What to look at first in the forward conference calendar.</div>
+                            <div style={{ color: "#67e8f9", fontSize: "10px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>LIVE MARKET SIGNALS</div>
+                            <div style={{ color: "#9fb7d2", fontSize: "11.5px", marginTop: "2px" }}>What to watch first in the forward conference calendar.</div>
                           </div>
                           <OpenDatabaseLink query={peakWeek?.topMarketFocus || landscape.topMarketFocus || ""}>See event records</OpenDatabaseLink>
                         </div>
