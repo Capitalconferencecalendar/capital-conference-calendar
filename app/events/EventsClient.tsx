@@ -6078,12 +6078,6 @@ useEffect(() => {
                     { label: "Leading Organizer", value: landscape.topOrganizer || organizerTables.overallVolume[0]?.organizer || "N/A", note: organizerTables.overallVolume[0] ? `${organizerTables.overallVolume[0].totalEvents} events in pipeline` : "Organizer mix unavailable", actionText: "View organizer", action: () => openDatabaseSearch(landscape.topOrganizer || organizerTables.overallVolume[0]?.organizer || "") },
                     { label: "Most Active City", value: landscape.topCity || geo.topCitiesByTotalEvents[0]?.city || "N/A", note: geo.topCitiesByTotalEvents[0] ? `${geo.topCitiesByTotalEvents[0].totalEvents} events · access-weighted` : "City activity unavailable", actionText: "View city", action: () => openDatabaseSearch(landscape.topCity || geo.topCitiesByTotalEvents[0]?.city || "") },
                   ];
-                  const heroTerminalRows = [
-                    ["Universe", landscape.totalEvents],
-                    ["Organizers", landscape.organizersCount],
-                    ["Cities", landscape.citiesCount],
-                    ["Access", access.issuerAccessCount],
-                  ];
                   const accessTapeItems = [
                     { label: "Issuer Access", value: access.issuerAccessCount, query: "Issuer Access" },
                     { label: "Investor-Heavy", value: access.investorHeavyCount, query: "Investor" },
@@ -6113,9 +6107,9 @@ useEffect(() => {
                     boxShadow: "0 16px 34px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.04)",
                   };
                   const heroMetric = (label: string, value: ReactNode) => (
-                    <div style={{ minWidth: 0, display: "grid", gap: "2px", padding: "8px 9px", borderRadius: "8px", border: "1px solid rgba(125,180,255,0.12)", background: "linear-gradient(180deg, rgba(8,31,53,0.86), rgba(4,18,32,0.58))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.035)" }}>
+                    <div style={{ minWidth: 0, display: "grid", gap: "2px", padding: "7px 8px", borderRadius: "7px", border: "1px solid rgba(125,180,255,0.12)", background: "linear-gradient(180deg, rgba(8,31,53,0.82), rgba(4,18,32,0.56))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.035)" }}>
                       <div style={{ color: "#7fa7cf", fontSize: "8.5px", fontWeight: 950, letterSpacing: "0.11em", textTransform: "uppercase", whiteSpace: "normal" }}>{label}</div>
-                      <div style={{ color: "#f8fbff", fontSize: "15px", lineHeight: 1.04, fontWeight: 930, overflowWrap: "anywhere" }}>{value}</div>
+                      <div style={{ color: "#f8fbff", fontSize: "14px", lineHeight: 1.04, fontWeight: 920, overflowWrap: "anywhere" }}>{value}</div>
                     </div>
                   );
                   const subPanelStyle: CSSProperties = { borderRadius: "8px", border: "1px solid rgba(107,157,210,0.10)", background: "linear-gradient(180deg, rgba(9,36,61,0.54), rgba(5,20,35,0.46))", padding: "9px", minWidth: 0 };
@@ -6135,10 +6129,10 @@ useEffect(() => {
                     </div>
                   );
                   const tapeItem = (label: string, value: ReactNode) => (
-                    <div style={{ flex: "0 0 auto", display: "inline-flex", alignItems: "center", gap: "7px", minHeight: "30px", padding: "4px 9px", borderRadius: "6px", border: "1px solid rgba(107,157,210,0.18)", background: "linear-gradient(180deg, rgba(9,36,61,0.74), rgba(4,18,32,0.58))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.035)" }}>
-                      <span style={{ width: "5px", height: "5px", borderRadius: "999px", background: "#5eead4", boxShadow: "0 0 9px rgba(94,234,212,0.42)", flex: "0 0 auto" }} />
-                      <span style={{ color: "#8fa8c8", fontSize: "8.5px", fontWeight: 950, letterSpacing: "0.1em", textTransform: "uppercase" }}>{label}</span>
-                      <span style={{ color: "#f4f8ff", fontSize: "13px", fontWeight: 930 }}>{value}</span>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", minHeight: "26px", padding: "3px 7px", borderRadius: "6px", border: "1px solid rgba(107,157,210,0.16)", background: "linear-gradient(180deg, rgba(9,36,61,0.70), rgba(4,18,32,0.54))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)" }}>
+                      <span style={{ width: "4px", height: "4px", borderRadius: "999px", background: "#5eead4", boxShadow: "0 0 8px rgba(94,234,212,0.38)", flex: "0 0 auto" }} />
+                      <span style={{ color: "#8fa8c8", fontSize: "8px", fontWeight: 950, letterSpacing: "0.09em", textTransform: "uppercase" }}>{label}</span>
+                      <span style={{ color: "#f4f8ff", fontSize: "12px", fontWeight: 920 }}>{value}</span>
                     </div>
                   );
                   const tableWrap: CSSProperties = { overflowX: "auto", borderRadius: "9px", border: "1px solid rgba(107,157,210,0.10)", background: "linear-gradient(180deg, rgba(4,18,32,0.42), rgba(4,18,32,0.24))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)" };
@@ -6230,100 +6224,82 @@ useEffect(() => {
                       <div
                         style={{
                           gridColumn: "1 / -1",
-                          borderRadius: "14px",
+                          borderRadius: "13px",
                           border: "1px solid rgba(96,165,250,0.30)",
                           background: "radial-gradient(circle at 18% 0%, rgba(34,211,238,0.18), transparent 32%), radial-gradient(circle at 78% 16%, rgba(37,99,235,0.18), transparent 30%), linear-gradient(135deg, rgba(3,12,24,0.99), rgba(6,28,51,0.98) 50%, rgba(2,9,19,0.99))",
-                          boxShadow: "0 28px 66px rgba(0,0,0,0.36), 0 0 40px rgba(37,99,235,0.13), inset 0 1px 0 rgba(255,255,255,0.07)",
-                          padding: isMobileViewport ? "12px" : "12px",
+                          boxShadow: "0 24px 56px rgba(0,0,0,0.34), 0 0 34px rgba(37,99,235,0.12), inset 0 1px 0 rgba(255,255,255,0.07)",
+                          padding: isMobileViewport ? "13px" : "15px 16px 14px",
                           display: "grid",
-                          gridTemplateColumns: isMobileViewport ? "1fr" : "minmax(0, 1.08fr) minmax(390px, 0.92fr)",
-                          gap: "10px",
-                          alignItems: "stretch",
+                          gap: "8px",
+                          alignItems: "center",
                           overflow: "hidden",
                           position: "relative",
                         }}
                       >
                         <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "linear-gradient(rgba(125,180,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(125,180,255,0.028) 1px, transparent 1px)", backgroundSize: "28px 28px", opacity: 0.7 }} />
-                        <div style={{ position: "relative", display: "grid", gap: "10px", minWidth: 0 }}>
-                          <div style={{ borderRadius: "11px", border: "1px solid rgba(94,234,212,0.13)", background: "linear-gradient(180deg, rgba(4,18,32,0.42), rgba(4,18,32,0.18))", padding: isMobileViewport ? "12px" : "14px 14px 10px", display: "grid", gap: "8px", minHeight: isMobileViewport ? "auto" : "190px", alignContent: "center" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: "7px", color: "#67e8f9", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.18em", textTransform: "uppercase" }}>
-                              <span style={{ width: "7px", height: "7px", borderRadius: "999px", background: "#5eead4", boxShadow: "0 0 12px rgba(94,234,212,0.54)" }} />
-                              MARKET VIEW LIVE INTELLIGENCE
-                            </div>
-                            <div style={{ color: "#f8fbff", fontSize: isMobileViewport ? "27px" : "34px", lineHeight: 0.98, fontWeight: 950, maxWidth: "720px" }}>
-                              Capital Markets Conference Intelligence
-                            </div>
-                            <div style={{ color: "#b9cce3", fontSize: "12.5px", lineHeight: 1.35, maxWidth: "700px" }}>
-                              Real-time intelligence on where issuer access, investor concentration, sector activity, organizer supply, and conference seasonality are building.
-                            </div>
-                            <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "minmax(0, 1fr) 220px", gap: "10px", alignItems: "stretch" }}>
-                              <div style={{ color: "#d9e8fb", fontSize: "12px", lineHeight: 1.38, borderLeft: "2px solid rgba(94,234,212,0.58)", paddingLeft: "10px" }}>
-                                Capital Conference Calendar is tracking {landscape.totalEvents} conferences across {landscape.organizersCount} organizers and {landscape.citiesCount} cities. We are in the {currentPeriodLabel} planning period, while the calendar builds toward a peak week of {peakWeekLabel} in {peakSeasonLabel}. {peakSeasonSentence}
-                              </div>
-                              <div style={{ borderRadius: "8px", border: "1px solid rgba(125,180,255,0.14)", background: "rgba(3,13,25,0.56)", padding: "8px", display: "grid", gap: "4px" }}>
-                                {heroTerminalRows.map(([label, value]) => (
-                                  <div key={String(label)} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "10px", alignItems: "baseline", fontVariantNumeric: "tabular-nums" }}>
-                                    <span style={{ color: "#6f91b4", fontSize: "9px", fontWeight: 950, letterSpacing: "0.1em", textTransform: "uppercase" }}>{label}</span>
-                                    <span style={{ color: "#f8fbff", fontSize: "13px", fontWeight: 930 }}>{value}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: "7px", color: "#c7d8ee", fontSize: "10.5px" }}>
-                              <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: "#5eead4", boxShadow: "0 0 10px rgba(94,234,212,0.5)", flex: "0 0 auto" }} />
-                              Proprietary classification-driven conference intelligence. Continuously updated.
-                            </div>
+                        <div style={{ position: "relative", display: "grid", gap: "7px", minWidth: 0, maxWidth: "920px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "7px", color: "#67e8f9", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.18em", textTransform: "uppercase" }}>
+                            <span style={{ width: "7px", height: "7px", borderRadius: "999px", background: "#5eead4", boxShadow: "0 0 12px rgba(94,234,212,0.54)" }} />
+                            MARKET VIEW LIVE INTELLIGENCE
                           </div>
-                          <div style={{ borderRadius: "11px", border: "1px solid rgba(94,234,212,0.16)", background: "linear-gradient(180deg, rgba(5,24,43,0.84), rgba(3,13,25,0.72))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.045)", padding: "8px 9px", display: "grid", gap: "7px" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-                              <div style={{ color: "#8fbfff", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>CAPITAL ACCESS TAPE</div>
-                              <div style={{ color: "#7f99b8", fontSize: "10px", fontWeight: 850 }}>Classified denominators across {landscape.totalEvents} events</div>
-                            </div>
-                            <div style={{ display: "flex", gap: "6px", overflowX: "auto", paddingBottom: "2px" }}>
-                              {accessTapeItems.map((item) => (
-                                <button key={item.label} type="button" onClick={() => openDatabaseSearch(item.query)} style={{ border: "none", background: "transparent", padding: 0, cursor: "pointer" }}>
-                                  {tapeItem(item.label, item.value)}
-                                </button>
-                              ))}
-                            </div>
+                          <div style={{ color: "#f8fbff", fontSize: isMobileViewport ? "27px" : "32px", lineHeight: 1, fontWeight: 950 }}>
+                            Capital Markets Conference Intelligence
                           </div>
-                        </div>
-                        <div style={{ position: "relative", borderRadius: "12px", border: "1px solid rgba(147,197,253,0.24)", background: "linear-gradient(180deg, rgba(4,18,32,0.88), rgba(3,13,25,0.72))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05), 0 0 26px rgba(56,189,248,0.09)", padding: "10px", display: "grid", gap: "8px", alignContent: "start", minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
-                            <div>
-                              <div style={{ color: "#8fbfff", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>MARKET READOUT</div>
-                              <div style={{ color: "#8fa8c8", fontSize: "10px", fontWeight: 850, marginTop: "1px" }}>Scope: {scopeDescription} · {viewLabel}</div>
-                            </div>
-                            <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#5eead4", fontSize: "10px", fontWeight: 900 }}>
-                              <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: "#5eead4", boxShadow: "0 0 10px rgba(94,234,212,0.45)" }} />
-                              Live
-                            </div>
+                          <div style={{ color: "#b9cce3", fontSize: "12.5px", lineHeight: 1.34, maxWidth: "760px" }}>
+                            Real-time intelligence on issuer access, investor concentration, sector activity, organizer supply, and conference seasonality.
                           </div>
-                          <div style={{ display: "inline-flex", maxWidth: "100%", gap: "4px", padding: "2px", borderRadius: "8px", background: "rgba(3,13,25,0.72)", border: "1px solid rgba(107,157,210,0.18)", flexWrap: "wrap" }}>
-                              {[{ key: "all" as const, label: "All Conferences" }, { key: "filtered" as const, label: "Current Filtered View" }].map((option) => (
-                                <button key={option.key} type="button" onClick={() => setMarketViewDataset(option.key)} style={{ height: "22px", padding: "0 8px", borderRadius: "6px", border: option.key === marketViewDataset ? "1px solid rgba(125,180,255,0.26)" : "1px solid transparent", background: option.key === marketViewDataset ? "rgba(47,111,243,0.84)" : "transparent", color: option.key === marketViewDataset ? "#ffffff" : "#a8bdd8", fontSize: "10.5px", fontWeight: 850, cursor: "pointer" }}>{option.label}</button>
-                              ))}
+                          <div style={{ color: "#d9e8fb", fontSize: "12px", lineHeight: 1.38, maxWidth: "820px", borderLeft: "2px solid rgba(94,234,212,0.58)", paddingLeft: "10px" }}>
+                            Capital Conference Calendar is tracking {landscape.totalEvents} conferences across {landscape.organizersCount} organizers and {landscape.citiesCount} cities. We are in the {currentPeriodLabel} planning period, while the calendar builds toward a peak week of {peakWeekLabel} in {peakSeasonLabel}. {peakSeasonSentence}
                           </div>
-                          <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "repeat(2, minmax(0, 1fr))" : "repeat(3, minmax(0, 1fr))", gap: "6px" }}>
-                            {heroMetric("Conference Universe", landscape.totalEvents)}
-                            {heroMetric("Issuer Access", access.issuerAccessCount)}
-                            {heroMetric("Structured Access", access.structuredAccessCount)}
-                            {heroMetric("Deal-Making", access.dealMakingCount)}
-                            {heroMetric("Current Period", currentPeriodLabel)}
-                            {heroMetric("Peak Week", peakWeekLabel)}
-                            {heroMetric("Peak Season", peakSeasonLabel)}
+                          <div style={{ display: "flex", alignItems: "center", gap: "7px", color: "#c7d8ee", fontSize: "10.5px" }}>
+                            <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: "#5eead4", boxShadow: "0 0 10px rgba(94,234,212,0.5)", flex: "0 0 auto" }} />
+                            Scope: {scopeDescription} · {viewLabel} · Continuously updated.
                           </div>
-                          <div style={{ borderRadius: "9px", border: "1px solid rgba(107,157,210,0.12)", background: "rgba(3,13,25,0.52)", padding: "8px", display: "grid", gap: "5px" }}>
-                            <div style={{ color: "#7f99b8", fontSize: "9px", fontWeight: 950, letterSpacing: "0.12em", textTransform: "uppercase" }}>READ THROUGH</div>
-                            <div style={{ color: "#b9cce3", fontSize: "11.5px", lineHeight: 1.34 }}>
-                              Access, focus, organizer, and city signals are ranked from the live conference database. {peakSeasonSentence}
-                            </div>
-                          </div>
-                          <button type="button" onClick={openDatabase} style={{ ...actionLinkStyle, justifySelf: "start", color: "#7dd3fc", fontSize: "11px" }}>Open in Database →</button>
                         </div>
                       </div>
 
-                      <div style={{ gridColumn: "1 / -1", display: "grid", gap: "8px", padding: "9px 10px 10px", borderRadius: "12px", border: "1px solid rgba(96,165,250,0.16)", background: "linear-gradient(90deg, rgba(4,18,32,0.88), rgba(8,34,58,0.68), rgba(4,18,32,0.52))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.035)" }}>
+                      <div style={{ gridColumn: "1 / -1", display: "grid", gap: "6px", padding: "8px 10px", borderRadius: "10px", border: "1px solid rgba(96,165,250,0.16)", background: "linear-gradient(180deg, rgba(5,24,43,0.76), rgba(3,13,25,0.60))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.035)" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#8fbfff", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>
+                            MARKET READOUT
+                            <span style={{ color: "#5eead4", fontSize: "10px", fontWeight: 900, letterSpacing: 0, textTransform: "none" }}>Live</span>
+                          </div>
+                          <div style={{ display: "inline-flex", maxWidth: "100%", gap: "4px", padding: "2px", borderRadius: "8px", background: "rgba(3,13,25,0.72)", border: "1px solid rgba(107,157,210,0.18)", flexWrap: "wrap" }}>
+                            {[{ key: "all" as const, label: "All Conferences" }, { key: "filtered" as const, label: "Current Filtered View" }].map((option) => (
+                              <button key={option.key} type="button" onClick={() => setMarketViewDataset(option.key)} style={{ height: "21px", padding: "0 8px", borderRadius: "6px", border: option.key === marketViewDataset ? "1px solid rgba(125,180,255,0.26)" : "1px solid transparent", background: option.key === marketViewDataset ? "rgba(47,111,243,0.84)" : "transparent", color: option.key === marketViewDataset ? "#ffffff" : "#a8bdd8", fontSize: "10px", fontWeight: 850, cursor: "pointer" }}>{option.label}</button>
+                            ))}
+                          </div>
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))", gap: "6px" }}>
+                          {heroMetric("Conference Universe", landscape.totalEvents)}
+                          {heroMetric("Issuer Access", access.issuerAccessCount)}
+                          {heroMetric("Structured Access", access.structuredAccessCount)}
+                          {heroMetric("Deal-Making", access.dealMakingCount)}
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))", gap: "6px" }}>
+                          {heroMetric("Current Period", currentPeriodLabel)}
+                          {heroMetric("Peak Week", peakWeekLabel)}
+                          {heroMetric("Peak Season", peakSeasonLabel)}
+                          {heroMetric("Top Market Focus", landscape.topMarketFocus || focus.rows[0]?.marketFocus || "N/A")}
+                        </div>
+                        <button type="button" onClick={openDatabase} style={{ ...actionLinkStyle, justifySelf: "start", color: "#7dd3fc", fontSize: "10.5px" }}>Open in Database →</button>
+                      </div>
+
+                      <div style={{ gridColumn: "1 / -1", display: "grid", gap: "6px", marginTop: "-3px", padding: "7px 9px", borderRadius: "10px", border: "1px solid rgba(94,234,212,0.15)", background: "linear-gradient(180deg, rgba(5,24,43,0.72), rgba(3,13,25,0.58))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.035)" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                          <div style={{ color: "#8fbfff", fontSize: "9.5px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>CAPITAL ACCESS TAPE</div>
+                          <div style={{ color: "#7f99b8", fontSize: "10px", fontWeight: 850 }}>Classified denominators across {landscape.totalEvents} events</div>
+                        </div>
+                        <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
+                          {accessTapeItems.map((item) => (
+                            <button key={item.label} type="button" onClick={() => openDatabaseSearch(item.query)} style={{ border: "none", background: "transparent", padding: 0, cursor: "pointer" }}>
+                              {tapeItem(item.label, item.value)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div style={{ gridColumn: "1 / -1", display: "grid", gap: "7px", marginTop: "-3px", padding: "8px 9px 9px", borderRadius: "10px", border: "1px solid rgba(96,165,250,0.16)", background: "linear-gradient(90deg, rgba(4,18,32,0.88), rgba(8,34,58,0.68), rgba(4,18,32,0.52))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.035)" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
                           <div>
                             <div style={{ color: "#67e8f9", fontSize: "10px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>LIVE MARKET SIGNALS</div>
