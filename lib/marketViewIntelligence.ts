@@ -75,6 +75,11 @@ export type WeeklyIntensityRow = WeekRange & {
 type RankedWeek = WeeklyIntensityRow & {
   primaryReason: string;
   planningInterpretation: string;
+  planningHorizon: string;
+  daysFromNow: number;
+  relativeMonthRank: number;
+  relativeWindowRank: number;
+  planningAdjustedScore: number;
 };
 
 type WindowRow = WeekRange & {
@@ -187,16 +192,26 @@ export type MarketViewIntelligence = {
     top: Array<{
       city: string;
       state: string;
+      metroMarket: string;
+      anchorCity: string;
+      cityRole: string;
+      travelRelationship: string;
+      clusterType: string;
       dateWindow: string;
       eventCount: number;
       events: string[];
       dominantMarketFocus: string;
       dominantSector: string;
+      sharedSignals: string[];
       issuerAccessCount: number;
       investorHeavyCount: number;
       structuredAccessCount: number;
       dealMakingCount: number;
       clusterScore: number;
+      specificityScore: number;
+      planningHorizon: string;
+      daysFromNow: number;
+      planningAdjustedScore: number;
       interpretation: string;
     }>;
   };
@@ -439,6 +454,13 @@ function addDays(value: string, days: number): string {
   return isoDate(parsed);
 }
 
+function daysBetween(from: string, to: string): number {
+  const start = parseDate(from);
+  const end = parseDate(to);
+  if (!start || !end) return 0;
+  return Math.round((end.getTime() - start.getTime()) / 86400000);
+}
+
 function previousMonthKey(value: string): string {
   const parsed = parseDate(`${value}-01`);
   if (!parsed) return "";
@@ -473,6 +495,103 @@ function avg(values: number[]): number {
 
 function cityLabel(event: MarketViewEventInput): string {
   return [event.city, event.state].map(text).filter(Boolean).join(", ");
+}
+
+function cityStateKey(event: MarketViewEventInput): string {
+  return [text(event.city).toLowerCase(), text(event.state).toLowerCase()].filter(Boolean).join("|");
+}
+
+const METRO_MARKETS: Record<string, { metroMarket: string; anchorCity: string; core: string[]; adjacent: string[]; regional: string[] }> = {
+  "new-york": {
+    metroMarket: "New York Metro",
+    anchorCity: "New York, NY",
+    core: ["new york|ny"],
+    adjacent: ["brooklyn|ny", "jersey city|nj", "hoboken|nj", "newark|nj", "stamford|ct", "white plains|ny", "greenwich|ct"],
+    regional: ["long island|ny", "princeton|nj", "morristown|nj"],
+  },
+  "bay-area": {
+    metroMarket: "Bay Area",
+    anchorCity: "San Francisco, CA",
+    core: ["san francisco|ca"],
+    adjacent: ["south san francisco|ca", "palo alto|ca", "menlo park|ca", "redwood city|ca", "san mateo|ca", "oakland|ca", "berkeley|ca", "san jose|ca"],
+    regional: ["santa clara|ca", "sunnyvale|ca", "mountain view|ca"],
+  },
+  "boston": {
+    metroMarket: "Boston Metro",
+    anchorCity: "Boston, MA",
+    core: ["boston|ma"],
+    adjacent: ["cambridge|ma", "somerville|ma", "waltham|ma", "newton|ma"],
+    regional: ["worcester|ma", "providence|ri"],
+  },
+  "los-angeles": {
+    metroMarket: "Los Angeles Metro",
+    anchorCity: "Los Angeles, CA",
+    core: ["los angeles|ca"],
+    adjacent: ["beverly hills|ca", "santa monica|ca", "pasadena|ca", "glendale|ca", "long beach|ca", "irvine|ca", "anaheim|ca"],
+    regional: ["newport beach|ca", "san diego|ca"],
+  },
+  "dallas-fort-worth": {
+    metroMarket: "Dallas-Fort Worth",
+    anchorCity: "Dallas, TX",
+    core: ["dallas|tx"],
+    adjacent: ["fort worth|tx", "irving|tx", "plano|tx", "frisco|tx", "arlington|tx"],
+    regional: ["addison|tx"],
+  },
+  "chicago": {
+    metroMarket: "Chicago Metro",
+    anchorCity: "Chicago, IL",
+    core: ["chicago|il"],
+    adjacent: ["rosemont|il", "evanston|il", "oak brook|il", "schaumburg|il"],
+    regional: ["naperville|il"],
+  },
+  "washington": {
+    metroMarket: "Washington DC Metro",
+    anchorCity: "Washington, DC",
+    core: ["washington|dc"],
+    adjacent: ["arlington|va", "alexandria|va", "bethesda|md", "tysons|va", "mclean|va"],
+    regional: ["baltimore|md"],
+  },
+  "miami": {
+    metroMarket: "Miami-South Florida",
+    anchorCity: "Miami, FL",
+    core: ["miami|fl"],
+    adjacent: ["miami beach|fl", "coral gables|fl", "fort lauderdale|fl", "boca raton|fl", "hollywood|fl"],
+    regional: ["west palm beach|fl", "palm beach|fl"],
+  },
+  "toronto": {
+    metroMarket: "Toronto Metro",
+    anchorCity: "Toronto, ON",
+    core: ["toronto|on"],
+    adjacent: ["mississauga|on", "markham|on", "vaughan|on"],
+    regional: ["hamilton|on"],
+  },
+};
+
+function metroInfo(event: MarketViewEventInput) {
+  const key = cityStateKey(event);
+  for (const metro of Object.values(METRO_MARKETS)) {
+    if (metro.core.includes(key)) {
+      return { metroMarket: metro.metroMarket, anchorCity: metro.anchorCity, cityRole: "Core City", travelRelationship: "Anchor-city cluster" };
+    }
+    if (metro.adjacent.includes(key)) {
+      return { metroMarket: metro.metroMarket, anchorCity: metro.anchorCity, cityRole: "Metro Adjacent", travelRelationship: "Same-trip practical" };
+    }
+    if (metro.regional.includes(key)) {
+      return { metroMarket: metro.metroMarket, anchorCity: metro.anchorCity, cityRole: "Regional", travelRelationship: "May require separate leg" };
+    }
+  }
+  const label = cityLabel(event);
+  return { metroMarket: label, anchorCity: label, cityRole: "Core City", travelRelationship: "Exact-city cluster" };
+}
+
+function planningHorizonForDate(startDate: string, asOfDate: string): { planningHorizon: string; daysFromNow: number; weight: number } {
+  const daysFromNow = daysBetween(asOfDate, startDate);
+  if (daysFromNow < 0) return { planningHorizon: "Historical readout", daysFromNow, weight: 0.55 };
+  if (daysFromNow <= 14) return { planningHorizon: "Immediate readout", daysFromNow, weight: 0.85 };
+  if (daysFromNow <= 29) return { planningHorizon: "Near-term planning", daysFromNow, weight: 1.0 };
+  if (daysFromNow <= 90) return { planningHorizon: "Planning window", daysFromNow, weight: 1.28 };
+  if (daysFromNow <= 180) return { planningHorizon: "Forward emerging", daysFromNow, weight: 1.12 };
+  return { planningHorizon: "Early forward signal", daysFromNow, weight: 0.9 };
 }
 
 function seasonLanguageForWeek(weekStart: string, totalEvents: number, medianEvents: number): string {
@@ -668,12 +787,39 @@ function coldReasonForWeek(row: WeeklyIntensityRow): string {
   return "White-space week. Activity falls below the active-season baseline, creating room for organizer positioning, targeted outreach, or lower-conflict sponsor visibility.";
 }
 
-function buildRankedWeeks(rows: WeeklyIntensityRow[], cold: boolean): RankedWeek[] {
-  return rows.map((row) => ({
-    ...row,
-    primaryReason: cold ? "Low relative activity inside an active conference season." : reasonForWeek(row),
-    planningInterpretation: cold ? coldReasonForWeek(row) : reasonForWeek(row),
-  }));
+function rankWithin(rows: WeeklyIntensityRow[], target: WeeklyIntensityRow): number {
+  return rows
+    .slice()
+    .sort((a, b) => b.intensityScore - a.intensityScore || b.totalEvents - a.totalEvents || a.weekStart.localeCompare(b.weekStart))
+    .findIndex((row) => row.weekKey === target.weekKey) + 1 || rows.length;
+}
+
+function buildRankedWeeks(rows: WeeklyIntensityRow[], cold: boolean, asOfDate: string, allRows: WeeklyIntensityRow[] = rows): RankedWeek[] {
+  return rows.map((row) => {
+    const horizon = planningHorizonForDate(row.weekStart, asOfDate);
+    const monthRows = allRows.filter((candidate) => monthKey(candidate.weekStart) === monthKey(row.weekStart));
+    const nearbyRows = allRows.filter((candidate) => Math.abs(daysBetween(row.weekStart, candidate.weekStart)) <= 35);
+    const relativeMonthRank = rankWithin(monthRows, row);
+    const relativeWindowRank = rankWithin(nearbyRows, row);
+    const relativeBonus = cold ? 0 : (
+      (relativeMonthRank === 1 ? 18 : relativeMonthRank === 2 ? 10 : relativeMonthRank === 3 ? 5 : 0) +
+      (relativeWindowRank === 1 ? 14 : relativeWindowRank === 2 ? 8 : relativeWindowRank === 3 ? 4 : 0)
+    );
+    const planningAdjustedScore = cold
+      ? row.intensityScore
+      : Math.round((row.intensityScore * horizon.weight) + relativeBonus);
+    const hotInterpretation = `${reasonForWeek(row)} ${row.label} is a ${horizon.planningHorizon.toLowerCase()} signal, ranking #${relativeMonthRank} in its month and #${relativeWindowRank} versus nearby weeks.`;
+    return {
+      ...row,
+      primaryReason: cold ? "Low relative activity inside an active conference season." : reasonForWeek(row),
+      planningInterpretation: cold ? coldReasonForWeek(row) : hotInterpretation,
+      planningHorizon: horizon.planningHorizon,
+      daysFromNow: horizon.daysFromNow,
+      relativeMonthRank,
+      relativeWindowRank,
+      planningAdjustedScore,
+    };
+  });
 }
 
 function buildColdWeekCandidates(allWeeks: WeeklyIntensityRow[]): WeeklyIntensityRow[] {
@@ -725,52 +871,106 @@ function buildWindows(events: ScoredEvent[], weekly: WeeklyIntensityRow[], predi
     .slice(0, 5);
 }
 
-function buildClusterWeeks(events: ScoredEvent[]) {
-  const byCity = new Map<string, ScoredEvent[]>();
+function clusterSignals(items: ScoredEvent[]): string[] {
+  const signals: string[] = [];
+  if (items.filter(isIssuerAccessEvent).length >= 2) signals.push("Issuer access");
+  if (items.filter(isInvestorHeavyEvent).length >= 2) signals.push("Investor-heavy");
+  if (items.filter(isStructuredAccessEvent).length >= 2) signals.push("Structured access");
+  if (items.filter(isDealMakingEvent).length >= 2) signals.push("Deal-making");
+  if (items.filter(isOneOnOneEvent).length >= 2) signals.push("1x1 meetings");
+  return signals;
+}
+
+function buildClusterWeeks(events: ScoredEvent[], asOfDate: string) {
+  const byMetro = new Map<string, ScoredEvent[]>();
   events.forEach((event) => {
-    const key = cityLabel(event);
+    const key = metroInfo(event).metroMarket;
     if (!key) return;
-    byCity.set(key, [...(byCity.get(key) || []), event]);
+    byMetro.set(key, [...(byMetro.get(key) || []), event]);
   });
   const clusters: MarketViewIntelligence["clusterWeeks"]["top"] = [];
   const signatures = new Set<string>();
-  byCity.forEach((items) => {
+  const pushCluster = (clusterType: string, seed: ScoredEvent, start: string, end: string, windowItems: ScoredEvent[], specificityBase: number) => {
+    const names = unique(windowItems.map((item) => text(item.title))).filter(Boolean);
+    if (names.length < 2) return;
+    const metro = metroInfo(seed);
+    const cityCounts = countBy(windowItems.map(cityLabel));
+    const topCity = cityCounts[0]?.label || cityLabel(seed);
+    const [city = text(seed.city), state = text(seed.state)] = topCity.split(",").map((part) => part.trim());
+    const issuerAccessCount = windowItems.filter(isIssuerAccessEvent).length;
+    const investorHeavyCount = windowItems.filter(isInvestorHeavyEvent).length;
+    const structuredAccessCount = windowItems.filter(isStructuredAccessEvent).length;
+    const dealMakingCount = windowItems.filter(isDealMakingEvent).length;
+    const dominantMarketFocus = topLabel(windowItems.flatMap(getMarketFocusValues));
+    const dominantSector = topLabel(windowItems.map(getPrimarySector));
+    const sharedSignals = clusterSignals(windowItems);
+    const horizon = planningHorizonForDate(start, asOfDate);
+    const uniqueCities = unique(windowItems.map(cityLabel)).length;
+    const cityRole = uniqueCities > 1 ? "Metro Mix" : metro.cityRole;
+    const travelRelationship = uniqueCities > 1 && metro.metroMarket !== topCity ? "Same-trip practical" : metro.travelRelationship;
+    const specificityScore = Math.min(40, specificityBase + (dominantSector ? 5 : 0) + (dominantMarketFocus ? 5 : 0) + (sharedSignals.length * 4));
+    const clusterScore = Math.min(100, Math.round((names.length * 7) + (issuerAccessCount * 7) + (investorHeavyCount * 5) + (structuredAccessCount * 9) + (dealMakingCount * 8) + specificityScore));
+    const planningAdjustedScore = Math.round((clusterScore * horizon.weight) + specificityScore + (horizon.planningHorizon === "Planning window" ? 12 : 0));
+    const signature = [clusterType, metro.metroMarket, start, end, names.slice().sort().join("|")].join("::");
+    if (signatures.has(signature)) return;
+    signatures.add(signature);
+    clusters.push({
+      city,
+      state,
+      metroMarket: metro.metroMarket,
+      anchorCity: metro.anchorCity,
+      cityRole,
+      travelRelationship,
+      clusterType,
+      dateWindow: `${formatMonthDay(start)}-${formatMonthDay(end)}`,
+      eventCount: names.length,
+      events: names,
+      dominantMarketFocus,
+      dominantSector,
+      sharedSignals,
+      issuerAccessCount,
+      investorHeavyCount,
+      structuredAccessCount,
+      dealMakingCount,
+      clusterScore,
+      specificityScore,
+      planningHorizon: horizon.planningHorizon,
+      daysFromNow: horizon.daysFromNow,
+      planningAdjustedScore,
+      interpretation: `${metro.metroMarket} has a ${clusterType.toLowerCase()} across ${names.length} events in the ${horizon.planningHorizon.toLowerCase()} horizon${uniqueCities > 1 ? `, spanning ${cityCounts.slice(0, 3).map((row) => row.label).join(", ")}` : ""}. ${dominantSector || dominantMarketFocus ? `The shared reason to attend is ${[dominantSector, dominantMarketFocus].filter(Boolean).join(" / ")}. ` : ""}${sharedSignals.length ? `Signals include ${sharedSignals.join(", ")}. ` : ""}${travelRelationship}.`,
+    });
+  };
+
+  byMetro.forEach((items) => {
     const sorted = items.slice().sort(eventSort);
     sorted.forEach((event) => {
       const start = text(event.startDate);
-      const end = addDays(start, 6);
+      const end = addDays(start, 8);
       const windowItems = sorted.filter((candidate) => text(candidate.startDate) >= start && text(candidate.startDate) <= end);
-      if (windowItems.length < 3) return;
-      const names = unique(windowItems.map((item) => text(item.title))).filter(Boolean);
-      if (names.length < 3) return;
-      const signature = names.slice().sort().join("|");
-      if (signatures.has(signature)) return;
-      signatures.add(signature);
-      const issuerAccessCount = windowItems.filter(isIssuerAccessEvent).length;
-      const investorHeavyCount = windowItems.filter(isInvestorHeavyEvent).length;
-      const structuredAccessCount = windowItems.filter(isStructuredAccessEvent).length;
-      const dealMakingCount = windowItems.filter(isDealMakingEvent).length;
-      const dominantMarketFocus = topLabel(windowItems.flatMap(getMarketFocusValues));
-      const dominantSector = topLabel(windowItems.map(getPrimarySector));
-      const clusterScore = Math.min(100, Math.round((windowItems.length * 8) + (issuerAccessCount * 8) + (investorHeavyCount * 6) + (structuredAccessCount * 10) + (dealMakingCount * 8)));
-      clusters.push({
-        city: text(event.city),
-        state: text(event.state),
-        dateWindow: `${formatMonthDay(start)}-${formatMonthDay(end)}`,
-        eventCount: windowItems.length,
-        events: names,
-        dominantMarketFocus,
-        dominantSector,
-        issuerAccessCount,
-        investorHeavyCount,
-        structuredAccessCount,
-        dealMakingCount,
-        clusterScore,
-        interpretation: `${cityLabel(event)} has a dense conference-market window with ${windowItems.length} unique events${dominantMarketFocus ? ` and a ${dominantMarketFocus} skew` : ""}. ${structuredAccessCount || dealMakingCount ? "Access and deal signals make this a higher-value coverage cluster." : "This is primarily a density and visibility cluster."}`,
+      if (unique(windowItems.map((item) => text(item.title))).length >= 3) {
+        pushCluster("Metro Density Cluster", event, start, end, windowItems, 8);
+      }
+      const typedGroups: Array<{ type: string; items: ScoredEvent[]; specificity: number }> = [];
+      countBy(windowItems.map(getPrimarySector)).filter((row) => row.count >= 2).forEach((row) => {
+        typedGroups.push({ type: `${row.label} Sector Cluster`, items: windowItems.filter((item) => getPrimarySector(item) === row.label), specificity: 18 });
       });
+      countBy(windowItems.flatMap(getMarketFocusValues)).filter((row) => row.count >= 2).forEach((row) => {
+        typedGroups.push({ type: `${row.label} Focus Cluster`, items: windowItems.filter((item) => getMarketFocusValues(item).includes(row.label)), specificity: 18 });
+      });
+      const accessItems = windowItems.filter((item) => isIssuerAccessEvent(item) || isStructuredAccessEvent(item) || isOneOnOneEvent(item));
+      if (unique(accessItems.map((item) => text(item.title))).length >= 2) typedGroups.push({ type: "Access Cluster", items: accessItems, specificity: 20 });
+      const investorItems = windowItems.filter(isInvestorHeavyEvent);
+      if (unique(investorItems.map((item) => text(item.title))).length >= 2) typedGroups.push({ type: "Investor Cluster", items: investorItems, specificity: 18 });
+      const dealItems = windowItems.filter(isDealMakingEvent);
+      if (unique(dealItems.map((item) => text(item.title))).length >= 2) typedGroups.push({ type: "Deal Cluster", items: dealItems, specificity: 22 });
+      typedGroups.forEach((group) => pushCluster(group.type, event, start, end, group.items, group.specificity));
     });
   });
-  return { top: clusters.sort((a, b) => b.clusterScore - a.clusterScore || b.eventCount - a.eventCount).slice(0, 10) };
+  return {
+    top: clusters
+      .sort((a, b) => b.planningAdjustedScore - a.planningAdjustedScore || b.specificityScore - a.specificityScore || b.eventCount - a.eventCount)
+      .slice(0, 14),
+  };
 }
 
 function buildSectorMomentum(events: ScoredEvent[], asOfDate: string) {
@@ -1069,8 +1269,13 @@ export function buildMarketViewIntelligence(
 
   const weeklyIntensity = buildWeeklyIntensity(events);
   const allWeeks = completeCalendarWeeks(weeklyIntensity);
-  const hotWeeks = buildRankedWeeks(weeklyIntensity.slice().sort((a, b) => b.intensityScore - a.intensityScore).slice(0, 8), false);
-  const coldWeeks = buildRankedWeeks(buildColdWeekCandidates(allWeeks), true);
+  const hotWeekCandidates = weeklyIntensity
+    .filter((row) => row.totalEvents > 0)
+    .map((row) => buildRankedWeeks([row], false, asOfDate, weeklyIntensity)[0])
+    .sort((a, b) => b.planningAdjustedScore - a.planningAdjustedScore || b.intensityScore - a.intensityScore || a.weekStart.localeCompare(b.weekStart))
+    .slice(0, 8);
+  const hotWeeks = hotWeekCandidates;
+  const coldWeeks = buildRankedWeeks(buildColdWeekCandidates(allWeeks), true, asOfDate, allWeeks);
   const dates = events.map((event) => text(event.startDate)).filter(Boolean).sort();
   const focusCounts = countBy(events.flatMap(getMarketFocusValues));
   const sectorCounts = countBy(events.map(getPrimarySector));
@@ -1134,7 +1339,7 @@ export function buildMarketViewIntelligence(
     seasonPulse,
     hotWeeks: { top: hotWeeks },
     coldWeeks: { top: coldWeeks },
-    clusterWeeks: buildClusterWeeks(events),
+    clusterWeeks: buildClusterWeeks(events, asOfDate),
     issuerAccessWindows: buildWindows(events, weeklyIntensity, isIssuerAccessEvent, "Issuer-access"),
     investorHeavyWindows: buildWindows(events, weeklyIntensity, isInvestorHeavyEvent, "Investor-heavy"),
     structuredAccessWindows: buildWindows(events, weeklyIntensity, isStructuredAccessEvent, "Structured-access"),

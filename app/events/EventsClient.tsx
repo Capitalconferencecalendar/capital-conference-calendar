@@ -5999,17 +5999,17 @@ useEffect(() => {
                     const existingIndex = acc.findIndex((item) => {
                       const overlap = cluster.events.filter((event) => item.events.includes(event)).length;
                       const overlapShare = overlap / Math.max(1, Math.min(cluster.events.length, item.events.length));
-                      return item.city === cluster.city && (overlapShare >= 0.5 || clusterWindowsOverlap(item.dateWindow, cluster.dateWindow) || clusterWindowsClose(item.dateWindow, cluster.dateWindow));
+                      return item.metroMarket === cluster.metroMarket && item.clusterType === cluster.clusterType && (overlapShare >= 0.5 || clusterWindowsOverlap(item.dateWindow, cluster.dateWindow) || clusterWindowsClose(item.dateWindow, cluster.dateWindow));
                     });
                     if (existingIndex === -1) return [...acc, cluster];
                     const existing = acc[existingIndex];
-                    if (cluster.clusterScore > existing.clusterScore || (cluster.clusterScore === existing.clusterScore && cluster.eventCount > existing.eventCount)) {
+                    if (cluster.planningAdjustedScore > existing.planningAdjustedScore || (cluster.planningAdjustedScore === existing.planningAdjustedScore && cluster.eventCount > existing.eventCount)) {
                       const next = acc.slice();
                       next[existingIndex] = cluster;
                       return next;
                     }
                     return acc;
-                  }, []).slice(0, 5);
+                  }, []).slice(0, 7);
                   const accessWeightedCityRowsBase = geo.topCitiesByTotalEvents.filter((row) => row.totalEvents >= 3);
                   const accessWeightedCityRows = (accessWeightedCityRowsBase.length >= 3 ? accessWeightedCityRowsBase : geo.topCitiesByTotalEvents)
                     .slice()
@@ -6441,20 +6441,20 @@ useEffect(() => {
 
                       <div style={sectionStyle}>
                         {questionKicker("Where are the planning conflicts and white-space windows?")}
-                        {sectionHeader("Hot Weeks, Cold Weeks & Cluster Weeks", "Crowded calendar windows, actionable white-space weeks, and future city clusters across the planning horizon.")}
-                        <div style={{ color: "#8fa8c8", fontSize: "11.5px" }}>Major holiday weeks are excluded from cold-week white-space rankings; future peaks and clusters remain valid planning signals.</div>
+                        {sectionHeader("Hot Weeks, Cold Weeks & Cluster Alerts", "Planning-aware hot weeks, white-space weeks, and city/metro clusters tied to timing, sector, focus, and access signals.")}
+                        <div style={{ color: "#8fa8c8", fontSize: "11.5px" }}>Hot weeks and clusters are horizon-adjusted so 30-90 day planning windows can outrank near-term readouts when they are unusually dense for their month or metro. Major holiday weeks are excluded from cold-week white-space rankings.</div>
                         <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: "8px" }}>
                           <div style={subPanelStyle}>
                             <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "baseline", marginBottom: "5px" }}><div style={{ color: "#dbeafe", fontSize: "12.5px", fontWeight: 900 }}>Hot Weeks</div>{intelligence.hotWeeks.top[0] ? <button type="button" onClick={() => openWeek(intelligence.hotWeeks.top[0])} style={actionLinkStyle}>View events from this week</button> : null}</div>
-                            <div style={{ display: "grid", gap: "5px" }}>{intelligence.hotWeeks.top.slice(0, 5).map((row) => <div key={row.weekKey} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: "6px", borderBottom: "1px solid rgba(107,157,210,0.08)", paddingBottom: "5px" }}><span style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 850 }}><button type="button" onClick={() => openWeek(row)} style={{ ...actionLinkStyle, color: "#dbeafe", fontSize: "12px" }}>{row.label}</button><br /><span style={{ color: "#9fc0df", fontSize: "11px" }}>Crowded window · {row.totalEvents} events · {row.issuerAccessEvents} issuer · {row.investorHeavyEvents} investor</span></span><span style={{ color: "#fbbf24", fontSize: "14px", fontWeight: 900 }}>{row.intensityScore}</span></div>)}</div>
+                            <div style={{ display: "grid", gap: "5px" }}>{intelligence.hotWeeks.top.slice(0, 5).map((row) => <div key={row.weekKey} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: "6px", borderBottom: "1px solid rgba(107,157,210,0.08)", paddingBottom: "5px" }}><span style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 850 }}><button type="button" onClick={() => openWeek(row)} style={{ ...actionLinkStyle, color: "#dbeafe", fontSize: "12px" }}>{row.label}</button><br /><span style={{ color: "#9fc0df", fontSize: "11px" }}>{row.planningHorizon} · {row.totalEvents} events · month rank #{row.relativeMonthRank} · issuer {row.issuerAccessEvents} · investor {row.investorHeavyEvents}</span></span><span style={{ color: "#fbbf24", fontSize: "14px", fontWeight: 900 }}>{row.planningAdjustedScore}</span></div>)}</div>
                           </div>
                           <div style={subPanelStyle}>
                             <div style={{ color: "#dbeafe", fontSize: "12.5px", fontWeight: 900, marginBottom: "5px" }}>Cold Weeks</div>
                             {actionableColdWeeks.length ? <div style={{ display: "grid", gap: "5px" }}>{actionableColdWeeks.map((row) => <div key={row.weekKey} style={{ borderBottom: "1px solid rgba(107,157,210,0.08)", paddingBottom: "5px" }}><div style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 850 }}><button type="button" onClick={() => openWeek(row)} style={{ ...actionLinkStyle, color: "#dbeafe", fontSize: "12px" }}>{row.label}</button> · {row.totalEvents} events</div><CompactReadMore text={row.planningInterpretation} maxChars={105} /></div>)}</div> : <div style={{ color: "#a9bdd6", fontSize: "12px", lineHeight: 1.35 }}>No actionable cold-week signal is available in the current view.</div>}
                           </div>
                           <div style={subPanelStyle}>
-                            <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "baseline", marginBottom: "5px" }}><div style={{ color: "#dbeafe", fontSize: "12.5px", fontWeight: 900 }}>Cluster Weeks</div>{dedupedClusters[0] ? <OpenDatabaseLink query={dedupedClusters[0].city}>View cluster events</OpenDatabaseLink> : null}</div>
-                            <div style={{ display: "grid", gap: "6px" }}>{dedupedClusters.map((row) => <div key={`${row.city}-${row.dateWindow}`} style={{ borderBottom: "1px solid rgba(107,157,210,0.08)", paddingBottom: "6px" }}><div style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 850 }}><LinkButton query={[row.city, row.state].filter(Boolean).join(", ")}>{[row.city, row.state].filter(Boolean).join(", ")}</LinkButton> · {row.dateWindow}</div><div style={{ color: "#9fc0df", fontSize: "11.5px" }}>Future city cluster · {row.eventCount} events · {row.dominantMarketFocus || "N/A"} · {row.dominantSector || "N/A"} · issuer {row.issuerAccessCount} · investor {row.investorHeavyCount} · score {row.clusterScore}</div><ClusterEventList events={row.events} /></div>)}</div>
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "baseline", marginBottom: "5px" }}><div style={{ color: "#dbeafe", fontSize: "12.5px", fontWeight: 900 }}>Cluster Alerts</div>{dedupedClusters[0] ? <OpenDatabaseLink query={dedupedClusters[0].metroMarket || dedupedClusters[0].city}>View cluster events</OpenDatabaseLink> : null}</div>
+                            <div style={{ display: "grid", gap: "6px" }}>{dedupedClusters.map((row) => <div key={`${row.metroMarket}-${row.clusterType}-${row.dateWindow}`} style={{ borderBottom: "1px solid rgba(107,157,210,0.08)", paddingBottom: "6px" }}><div style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 850 }}><LinkButton query={row.metroMarket || [row.city, row.state].filter(Boolean).join(", ")}>{row.metroMarket || [row.city, row.state].filter(Boolean).join(", ")}</LinkButton> · {row.dateWindow}</div><div style={{ color: "#9fc0df", fontSize: "11.5px" }}>{row.clusterType} · {row.planningHorizon} · {row.eventCount} events · {row.travelRelationship} · {row.dominantSector || row.dominantMarketFocus || "Mixed focus"} · score {row.planningAdjustedScore}</div>{row.sharedSignals.length ? <div style={{ color: "#7dd3fc", fontSize: "11px" }}>{row.sharedSignals.join(" · ")}</div> : null}<ClusterEventList events={row.events} /></div>)}</div>
                           </div>
                         </div>
                       </div>
