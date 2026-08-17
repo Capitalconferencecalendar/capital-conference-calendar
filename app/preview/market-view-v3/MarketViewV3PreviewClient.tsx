@@ -238,12 +238,16 @@ export default function MarketViewV3PreviewClient() {
         .v3-metric span { color: #8fb3d4; font-size: 9px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
         .v3-metric strong { color: #f8fbff; font-size: 12px; }
         .v3-metric small { color: #7290ad; font-size: 10px; text-align: right; }
-        .v3-kpi-strip { display: grid; grid-template-columns: 132px minmax(0,1fr); gap: 8px; align-items: stretch; }
+        .v3-kpi-strip { display: grid; grid-template-columns: minmax(120px,1fr) 132px minmax(460px,640px); gap: 10px; align-items: stretch; }
+        .v3-kpi-reserve { min-width: 0; }
         .v3-view-toggle { display: grid; grid-template-rows: repeat(2,minmax(0,1fr)); gap: 6px; }
         .v3-view-toggle button { min-height: 42px; border-radius: 9px; border: 1px solid rgba(88,132,180,.26); background: rgba(5,16,29,.92); color: #a9bdd2; font-size: 12px; font-weight: 800; cursor: pointer; }
         .v3-view-toggle button.is-active { background: linear-gradient(180deg,rgba(37,99,235,.95),rgba(29,78,216,.88)); border-color: rgba(147,197,253,.42); color: #f8fbff; box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 0 18px rgba(37,99,235,.22); }
-        .v3-kpi-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 6px; }
-        .v3-kpi { min-height: 42px; padding: 7px 9px; border-radius: 9px; border: 1px solid rgba(103,142,181,.18); background: linear-gradient(180deg,rgba(8,25,41,.78),rgba(5,17,30,.82)); display: grid; align-content: center; gap: 2px; box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
+        .v3-kpi-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 0; border-radius: 10px; overflow: hidden; background: linear-gradient(180deg,rgba(8,24,39,.34),rgba(5,17,30,.2)); }
+        .v3-kpi { min-height: 40px; padding: 6px 12px; border-radius: 0; border: 0; background: transparent; display: grid; align-content: center; gap: 2px; position: relative; }
+        .v3-kpi:not(:nth-child(3n + 1)) { border-left: 1px solid rgba(125,211,252,.32); box-shadow: inset 1px 0 10px rgba(56,189,248,.16); }
+        .v3-kpi:nth-child(n + 4) { border-top: 1px solid rgba(125,211,252,.24); box-shadow: inset 0 1px 10px rgba(56,189,248,.12); }
+        .v3-kpi:nth-child(n + 4):not(:nth-child(3n + 1)) { box-shadow: inset 1px 0 10px rgba(56,189,248,.16), inset 0 1px 10px rgba(56,189,248,.12); }
         .v3-kpi span { color: var(--kpi-accent,#cbd5e1); font-size: 9px; text-transform: uppercase; letter-spacing: .1em; font-weight: 900; }
         .v3-kpi strong { color: #f7fbff; font-size: 14px; line-height: 1.05; }
         .v3-kpi small { color: #7892ad; font-size: 9.5px; line-height: 1.1; }
@@ -393,6 +397,7 @@ export default function MarketViewV3PreviewClient() {
           </section>
 
           <section className="v3-kpi-strip" aria-label="Market View KPI strip">
+            <div className="v3-kpi-reserve" aria-hidden="true" />
             <div className="v3-view-toggle" aria-label="Market view scope">
               <button type="button" className="is-active">Full Market View</button>
               <button type="button">Current Filter View</button>
