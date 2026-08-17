@@ -26,6 +26,23 @@ const kpis = [
   ["Top Focus", "Clinical & Commercial", "34% of events"],
 ];
 
+type ForecastMode = "hotWeeks" | "clusters";
+
+const forecastModes: Record<ForecastMode, { label: string; title: string; description: string; icon: string }> = {
+  hotWeeks: {
+    label: "Hot Weeks",
+    title: "Market Signal Forecast: Hot Weeks",
+    description: "Weeks where event volume, issuer access, investor attendance, and sector signals concentrate around the same dates.",
+    icon: "◷",
+  },
+  clusters: {
+    label: "Cluster Forecast",
+    title: "Market Signal Forecast: Cluster Forecast",
+    description: "Metro, timing, sector, focus, and access signals that suggest concentrated conference activity, not just raw city volume.",
+    icon: "◎",
+  },
+};
+
 const hotWeeks = [
   {
     week: "Sep 28-Oct 4, 2025",
@@ -36,11 +53,12 @@ const hotWeeks = [
     summary: "High investor overlap and sector breadth across major metros.",
     detail: "Concentrated investor attendance across Healthcare, Tech, and Industrials with multiple flagship events drawing senior allocators and corporate access teams.",
     eventsIncluded: "J.P. Morgan Healthcare Conference · LSEG Tech Summit · BofA Industrials Conference · Needham Growth Conference",
+    supportingContext: "Issuer access and investor concentration are the lead signals. Meeting-day context is secondary.",
   },
-  { week: "Oct 12-Oct 18, 2025", events: "89 events", theme: "Financial Services", focus: "Private Markets", signal: "12 investor-relevant signals", summary: "Capital formation and fund strategy activity rises together." },
-  { week: "Nov 9-Nov 15, 2025", events: "76 events", theme: "Technology", focus: "Growth Equity", signal: "10 issuer-access signals", summary: "Public-company and private-growth signals overlap." },
-  { week: "Oct 26-Nov 1, 2025", events: "68 events", theme: "Real Estate", focus: "Sponsor Visibility", signal: "9 deal/BD signals", summary: "Real estate and infrastructure forums compress into one window." },
-  { week: "Nov 16-Nov 22, 2025", events: "61 events", theme: "Energy", focus: "Industrials", signal: "8 banker-relevant signals", summary: "Energy transition and industrial access signals cluster late in the month." },
+  { week: "Oct 12-Oct 18, 2025", events: "89 events", theme: "Financial Services", focus: "Private Markets", signal: "12 investor-relevant signals", summary: "Capital formation and fund strategy activity rises together.", detail: "Private-markets and financial-services programming compresses into a tighter forward window with investor relevance and banker-facing signal overlap.", eventsIncluded: "Private Markets Forum · Capital Formation Summit · Financial Services Investor Day", supportingContext: "Capital formation and investor concentration are the lead signals. Travel timing is not the primary readout." },
+  { week: "Nov 9-Nov 15, 2025", events: "76 events", theme: "Technology", focus: "Growth Equity", signal: "10 issuer-access signals", summary: "Public-company and private-growth signals overlap.", detail: "Technology, growth equity, and public-company programming align in a visible forward window with stronger sector-intelligence and issuer-access signals.", eventsIncluded: "Growth Equity Summit · Software Investor Forum · Public Company Tech Forum", supportingContext: "Sector breadth and issuer access are the lead signals. Meeting-day context is secondary." },
+  { week: "Oct 26-Nov 1, 2025", events: "68 events", theme: "Real Estate", focus: "Sponsor Visibility", signal: "9 deal/BD signals", summary: "Real estate and infrastructure forums compress into one window.", detail: "Real estate, infrastructure, and sponsor-visible events appear in the same market window, creating a stronger BD and banker-relevance signal.", eventsIncluded: "Real Estate Capital Forum · Infrastructure Finance Summit · Sponsor Visibility Forum", supportingContext: "Sponsor visibility and relationship density are the lead signals. Travel planning is supporting context only." },
+  { week: "Nov 16-Nov 22, 2025", events: "61 events", theme: "Energy", focus: "Industrials", signal: "8 banker-relevant signals", summary: "Energy transition and industrial access signals cluster late in the month.", detail: "Energy transition and industrials programming builds late-month market attention with banker relevance and sector-intelligence overlap.", eventsIncluded: "Energy Transition Forum · Industrials Investor Summit · Infrastructure Access Day", supportingContext: "Banker relevance and sector intelligence are the lead signals. Meeting-day context is secondary." },
 ];
 
 const clusters = [
@@ -54,11 +72,12 @@ const clusters = [
     detail: "Events occur in the same metro and week and share Healthcare, Institutional Investor, and Issuer Access signals.",
     cities: "New York · Jersey City · Stamford",
     eventsIncluded: "J.P. Morgan Healthcare Conference · Barclays Healthcare · TD Cowen Healthcare Innovation Summit",
+    supportingContext: "Potential private-meeting days may exist between related events, but meeting-day context is secondary to the cluster signal.",
   },
-  { metro: "Boston, MA", events: "22 events", type: "Innovation Cluster", window: "Oct 12-Oct 18", signals: "Biotech · Growth Companies · Investor-Heavy", summary: "Biotech and growth-company forums align with investor-heavy programming." },
-  { metro: "San Francisco, CA", events: "19 events", type: "Tech & AI Cluster", window: "Oct 13-Oct 17", signals: "AI / Software · Sponsor Visibility · Investor Relevance", summary: "Software, AI, and growth equity activity concentrates." },
-  { metro: "Chicago, IL", events: "15 events", type: "Industrials Cluster", window: "Oct 26-Nov 1", signals: "Industrials · Infrastructure · Banker Relevance", summary: "Industrial and infrastructure meetings compress into one market window." },
-  { metro: "Dallas-Fort Worth", events: "12 events", type: "Deal / BD Cluster", window: "Nov 16-Nov 20", signals: "Private Markets · Sponsor Visibility · BD Coverage", summary: "Sponsor, advisor, and private-markets activity shows a shared commercial reason to watch." },
+  { metro: "Boston, MA", events: "22 events", type: "Innovation Cluster", window: "Oct 12-Oct 18", signals: "Biotech · Growth Companies · Investor-Heavy", summary: "Biotech and growth-company forums align with investor-heavy programming.", detail: "Biotech, growth-company, and investor-heavy programming align around the Boston/Cambridge market, creating a stronger sector-intelligence cluster than simple event count.", cities: "Boston · Cambridge", eventsIncluded: "Biotech Growth Forum · Healthcare Innovation Summit · Growth Company Investor Day", supportingContext: "Investor concentration and sector intelligence are the lead signals. Meeting-day context is secondary." },
+  { metro: "San Francisco, CA", events: "19 events", type: "Tech & AI Cluster", window: "Oct 13-Oct 17", signals: "AI / Software · Sponsor Visibility · Investor Relevance", summary: "Software, AI, and growth equity activity concentrates.", detail: "Software, AI, and growth-equity events share timing and market focus across the Bay Area, increasing investor relevance and sponsor visibility.", cities: "San Francisco · Palo Alto · San Jose", eventsIncluded: "AI Software Summit · Growth Equity Forum · Technology Investor Conference", supportingContext: "Investor relevance and sponsor visibility are the lead signals. Travel timing is supporting context only." },
+  { metro: "Chicago, IL", events: "15 events", type: "Industrials Cluster", window: "Oct 26-Nov 1", signals: "Industrials · Infrastructure · Banker Relevance", summary: "Industrial and infrastructure meetings compress into one market window.", detail: "Industrial and infrastructure programming shares timing, category, and banker relevance, creating a clearer capital-markets cluster.", cities: "Chicago · Rosemont", eventsIncluded: "Industrials Investor Summit · Infrastructure Finance Forum · Manufacturing Outlook Conference", supportingContext: "Banker relevance and market coverage are the lead signals. Meeting-day context is secondary." },
+  { metro: "Dallas-Fort Worth", events: "12 events", type: "Deal / BD Cluster", window: "Nov 16-Nov 20", signals: "Private Markets · Sponsor Visibility · BD Coverage", summary: "Sponsor, advisor, and private-markets activity shows a shared commercial reason to watch.", detail: "Private-markets and sponsor-visible programming shares timing and audience signals across Dallas-Fort Worth, producing a stronger BD opportunity cluster.", cities: "Dallas · Fort Worth · Plano", eventsIncluded: "Private Markets Forum · Sponsor BD Summit · Advisor Coverage Day", supportingContext: "Sponsor visibility and BD opportunity are the lead signals. Meeting-day context is secondary." },
 ];
 
 const sectors = [["Healthcare", 42], ["Financial Services", 31], ["Technology", 28], ["Real Estate", 23], ["Energy Transition", 18]];
@@ -186,7 +205,9 @@ function CalendarBrandGlyph({ brand }: { brand: "google" | "apple" | "outlook" }
 
 export default function MarketViewV3PreviewClient() {
   const [primaryMetro, setPrimaryMetro] = useState("");
-  const [signalTab, setSignalTab] = useState<"hotWeeks" | "clusters">("hotWeeks");
+  const [signalTab, setSignalTab] = useState<ForecastMode>("hotWeeks");
+  const [selectedHotWeekIndex, setSelectedHotWeekIndex] = useState(0);
+  const [selectedClusterIndex, setSelectedClusterIndex] = useState(0);
 
   useEffect(() => {
     try {
@@ -213,9 +234,10 @@ export default function MarketViewV3PreviewClient() {
     }
   };
 
-  const activeHotWeek = hotWeeks[0];
-  const activeCluster = clusters[0];
+  const activeHotWeek = hotWeeks[selectedHotWeekIndex] ?? hotWeeks[0];
+  const activeCluster = clusters[selectedClusterIndex] ?? clusters[0];
   const isHotSignal = signalTab === "hotWeeks";
+  const activeForecastMode = forecastModes[signalTab];
 
   return (
     <div className="v3-page">
@@ -260,22 +282,22 @@ export default function MarketViewV3PreviewClient() {
         .v3-signal-forecast { position: relative; z-index: 1; overflow: hidden; display: grid; grid-template-rows: auto minmax(300px,auto); min-height: 354px; padding: 0; border-radius: 10px; border: 1px solid rgba(121,158,197,.26); background: linear-gradient(180deg,rgba(8,24,40,.98),rgba(5,17,30,.98)); box-shadow: 0 18px 42px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.05); }
         .v3-signal-forecast.hot { border-color: rgba(245,158,11,.4); box-shadow: 0 0 0 1px rgba(245,158,11,.08), 0 18px 42px rgba(0,0,0,.26); }
         .v3-signal-forecast.cluster { border-color: rgba(139,92,246,.44); box-shadow: 0 0 0 1px rgba(34,211,238,.08), 0 18px 42px rgba(0,0,0,.26); }
-        .v3-signal-head { padding: 12px 14px; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 14px; align-items: center; border-bottom: 1px solid rgba(125,162,199,.2); }
+        .v3-signal-head { padding: 13px 14px; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 14px; align-items: center; border-bottom: 1px solid rgba(125,162,199,.2); }
         .v3-signal-titleline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-        .v3-signal-icon { width: 24px; height: 24px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: #f8fbff; font-size: 14px; font-weight: 900; }
+        .v3-signal-icon { width: 28px; height: 28px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; color: #f8fbff; font-size: 17px; font-weight: 900; }
         .hot .v3-signal-icon { background: rgba(245,158,11,.18); color: #fbbf24; }
         .cluster .v3-signal-icon { background: rgba(124,58,237,.2); color: #c4b5fd; }
         .v3-signal-head h2 { font-size: 18px; letter-spacing: .08em; text-transform: uppercase; }
-        .v3-signal-head p { margin-top: 4px; max-width: 760px; color: #a9bbce; font-size: 12px; }
-        .v3-signal-tabs { display: inline-flex; gap: 6px; padding: 4px; border-radius: 999px; background: rgba(3,12,23,.46); border: 1px solid rgba(125,162,199,.18); }
-        .v3-signal-tabs button { height: 30px; border: 0; border-radius: 999px; padding: 0 12px; background: transparent; color: #91a8bf; font-size: 11px; font-weight: 900; cursor: pointer; }
-        .v3-signal-tabs button.is-active.hot { background: rgba(245,158,11,.18); color: #fbbf24; box-shadow: inset 0 0 0 1px rgba(245,158,11,.3); }
-        .v3-signal-tabs button.is-active.cluster { background: rgba(99,102,241,.2); color: #c4b5fd; box-shadow: inset 0 0 0 1px rgba(125,211,252,.22); }
+        .v3-signal-head p { margin-top: 5px; max-width: 760px; color: #b7c7d9; font-size: 12px; line-height: 1.38; }
+        .v3-signal-tabs { display: inline-flex; gap: 7px; padding: 5px; border-radius: 12px; background: rgba(3,12,23,.6); border: 1px solid rgba(125,162,199,.22); box-shadow: inset 0 1px 0 rgba(255,255,255,.04); }
+        .v3-signal-tabs button { min-height: 38px; border: 1px solid rgba(125,162,199,.22); border-radius: 9px; padding: 0 14px; background: rgba(9,27,45,.78); color: #c4d2e2; font-size: 12px; font-weight: 950; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,.12); }
+        .v3-signal-tabs button.is-active.hot { background: linear-gradient(180deg,rgba(245,158,11,.28),rgba(126,62,8,.34)); color: #fff7ed; border-color: rgba(245,158,11,.58); box-shadow: inset 0 0 0 1px rgba(245,158,11,.22), 0 0 20px rgba(245,158,11,.18); }
+        .v3-signal-tabs button.is-active.cluster { background: linear-gradient(180deg,rgba(99,102,241,.32),rgba(34,211,238,.14)); color: #f5f3ff; border-color: rgba(167,139,250,.58); box-shadow: inset 0 0 0 1px rgba(125,211,252,.16), 0 0 20px rgba(99,102,241,.2); }
         .v3-signal-body { display: grid; grid-template-columns: minmax(320px,.92fr) minmax(360px,1.08fr); gap: 0; min-height: 300px; background: rgba(3,12,23,.18); }
-        .v3-signal-list { border-right: 1px solid rgba(125,162,199,.2); max-height: 430px; overflow: auto; }
-        .v3-signal-item { width: 100%; border: 0; border-bottom: 1px solid rgba(117,153,190,.16); background: transparent; color: #dbeafe; text-align: left; padding: 11px 13px; display: grid; grid-template-columns: 30px minmax(0,1fr); gap: 10px; cursor: pointer; }
-        .v3-signal-item.is-active { background: linear-gradient(90deg,rgba(245,158,11,.16),rgba(14,165,233,.06)); }
-        .cluster .v3-signal-item.is-active { background: linear-gradient(90deg,rgba(124,58,237,.18),rgba(34,211,238,.07)); }
+        .v3-signal-list { border-right: 1px solid rgba(125,162,199,.2); max-height: 330px; overflow-y: auto; overflow-x: hidden; scrollbar-color: rgba(125,211,252,.28) transparent; scrollbar-width: thin; }
+        .v3-signal-item { width: 100%; border: 0; border-left: 3px solid transparent; border-bottom: 1px solid rgba(117,153,190,.16); background: transparent; color: #dbeafe; text-align: left; padding: 11px 13px 11px 10px; display: grid; grid-template-columns: 30px minmax(0,1fr); gap: 10px; cursor: pointer; }
+        .v3-signal-item.is-active { background: linear-gradient(90deg,rgba(245,158,11,.2),rgba(14,165,233,.07)); border-left-color: #f59e0b; box-shadow: inset 0 0 0 1px rgba(245,158,11,.1); }
+        .cluster .v3-signal-item.is-active { background: linear-gradient(90deg,rgba(124,58,237,.22),rgba(34,211,238,.08)); border-left-color: #a78bfa; box-shadow: inset 0 0 0 1px rgba(167,139,250,.12); }
         .v3-rank { width: 24px; height: 24px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; background: rgba(15,35,56,.9); border: 1px solid rgba(125,162,199,.2); color: #dbeafe; }
         .hot .v3-signal-item.is-active .v3-rank { background: rgba(245,158,11,.22); border-color: rgba(245,158,11,.42); color: #fbbf24; }
         .cluster .v3-signal-item.is-active .v3-rank { background: rgba(124,58,237,.24); border-color: rgba(167,139,250,.42); color: #c4b5fd; }
@@ -284,7 +306,7 @@ export default function MarketViewV3PreviewClient() {
         .v3-signal-meta span { border: 1px solid rgba(125,162,199,.18); background: rgba(4,15,27,.48); border-radius: 999px; padding: 2px 6px; }
         .v3-hot-tag { color: #fbbf24 !important; border-color: rgba(245,158,11,.34) !important; background: rgba(245,158,11,.12) !important; }
         .v3-signal-reason { margin-top: 6px; color: #aebfd2; font-size: 11.5px; line-height: 1.35; }
-        .v3-signal-detail { padding: 15px; display: grid; align-content: start; gap: 12px; background: radial-gradient(circle at 92% 12%,rgba(56,189,248,.12),transparent 26%), rgba(4,14,26,.36); }
+        .v3-signal-detail { max-height: 330px; overflow-y: auto; overflow-x: hidden; padding: 15px; display: grid; align-content: start; gap: 12px; background: radial-gradient(circle at 92% 12%,rgba(56,189,248,.12),transparent 26%), rgba(4,14,26,.36); scrollbar-color: rgba(125,211,252,.28) transparent; scrollbar-width: thin; }
         .v3-signal-detail h3 { font-size: 17px; color: #f8fbff; }
         .v3-feature-list { display: grid; gap: 7px; color: #c7d6e7; font-size: 12px; line-height: 1.35; }
         .v3-feature-list div { display: flex; gap: 8px; }
@@ -467,14 +489,22 @@ export default function MarketViewV3PreviewClient() {
             <div className="v3-signal-head">
               <div>
                 <div className="v3-signal-titleline">
-                  <span className="v3-signal-icon">{isHotSignal ? "♨" : "◎"}</span>
-                  <h2>Market Signal Forecast</h2>
+                  <span className="v3-signal-icon">{activeForecastMode.icon}</span>
+                  <h2>{activeForecastMode.title}</h2>
                 </div>
-                <p>Forward-looking signals showing where conference activity, issuer access, investor concentration, and market attention are building.</p>
+                <p>{activeForecastMode.description}</p>
               </div>
               <div className="v3-signal-tabs" aria-label="Market Signal Forecast tabs">
-                <button type="button" className={isHotSignal ? "is-active hot" : ""} onClick={() => setSignalTab("hotWeeks")}>Hot Weeks</button>
-                <button type="button" className={!isHotSignal ? "is-active cluster" : ""} onClick={() => setSignalTab("clusters")}>Cluster Forecast</button>
+                {(Object.entries(forecastModes) as [ForecastMode, (typeof forecastModes)[ForecastMode]][]).map(([mode, config]) => (
+                  <button
+                    type="button"
+                    key={mode}
+                    className={signalTab === mode ? `is-active ${mode === "hotWeeks" ? "hot" : "cluster"}` : ""}
+                    onClick={() => setSignalTab(mode)}
+                  >
+                    {config.label}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -482,17 +512,17 @@ export default function MarketViewV3PreviewClient() {
               <div className="v3-signal-list">
                 {isHotSignal
                   ? hotWeeks.map((row, index) => (
-                    <button type="button" className={`v3-signal-item ${index === 0 ? "is-active" : ""}`} key={row.week}>
+                    <button type="button" className={`v3-signal-item ${index === selectedHotWeekIndex ? "is-active" : ""}`} key={row.week} onClick={() => setSelectedHotWeekIndex(index)}>
                       <span className="v3-rank">{index + 1}</span>
                       <span>
                         <strong>{row.week}</strong>
-                        <span className="v3-signal-meta"><span>{row.events}</span><span className={index === 0 ? "v3-hot-tag" : ""}>{index === 0 ? "HOT" : row.focus}</span></span>
+                        <span className="v3-signal-meta"><span>{row.events}</span><span className={index === selectedHotWeekIndex ? "v3-hot-tag" : ""}>{index === 0 ? "HOT" : row.focus}</span><span>{row.signal}</span></span>
                         <span className="v3-signal-reason">{row.summary}</span>
                       </span>
                     </button>
                   ))
                   : clusters.map((row, index) => (
-                    <button type="button" className={`v3-signal-item ${index === 0 ? "is-active" : ""}`} key={row.metro}>
+                    <button type="button" className={`v3-signal-item ${index === selectedClusterIndex ? "is-active" : ""}`} key={row.metro} onClick={() => setSelectedClusterIndex(index)}>
                       <span className="v3-rank">{index + 1}</span>
                       <span>
                         <strong>{row.metro}</strong>
@@ -505,14 +535,13 @@ export default function MarketViewV3PreviewClient() {
 
               <div className="v3-signal-detail">
                 <div>
-                  <div className="v3-detail-label">{isHotSignal ? "Hot Week Detail" : "Cluster Detail"}</div>
-                  <h3>{isHotSignal ? "Why this week is hot" : "Why this is a cluster"}</h3>
+                  <h3>{isHotSignal ? "Why this week matters" : "Why this cluster matters"}</h3>
                 </div>
-                <p>{isHotSignal ? activeHotWeek.detail : `${activeCluster.detail ?? activeCluster.summary} This is stronger than simple city volume.`}</p>
+                <p>{isHotSignal ? activeHotWeek.detail : activeCluster.detail}</p>
 
                 {!isHotSignal ? (
                   <div>
-                    <div className="v3-detail-label">Cities included</div>
+                    <div className="v3-detail-label">Cities Included</div>
                     <p>{activeCluster.cities ?? activeCluster.metro}</p>
                   </div>
                 ) : null}
@@ -542,6 +571,11 @@ export default function MarketViewV3PreviewClient() {
                     ].map(([label, value]) => <div className="v3-metric-cell" key={label}><span>{label}</span><strong>{value}</strong></div>)}
                   </div>
                 )}
+
+                <div>
+                  <div className="v3-detail-label">Supporting Context</div>
+                  <p>{isHotSignal ? activeHotWeek.supportingContext : activeCluster.supportingContext}</p>
+                </div>
 
                 <OpenLink>{isHotSignal ? "View all hot weeks →" : "View all clusters →"}</OpenLink>
               </div>
