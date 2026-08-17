@@ -281,39 +281,42 @@ export default function MarketViewV3PreviewClient() {
         .v3-kpi small { color: #7892ad; font-size: 9.5px; line-height: 1.1; }
         .v3-signal-forecast { position: relative; z-index: 1; overflow: hidden; display: grid; grid-template-rows: auto minmax(300px,auto); min-height: 354px; padding: 0; border-radius: 10px; border: 1px solid rgba(121,158,197,.26); background: linear-gradient(180deg,rgba(8,24,40,.98),rgba(5,17,30,.98)); box-shadow: 0 18px 42px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.05); }
         .v3-signal-forecast.hot { border-color: rgba(245,158,11,.4); box-shadow: 0 0 0 1px rgba(245,158,11,.08), 0 18px 42px rgba(0,0,0,.26); }
-        .v3-signal-forecast.cluster { border-color: rgba(139,92,246,.44); box-shadow: 0 0 0 1px rgba(34,211,238,.08), 0 18px 42px rgba(0,0,0,.26); }
+        .v3-signal-forecast.cluster { border-color: rgba(248,113,113,.46); box-shadow: 0 0 0 1px rgba(248,113,113,.1), 0 18px 42px rgba(0,0,0,.26); }
         .v3-signal-head { padding: 13px 14px; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 14px; align-items: center; border-bottom: 1px solid rgba(125,162,199,.2); }
         .v3-signal-titleline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
         .v3-signal-icon { width: 28px; height: 28px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; color: #f8fbff; font-size: 17px; font-weight: 900; }
         .hot .v3-signal-icon { background: rgba(245,158,11,.18); color: #fbbf24; }
-        .cluster .v3-signal-icon { background: rgba(124,58,237,.2); color: #c4b5fd; }
+        .cluster .v3-signal-icon { background: rgba(220,38,38,.18); color: #fca5a5; }
         .v3-signal-head h2 { font-size: 18px; letter-spacing: .08em; text-transform: uppercase; }
-        .v3-signal-head p { margin-top: 5px; max-width: 760px; color: #b7c7d9; font-size: 12px; line-height: 1.38; }
-        .v3-signal-tabs { display: inline-flex; gap: 7px; padding: 5px; border-radius: 12px; background: rgba(3,12,23,.6); border: 1px solid rgba(125,162,199,.22); box-shadow: inset 0 1px 0 rgba(255,255,255,.04); }
-        .v3-signal-tabs button { min-height: 38px; border: 1px solid rgba(125,162,199,.22); border-radius: 9px; padding: 0 14px; background: rgba(9,27,45,.78); color: #c4d2e2; font-size: 12px; font-weight: 950; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,.12); }
+        .v3-signal-head p { margin-top: 7px; max-width: 760px; color: #c4d6e8; font-size: 13px; line-height: 1.42; }
+        .v3-signal-tabs { display: inline-flex; gap: 8px; align-items: center; justify-content: flex-end; }
+        .v3-signal-tabs button { min-height: 40px; border: 1px solid rgba(125,162,199,.3); border-radius: 10px; padding: 0 16px; background: rgba(9,27,45,.86); color: #d2deea; font-size: 12px; font-weight: 950; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.04); }
         .v3-signal-tabs button.is-active.hot { background: linear-gradient(180deg,rgba(245,158,11,.28),rgba(126,62,8,.34)); color: #fff7ed; border-color: rgba(245,158,11,.58); box-shadow: inset 0 0 0 1px rgba(245,158,11,.22), 0 0 20px rgba(245,158,11,.18); }
-        .v3-signal-tabs button.is-active.cluster { background: linear-gradient(180deg,rgba(99,102,241,.32),rgba(34,211,238,.14)); color: #f5f3ff; border-color: rgba(167,139,250,.58); box-shadow: inset 0 0 0 1px rgba(125,211,252,.16), 0 0 20px rgba(99,102,241,.2); }
-        .v3-signal-body { display: grid; grid-template-columns: minmax(320px,.92fr) minmax(360px,1.08fr); gap: 0; min-height: 300px; background: rgba(3,12,23,.18); }
-        .v3-signal-list { border-right: 1px solid rgba(125,162,199,.2); max-height: 330px; overflow-y: auto; overflow-x: hidden; scrollbar-color: rgba(125,211,252,.28) transparent; scrollbar-width: thin; }
+        .v3-signal-tabs button.is-active.cluster { background: linear-gradient(180deg,rgba(220,38,38,.3),rgba(127,29,29,.36)); color: #fff1f2; border-color: rgba(248,113,113,.62); box-shadow: inset 0 0 0 1px rgba(248,113,113,.18), 0 0 20px rgba(220,38,38,.2); }
+        .v3-signal-body { display: grid; grid-template-columns: minmax(320px,.92fr) minmax(360px,1.08fr); gap: 0; min-height: 318px; max-height: 360px; background: rgba(3,12,23,.18); }
+        .v3-signal-list { min-height: 0; border-right: 1px solid rgba(125,162,199,.2); max-height: 360px; overflow-y: auto; overflow-x: hidden; scrollbar-color: rgba(125,211,252,.28) transparent; scrollbar-width: thin; }
         .v3-signal-item { width: 100%; border: 0; border-left: 3px solid transparent; border-bottom: 1px solid rgba(117,153,190,.16); background: transparent; color: #dbeafe; text-align: left; padding: 11px 13px 11px 10px; display: grid; grid-template-columns: 30px minmax(0,1fr); gap: 10px; cursor: pointer; }
         .v3-signal-item.is-active { background: linear-gradient(90deg,rgba(245,158,11,.2),rgba(14,165,233,.07)); border-left-color: #f59e0b; box-shadow: inset 0 0 0 1px rgba(245,158,11,.1); }
-        .cluster .v3-signal-item.is-active { background: linear-gradient(90deg,rgba(124,58,237,.22),rgba(34,211,238,.08)); border-left-color: #a78bfa; box-shadow: inset 0 0 0 1px rgba(167,139,250,.12); }
+        .cluster .v3-signal-item.is-active { background: linear-gradient(90deg,rgba(220,38,38,.22),rgba(248,113,113,.08)); border-left-color: #f87171; box-shadow: inset 0 0 0 1px rgba(248,113,113,.12); }
         .v3-rank { width: 24px; height: 24px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; background: rgba(15,35,56,.9); border: 1px solid rgba(125,162,199,.2); color: #dbeafe; }
         .hot .v3-signal-item.is-active .v3-rank { background: rgba(245,158,11,.22); border-color: rgba(245,158,11,.42); color: #fbbf24; }
-        .cluster .v3-signal-item.is-active .v3-rank { background: rgba(124,58,237,.24); border-color: rgba(167,139,250,.42); color: #c4b5fd; }
+        .cluster .v3-signal-item.is-active .v3-rank { background: rgba(220,38,38,.24); border-color: rgba(248,113,113,.44); color: #fecaca; }
         .v3-signal-item strong { color: #f8fbff; font-size: 14px; line-height: 1.15; }
         .v3-signal-meta { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 6px; color: #91a8bf; font-size: 10.5px; font-weight: 750; }
         .v3-signal-meta span { border: 1px solid rgba(125,162,199,.18); background: rgba(4,15,27,.48); border-radius: 999px; padding: 2px 6px; }
         .v3-hot-tag { color: #fbbf24 !important; border-color: rgba(245,158,11,.34) !important; background: rgba(245,158,11,.12) !important; }
         .v3-signal-reason { margin-top: 6px; color: #aebfd2; font-size: 11.5px; line-height: 1.35; }
-        .v3-signal-detail { max-height: 330px; overflow-y: auto; overflow-x: hidden; padding: 15px; display: grid; align-content: start; gap: 12px; background: radial-gradient(circle at 92% 12%,rgba(56,189,248,.12),transparent 26%), rgba(4,14,26,.36); scrollbar-color: rgba(125,211,252,.28) transparent; scrollbar-width: thin; }
-        .v3-signal-detail h3 { font-size: 17px; color: #f8fbff; }
+        .v3-signal-detail { min-height: 0; max-height: 360px; overflow-y: auto; overflow-x: hidden; padding: 17px 16px 18px; display: grid; align-content: start; gap: 13px; background: radial-gradient(circle at 92% 12%,rgba(56,189,248,.12),transparent 26%), rgba(4,14,26,.36); scrollbar-color: rgba(125,211,252,.28) transparent; scrollbar-width: thin; }
+        .v3-signal-detail h3 { font-size: 13px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; color: #a9c1d8; }
+        .v3-detail-summary { color: #d9e8f7; font-size: 13.5px; line-height: 1.55; font-weight: 650; }
         .v3-feature-list { display: grid; gap: 7px; color: #c7d6e7; font-size: 12px; line-height: 1.35; }
         .v3-feature-list div { display: flex; gap: 8px; }
         .v3-feature-list div:before { content: ""; width: 5px; height: 5px; margin-top: 6px; border-radius: 999px; background: #38bdf8; flex: 0 0 auto; }
         .hot .v3-feature-list div:before { background: #f59e0b; }
-        .v3-detail-label { color: #7dd3fc; font-size: 10px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+        .cluster .v3-feature-list div:before { background: #ef4444; }
+        .v3-detail-label { color: #7dd3fc; font-size: 9.5px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
         .hot .v3-detail-label { color: #fbbf24; }
+        .cluster .v3-detail-label { color: #fca5a5; }
         .v3-metric-row { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); border: 1px solid rgba(125,162,199,.18); border-radius: 9px; overflow: hidden; }
         .v3-metric-cell { padding: 8px 9px; display: grid; gap: 3px; background: rgba(7,23,39,.55); border-left: 1px solid rgba(125,162,199,.16); }
         .v3-metric-cell:first-child { border-left: 0; }
@@ -537,7 +540,7 @@ export default function MarketViewV3PreviewClient() {
                 <div>
                   <h3>{isHotSignal ? "Why this week matters" : "Why this cluster matters"}</h3>
                 </div>
-                <p>{isHotSignal ? activeHotWeek.detail : activeCluster.detail}</p>
+                <p className="v3-detail-summary">{isHotSignal ? activeHotWeek.detail : activeCluster.detail}</p>
 
                 {!isHotSignal ? (
                   <div>
@@ -559,7 +562,6 @@ export default function MarketViewV3PreviewClient() {
                       <div className="v3-detail-label">Shared signals</div>
                       <div className="v3-feature-list">{(activeCluster.signals ?? "").split(" · ").filter(Boolean).map((signal) => <div key={signal}>{signal}</div>)}</div>
                     </div>
-                    <p>Potential private-meeting days may exist between related events, but meeting-day context is secondary to the cluster signal.</p>
                   </>
                 ) : (
                   <div className="v3-metric-row">
