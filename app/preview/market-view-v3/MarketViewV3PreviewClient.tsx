@@ -7,12 +7,12 @@ const metroStorageKey = "marketViewV3.primaryMetro";
 
 const filterRows = ["Date & Timing", "Location", "Market Segments", "Participation", "Organizers"];
 const quickFeeds = [
-  ["Investor Conferences", "115", "#3b82f6"],
-  ["Healthcare", "0", "#14b8a6"],
-  ["Private Markets", "154", "#7c3aed"],
-  ["Canada Events", "33", "#dc2626"],
-  ["Next 30 Days", "37", "#2563eb"],
-  ["Hot Weeks", "22", "#f97316"],
+  ["Investor Conferences", "115", "#3b82f6", "investor"],
+  ["Healthcare", "0", "#14b8a6", "health"],
+  ["Private Markets", "154", "#7c3aed", "private"],
+  ["Canada Events", "33", "#dc2626", "canada"],
+  ["Next 30 Days", "37", "#2563eb", "next30"],
+  ["Hot Weeks", "22", "#f97316", "next60"],
 ];
 
 const quickActions = ["Clear", "Share Selected", "Save Market View", "Save Selected"];
@@ -98,6 +98,91 @@ function OpenLink({ children = "Inspect" }: { children?: ReactNode }) {
   return <span className="v3-link">{children}</span>;
 }
 
+function QuickActionIcon({ kind }: { kind: "clear" | "share" | "saveView" | "saveSelected" }) {
+  const common: React.SVGProps<SVGSVGElement> = {
+    width: 18,
+    height: 18,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.9,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  };
+  if (kind === "clear") return <svg {...common}><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg>;
+  if (kind === "share") return <svg {...common}><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" /><path d="M12 16V3" /><path d="m7 8 5-5 5 5" /></svg>;
+  if (kind === "saveView") return <svg {...common}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" /><path d="M17 21v-8H7v8" /><path d="M7 3v5h8" /></svg>;
+  return <svg {...common}><path d="M12 5v14" /><path d="M5 12h14" /></svg>;
+}
+
+function RightRailSectionIcon({ kind }: { kind: "sync" | "actions" | "lists" | "views" | "status" }) {
+  const common: React.SVGProps<SVGSVGElement> = {
+    width: 18,
+    height: 18,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.9,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  };
+  if (kind === "sync") return <svg {...common}><path d="M8 2v4M16 2v4" /><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M3 10h18" /><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" /></svg>;
+  if (kind === "actions") return <svg {...common}><path d="M13 3 4 14h6l-1 7 9-11h-6l1-7Z" /></svg>;
+  if (kind === "lists") return <svg {...common}><path d="M9 6h11M9 12h11M9 18h11" /><path d="m3.5 6 1.5 1.5L7.5 5" /><path d="m3.5 12 1.5 1.5L7.5 11" /><path d="m3.5 18 1.5 1.5L7.5 17" /></svg>;
+  if (kind === "views") return <svg {...common}><path d="m7 4 5-2 5 2v16l-5-2-5 2Z" /><path d="M12 2v16" /></svg>;
+  return <svg {...common}><path d="M3 12h4l3 8 4-16 3 8h4" /></svg>;
+}
+
+function FilterSectionIcon({ kind }: { kind: "date" | "location" | "segments" | "participation" | "organizers" }) {
+  const common: React.SVGProps<SVGSVGElement> = {
+    width: 16,
+    height: 16,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.75,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  };
+  if (kind === "date") return <svg {...common} aria-hidden="true"><path d="M8 2v4M16 2v4" /><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01" /></svg>;
+  if (kind === "location") return <svg {...common} aria-hidden="true"><path d="M12 22s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Z" /><circle cx="12" cy="11" r="2.8" /></svg>;
+  if (kind === "segments") return <svg {...common} aria-hidden="true"><path d="M3 3v18h18" /><path d="M7 15v3M12 10v8M17 6v12" /></svg>;
+  if (kind === "participation") return <svg {...common} aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="10" cy="7" r="3" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a3 3 0 0 1 0 5.74" /></svg>;
+  return <svg {...common} aria-hidden="true"><rect x="3" y="3" width="7" height="18" rx="1.5" /><rect x="14" y="7" width="7" height="14" rx="1.5" /><path d="M6.5 7h.01M6.5 11h.01M6.5 15h.01M17.5 11h.01M17.5 15h.01" /></svg>;
+}
+
+function QuickViewGlyph({
+  kind,
+  color = "#e6dbff",
+}: {
+  kind: "city" | "investor" | "health" | "private" | "tech" | "canada" | "next30" | "next60" | "region";
+  color?: string;
+}) {
+  const common = {
+    width: 13,
+    height: 13,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: color,
+    strokeWidth: 2,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+  if (kind === "city") return <svg {...common} aria-hidden="true"><path d="M12 21s7-4.4 7-10a7 7 0 1 0-14 0c0 5.6 7 10 7 10Z" /><circle cx="12" cy="11" r="2.5" /></svg>;
+  if (kind === "investor") return <svg {...common} aria-hidden="true"><path d="M3 21h18M5 21V8l7-4 7 4v13M9 12h.01M15 12h.01M9 16h.01M15 16h.01" /></svg>;
+  if (kind === "health") return <svg {...common} aria-hidden="true"><path d="M12 21s-7-4.2-9-9.1A5.8 5.8 0 0 1 12 5a5.8 5.8 0 0 1 9 6.9c-2 4.9-9 9.1-9 9.1Z" /><path d="M12 8v8M8 12h8" /></svg>;
+  if (kind === "private") return <svg {...common} aria-hidden="true"><path d="M3 7h18M5 7l1-3h12l1 3M5 7v12h14V7M9 12h6" /></svg>;
+  if (kind === "canada") return <svg {...common} aria-hidden="true"><path d="M12 3c4.97 0 9 4.03 9 9s-4.03 9-9 9-9-4.03-9-9 4.03-9 9-9Z" /><path d="m12 7 1.2 2.4 2.6.3-1.9 1.8.4 2.6-2.3-1.2-2.3 1.2.4-2.6-1.9-1.8 2.6-.3L12 7Z" /></svg>;
+  if (kind === "next60") return <svg {...common} aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M8 2v4M16 2v4M3 10h18M9 15h6" /></svg>;
+  return <svg {...common} aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M8 2v4M16 2v4M3 10h18" /></svg>;
+}
+
+function CalendarBrandGlyph({ brand }: { brand: "google" | "apple" | "outlook" }) {
+  if (brand === "google") return <svg width="14" height="14" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.56 2.7-3.86 2.7-6.62Z" /><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.82.86-3.06.86-2.35 0-4.33-1.58-5.04-3.7H.96v2.33A9 9 0 0 0 9 18Z" /><path fill="#FBBC05" d="M3.96 10.72A5.41 5.41 0 0 1 3.68 9c0-.6.1-1.18.28-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.82.96 4.05l3-2.33Z" /><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.33l2.58-2.58C13.46.89 11.42 0 9 0A9 9 0 0 0 .96 4.95l3 2.33c.7-2.12 2.69-3.7 5.04-3.7Z" /></svg>;
+  if (brand === "apple") return <span style={{ fontSize: "14px", lineHeight: 1, color: "#e2e8f0" }}></span>;
+  return <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5" fill="none" stroke="#38BDF8" strokeWidth="1.8" /><path d="M3.5 8.5 12 14l8.5-5.5" fill="none" stroke="#38BDF8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+}
+
 export default function MarketViewV3PreviewClient() {
   const [primaryMetro, setPrimaryMetro] = useState("");
 
@@ -130,38 +215,9 @@ export default function MarketViewV3PreviewClient() {
     <div className="v3-page">
       <style jsx>{`
         .v3-page { height: 100%; overflow: hidden; background: #061421; color: #e6f0fb; font-family: var(--font-body), Arial, sans-serif; }
-        .v3-shell { height: 100%; display: grid; grid-template-columns: minmax(280px, 290px) minmax(0, 1fr) minmax(300px, 320px); gap: 18px; padding: 0; }
-        .v3-left { position: relative; align-self: stretch; min-width: 0; min-height: 0; width: 100%; max-width: 280px; height: 100%; overflow: hidden; padding-right: 2px; color: #eaf3ff; }
         .v3-main { overflow: auto; display: grid; gap: 9px; max-width: 1320px; width: 100%; justify-self: center; }
-        .v3-right { position: relative; align-self: stretch; min-width: 0; min-height: 0; width: 100%; max-width: 320px; height: 100%; max-height: 100%; overflow: hidden; padding-right: 1px; color: #dbeafe; }
-        .v3-rail-scroll { height: 100%; max-height: 100%; overflow-y: auto; overflow-x: hidden; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
-        .v3-left-inner { width: 100%; max-width: 100%; overflow: visible; padding: 10px 4px 6px 0; display: grid; gap: 10px; }
-        .v3-right-inner { height: 100%; max-height: 100%; padding: 10px 16px 16px; display: grid; gap: 8px; }
-        .v3-rail-title { color: #dbeafe; font-weight: 900; font-size: 20px; line-height: 1.05; margin-bottom: 6px; text-align: center; }
-        .v3-rail-copy { color: #93aeca; font-size: 12px; line-height: 1.35; }
-        .v3-clear-button { height: 36px; width: 100%; border-radius: 10px; border: 1px solid rgba(120,160,220,.2); background: rgba(8,26,46,.42); color: #c9dff7; cursor: pointer; font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
-        .v3-filter-stack, .v3-feed, .v3-card-list { display: grid; gap: 6px; }
-        .v3-filter-row { height: 48px; border: 1px solid rgba(96,165,250,.28); border-radius: 10px; background: linear-gradient(180deg, rgba(12,34,60,.48), rgba(7,24,44,.36)); box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 0 10px rgba(59,130,246,.12); color: #dbeafe; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; }
-        .v3-filter-label { font-size: 12px; font-weight: 800; letter-spacing: .07em; color: #d7e5f5; display: inline-flex; align-items: center; gap: 9px; text-transform: uppercase; }
-        .v3-filter-icon, .v3-action-icon { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; color: #b6c6da; font-size: 14px; }
-        .v3-rail-section-title { color: #f8fbff; font-weight: 800; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; margin: 6px 0; }
-        .v3-feed-row { height: 38px; border-radius: 8px; border: 1px solid rgba(147,197,253,.08); background: rgba(147,197,253,.02); color: #dbeafe; display: flex; align-items: center; gap: 10px; padding: 0 10px; }
-        .v3-feed-row span:nth-child(2) { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; color: #dce8f8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .v3-feed-row strong { color: #f8fbff; font-size: 12px; font-weight: 800; }
-        .v3-sync-card { border: 1px solid rgba(88,145,230,.34); border-radius: 10px; background: linear-gradient(180deg, rgba(13,35,62,.98), rgba(8,25,46,.96)); box-shadow: 0 0 0 1px rgba(70,120,220,.12), 0 12px 24px rgba(0,0,0,.18); padding: 0; overflow: hidden; }
-        .v3-right-heading { min-height: 42px; padding: 0 14px; color: #dbeafe; display: flex; align-items: center; font-size: 12px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; gap: 9px; }
-        .v3-sync-buttons { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
-        .v3-sync-buttons button, .v3-action-button { border-radius: 10px; border: 1px solid rgba(92,136,184,.28); background: rgba(17,38,67,.9); color: #e7f2ff; font-weight: 800; cursor: pointer; box-shadow: 0 0 10px rgba(59,130,246,.12), inset 0 1px 0 rgba(255,255,255,.06); }
-        .v3-sync-buttons button { height: 36px; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
-        .v3-actions-head { width: 100%; height: 40px; padding: 0 4px; color: #dbeafe; display: flex; align-items: center; justify-content: space-between; }
-        .v3-action-button { height: 38px; font-size: 13px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px 0 12px; }
-        .v3-rail-accordion { width: 100%; min-height: 48px; border: 1px solid rgba(205,220,239,.18); border-radius: 10px; background: linear-gradient(180deg, rgba(12,34,60,.42), rgba(7,24,44,.32)); box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 0 8px rgba(205,220,239,.06); }
-        .v3-rail-accordion button { width: 100%; height: 48px; border: 0; background: transparent; color: #dbeafe; cursor: pointer; padding: 0 14px; display: flex; align-items: center; justify-content: space-between; }
-        .v3-right-footer { margin-top: auto; padding-top: 28px; border-top: 1px solid rgba(205,220,239,.12); color: #dbeafe; display: flex; gap: 18px; justify-content: center; font-size: 13px; }
-        .v3-brand { display: grid; gap: 4px; }
         .v3-brand small, .v3-eyebrow { font-size: 9px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; color: #38bdf8; }
         .v3-brand strong { font-size: 15px; line-height: 1.1; }
-        .v3-summary-row { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; border-bottom: 1px solid rgba(148,163,184,.2); font-size: 11px; }
         .v3-panel { background: linear-gradient(180deg,rgba(10,27,44,.96),rgba(7,20,34,.96)); border: 1px solid rgba(94,139,184,.28); border-radius: 8px; padding: 12px; box-shadow: 0 18px 40px rgba(0,0,0,.22); }
         .v3-readout { position: relative; overflow: hidden; display: grid; gap: 8px; align-items: center; min-height: 136px; }
         .v3-readout:before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 82% 44%,rgba(14,165,233,.28),transparent 27%), linear-gradient(110deg,rgba(3,105,161,.2),transparent 52%); pointer-events: none; }
@@ -231,36 +287,82 @@ export default function MarketViewV3PreviewClient() {
         .v3-info { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; border-radius: 999px; background: #f6f8fb; border: 1px solid #cbd8e6; color: #41546d; font-size: 10px; font-weight: 900; cursor: help; }
         .v3-tooltip { position: absolute; z-index: 10; right: 0; bottom: calc(100% + 8px); width: 260px; border-radius: 10px; background: #102136; color: #fff; padding: 10px; font-size: 12px; line-height: 1.35; box-shadow: 0 16px 32px rgba(0,0,0,.25); opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
         .v3-info:hover .v3-tooltip, .v3-info:focus .v3-tooltip { opacity: 1; }
-        @media (max-width: 1180px) { .v3-page { overflow: auto; } .v3-shell { height: auto; grid-template-columns: 1fr; } .v3-main { overflow: visible; } .v3-readout, .v3-primary-row, .v3-kpi-strip, .v3-support, .v3-analytics, .v3-watch { grid-template-columns: 1fr; } }
-        @media (max-width: 760px) { h1 { font-size: 31px; } .v3-metro-grid { grid-template-columns: 1fr; } .v3-shell { padding: 12px; } }
+        @media (max-width: 1180px) { .v3-page { overflow: auto; } .v3-main { overflow: visible; } .v3-readout, .v3-primary-row, .v3-kpi-strip, .v3-support, .v3-analytics, .v3-watch { grid-template-columns: 1fr; } }
+        @media (max-width: 760px) { h1 { font-size: 31px; } .v3-metro-grid { grid-template-columns: 1fr; } }
       `}</style>
 
-      <div className="v3-shell">
-        <aside className="v3-left">
-          <div className="v3-rail-scroll">
-            <div className="v3-left-inner">
-              <div style={{ marginBottom: 0 }}>
-                <div className="v3-rail-title">Refine Your Market View</div>
-                <div className="v3-rail-copy" style={{ marginBottom: 8 }}>Filter conferences by date, location, theme, and participation.</div>
-                <button type="button" className="v3-clear-button"><span className="v3-action-icon">↻</span>Clear Filters</button>
+      <div className="workspace-shell" style={{ display: "grid", gridTemplateColumns: "minmax(280px, 290px) minmax(0, 1fr) minmax(300px, 320px)", gridTemplateRows: "minmax(0, 1fr)", gap: "18px", alignItems: "stretch", width: "100%", height: "calc(100vh - 126px)", maxWidth: "100%", minWidth: 0, minHeight: 0, overflow: "hidden", justifyContent: "center" }}>
+        <aside
+          className="ccc-scroll-rail ccc-scroll-rail-left"
+          style={{ position: "relative", alignSelf: "stretch", display: "grid", gap: "8px", minWidth: 0, minHeight: 0, width: "100%", maxWidth: "280px", height: "calc(100vh - 126px)", maxHeight: "calc(100vh - 126px)", overflow: "hidden", paddingRight: "2px" }}
+        >
+          <div style={{ height: "100%", maxHeight: "100%", overflowY: "auto", overflowX: "hidden", overscrollBehaviorY: "contain", WebkitOverflowScrolling: "touch", paddingRight: "4px", paddingBottom: "6px" }}>
+            <div style={{ width: "100%", maxWidth: "100%", overflow: "visible", padding: "10px 0" }}>
+              <div style={{ marginBottom: "10px" }}>
+                <div style={{ fontWeight: 900, color: "#dbeafe", fontSize: "20px", lineHeight: 1.05, marginBottom: "6px", textAlign: "center" }}>Refine Your Market View</div>
+                <div style={{ color: "#93aeca", fontSize: "12px", lineHeight: 1.35, marginBottom: "8px" }}>Filter conferences by date, location, theme, and participation.</div>
+                <button
+                  type="button"
+                  style={{
+                    height: "36px",
+                    width: "100%",
+                    borderRadius: "10px",
+                    border: "1px solid rgba(120,160,220,0.2)",
+                    background: "rgba(8,26,46,0.42)",
+                    color: "#c9dff7",
+                    cursor: "pointer",
+                    fontSize: "12px",
+                    fontWeight: 800,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                  }}
+                >
+                  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#9ec2e8" }}>
+                    <QuickActionIcon kind="clear" />
+                  </span>
+                  Clear Filters
+                </button>
               </div>
 
-              <div className="v3-filter-stack">
+              <div style={{ display: "grid", gap: "6px", minWidth: 0 }}>
                 {filterRows.map((row, index) => (
-                  <button type="button" className="v3-filter-row" key={row}>
-                    <span className="v3-filter-label"><span className="v3-filter-icon">{["◷", "⌖", "▤", "♙", "║"][index]}</span>{row}</span>
-                    <span style={{ color: "#dbeafe", fontSize: 16, lineHeight: 1 }}>▸</span>
-                  </button>
+                  <div
+                    key={row}
+                    style={{
+                      border: `1px solid rgba(96,165,250,${0.36 - index * 0.06})`,
+                      borderRadius: "10px",
+                      background: `linear-gradient(180deg, rgba(12,34,60,${0.52 - index * 0.06}), rgba(7,24,44,${0.4 - index * 0.05}))`,
+                      boxShadow: `inset 0 1px 0 rgba(255,255,255,0.04), 0 0 ${14 - index * 2}px rgba(59,130,246,${0.2 - index * 0.03})`,
+                    }}
+                  >
+                    <button type="button" style={{ width: "100%", height: "48px", padding: "0 14px", border: 0, background: "transparent", color: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
+                      <span style={{ fontSize: "12px", fontWeight: 800, letterSpacing: "0.07em", display: "inline-flex", alignItems: "center", gap: "9px", color: "#d7e5f5" }}>
+                        <span style={{ width: "16px", height: "16px", color: "#b6c6da", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                          <FilterSectionIcon kind={index === 0 ? "date" : index === 1 ? "location" : index === 2 ? "segments" : index === 3 ? "participation" : "organizers"} />
+                        </span>
+                        {row.toUpperCase()}
+                      </span>
+                      <span style={{ fontSize: "14px", color: "#c7dcf6", fontWeight: 800, letterSpacing: "0.01em", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                        <span style={{ fontSize: "16px", color: "#dbeafe", lineHeight: 1 }}>▸</span>
+                      </span>
+                    </button>
+                  </div>
                 ))}
               </div>
 
-              <div>
-                <div className="v3-rail-section-title">Quick Feeds</div>
-                <div className="v3-feed">
-                  {quickFeeds.map(([label, count, color]) => (
-                    <button type="button" className="v3-feed-row" key={label}>
-                      <span className="v3-filter-icon" style={{ color }}>{label === "Hot Weeks" ? "♨" : label === "Canada Events" ? "◎" : label === "Next 30 Days" ? "□" : "◇"}</span>
-                      <span>{label}</span>
+              <div style={{ marginTop: "6px", padding: "0" }}>
+                <div style={{ color: "#f8fbff", fontWeight: 800, fontSize: "14px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>Quick Feeds</div>
+                <div style={{ display: "grid", gap: "4px" }}>
+                  {quickFeeds.map(([label, count, color, icon]) => (
+                    <button key={label} type="button" style={{ height: "38px", borderRadius: "8px", border: "1px solid rgba(147,197,253,0.08)", background: "rgba(147,197,253,0.02)", color: "#dbeafe", cursor: "pointer", display: "flex", alignItems: "center", gap: "10px", padding: "0 10px" }}>
+                      <span style={{ width: "20px", height: "20px", display: "inline-flex", alignItems: "center", justifyContent: "center", color, filter: "brightness(1.2)" }}>
+                        <QuickViewGlyph kind={icon as "investor" | "health" | "private" | "canada" | "next30" | "next60"} color={color} />
+                      </span>
+                      <span style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", alignItems: "center", gap: "8px", width: "100%", minWidth: 0 }}>
+                        <span style={{ fontSize: "13px", fontWeight: 700, color: "#dce8f8", lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "left" }}>{label}</span>
+                      </span>
                       <strong>({count})</strong>
                     </button>
                   ))}
@@ -364,43 +466,95 @@ export default function MarketViewV3PreviewClient() {
           </section>
         </main>
 
-        <aside className="v3-right">
-          <div className="v3-rail-scroll">
-            <div className="v3-right-inner">
+        <aside
+          className="right-rail ccc-scroll-rail ccc-scroll-rail-right"
+          style={{ position: "relative", alignSelf: "stretch", display: "grid", gap: "10px", minWidth: 0, minHeight: 0, width: "100%", maxWidth: "320px", height: "calc(100vh - 126px)", maxHeight: "calc(100vh - 126px)", overflow: "hidden", paddingRight: "1px" }}
+        >
+          <div style={{ width: "100%", height: "100%", maxHeight: "100%", overflow: "hidden" }}>
+            <div style={{ height: "100%", maxHeight: "100%", overflowY: "auto", overflowX: "hidden", overscrollBehaviorY: "contain", WebkitOverflowScrolling: "touch", padding: "10px 16px 16px", display: "grid", gap: "4px" }}>
               <div style={{ marginBottom: 2, textAlign: "center", display: "grid", justifyItems: "center" }}>
-                <div className="v3-rail-title">Control Panel</div>
-                <div className="v3-rail-copy" style={{ maxWidth: 230, width: "100%", textAlign: "left", justifySelf: "stretch" }}>Export, save, sync, and manage this market view.</div>
+                <div style={{ color: "#dbeafe", fontWeight: 900, fontSize: "20px", lineHeight: 1.05, marginBottom: "6px" }}>Control Panel</div>
+                <div style={{ color: "#9db4d3", fontSize: "13px", lineHeight: 1.35, maxWidth: "230px", width: "100%", textAlign: "left", justifySelf: "stretch" }}>Export, save, sync, and manage this market view.</div>
               </div>
 
-              <div className="v3-sync-card">
-                <div className="v3-right-heading"><span className="v3-action-icon" style={{ color: "#8fc2ff" }}>▣</span>Sync Calendar</div>
+              <div
+                style={{
+                  padding: 0,
+                  overflow: "visible",
+                  position: "sticky",
+                  top: 0,
+                  zIndex: 8,
+                  background: "linear-gradient(180deg, rgba(13,35,62,0.98) 0%, rgba(8,25,46,0.96) 100%)",
+                  border: "1px solid rgba(88, 145, 230, 0.34)",
+                  borderRadius: "10px",
+                  boxShadow: "0 0 0 1px rgba(70,120,220,0.12), 0 12px 24px rgba(0,0,0,0.18)",
+                }}
+              >
+                <div style={{ width: "100%", minHeight: "42px", padding: "0 14px", color: "#dbeafe", display: "flex", alignItems: "center" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", display: "inline-flex", alignItems: "center", gap: "9px", textTransform: "uppercase" }}>
+                    <span style={{ width: "18px", height: "18px", color: "#8fc2ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind="sync" /></span>
+                    SYNC CALENDAR
+                  </span>
+                </div>
                 <div style={{ padding: "0 14px 14px" }}>
                   <div style={{ color: "#c6d7ee", fontSize: 13, marginBottom: 12, lineHeight: 1.4 }}>Turn this market view into a live calendar workflow.</div>
-                  <div className="v3-sync-buttons">
-                    {["Google", "Apple", "Outlook"].map((item) => <button type="button" key={item}>{item}</button>)}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "8px", marginBottom: "2px" }}>
+                    {[
+                      { label: "Google", brand: "google" as const },
+                      { label: "Apple", brand: "apple" as const },
+                      { label: "Outlook", brand: "outlook" as const },
+                    ].map((platform) => (
+                      <button
+                        type="button"
+                        key={platform.label}
+                        style={{ height: "36px", borderRadius: "10px", border: platform.label === "Outlook" ? "1px solid rgba(86, 180, 220, 0.34)" : "1px solid rgba(105, 153, 205, 0.28)", background: platform.label === "Apple" ? "rgba(8, 24, 43, 0.92)" : "rgba(11, 32, 56, 0.82)", color: "#dbeafe", fontSize: "12.5px", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px", fontWeight: 800 }}
+                      >
+                        <span style={{ width: "16px", height: "16px", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                          <CalendarBrandGlyph brand={platform.brand} />
+                        </span>
+                        {platform.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
 
-              <div style={{ padding: 0 }}>
-                <div className="v3-actions-head">
-                  <span style={{ fontSize: 12, fontWeight: 900, letterSpacing: ".12em", textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 9 }}><span className="v3-action-icon">⚡</span>Quick Actions</span>
-                  <span style={{ color: "#8fb3df", fontSize: 12, fontWeight: 700 }}>0 selected</span>
+              <div style={{ padding: 0, overflow: "visible", background: "transparent", border: "none", boxShadow: "none", borderRadius: 0 }}>
+                <div style={{ width: "100%", height: "40px", padding: "0 4px", color: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", display: "inline-flex", alignItems: "center", gap: "9px", textTransform: "uppercase" }}>
+                    <span style={{ width: "18px", height: "18px", color: "#9ec5ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind="actions" /></span>
+                    QUICK ACTIONS
+                  </span>
+                  <span style={{ fontSize: "12px", color: "#8fb3df", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "5px" }}>0 selected</span>
                 </div>
                 <div style={{ display: "grid", gap: 8, padding: "0 4px 8px" }}>
                   {quickActions.map((action, index) => (
-                    <button type="button" className="v3-action-button" key={action}>
+                    <button
+                      type="button"
+                      key={action}
+                      style={{ height: "38px", borderRadius: "10px", border: "1px solid rgba(92,136,184,0.28)", background: "rgba(17,38,67,0.9)", color: "#e7f2ff", fontSize: "13px", fontWeight: 800, cursor: "pointer", boxShadow: "0 0 10px rgba(59,130,246,0.12), inset 0 1px 0 rgba(255,255,255,0.06)", transition: "all 140ms ease", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 10px 0 12px" }}
+                    >
                       <span>{action}</span>
-                      <span className="v3-action-icon" style={{ color: ["#9fc3ff", "#8fd0ff", "#7ad6c8", "#ffbf66"][index] }}>{["↻", "⇧", "▣", "+"][index]}</span>
+                      <span style={{ opacity: 0.95, display: "inline-flex", alignItems: "center" }}>
+                        <span style={{ color: ["#9fc3ff", "#8fd0ff", "#7ad6c8", "#ffbf66"][index] }}>
+                          <QuickActionIcon kind={["clear", "share", "saveView", "saveSelected"][index] as "clear" | "share" | "saveView" | "saveSelected"} />
+                        </span>
+                      </span>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {["Saved Lists", "Saved Views"].map((section) => (
-                <div className="v3-rail-accordion" key={section}>
-                  <button type="button">
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 9, fontSize: 12, fontWeight: 900, letterSpacing: ".12em", textTransform: "uppercase", color: "#f1f7ff" }}><span className="v3-action-icon">☷</span>{section}</span>
+              {([
+                ["Saved Lists", "lists" as const],
+                ["Saved Views", "views" as const],
+              ] as const).map(([section, icon]) => (
+                <div key={section} style={{ width: "100%", minHeight: "48px", padding: 0, overflow: "visible", border: "1px solid rgba(205,220,239,0.18)", borderRadius: "10px", background: "linear-gradient(180deg, rgba(12,34,60,0.42), rgba(7,24,44,0.32))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04), 0 0 8px rgba(205,220,239,0.06)" }}>
+                  <button type="button" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", border: "none", background: "transparent", color: "#dbeafe", cursor: "pointer", padding: "0 14px", textAlign: "left", height: "48px" }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "9px", fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", color: "#f1f7ff" }}>
+                      <span style={{ width: "18px", height: "18px", color: "#9ec5ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind={icon} /></span>
+                      {section}
+                    </span>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                       <span style={{ color: "#9fc3e7", fontSize: 12, fontWeight: 700 }}>0 saved</span>
                       <span style={{ color: "#9fb6d4", fontSize: 14, lineHeight: 1 }}>▸</span>
@@ -409,7 +563,10 @@ export default function MarketViewV3PreviewClient() {
                 </div>
               ))}
 
-              <div className="v3-right-footer"><span>Subscribe</span><span>Legal</span></div>
+              <div style={{ marginTop: "auto", padding: "18px 0 0", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", flexWrap: "wrap" }}>
+                <a className="right-rail-utility-pill" href="/subscribe">Subscribe</a>
+                <a className="right-rail-utility-pill" href="/legal">Legal</a>
+              </div>
             </div>
           </div>
         </aside>
