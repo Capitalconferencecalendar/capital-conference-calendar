@@ -56,8 +56,9 @@ const clusters = [
     eventsIncluded: "J.P. Morgan Healthcare Conference · Barclays Healthcare · TD Cowen Healthcare Innovation Summit",
   },
   { metro: "Boston, MA", events: "22 events", type: "Innovation Cluster", window: "Oct 12-Oct 18", signals: "Biotech · Growth Companies · Investor-Heavy", summary: "Biotech and growth-company forums align with investor-heavy programming." },
-  { metro: "San Francisco, CA", events: "19 events", type: "Tech & AI Cluster", window: "Nov 9-Nov 15", signals: "AI / Software · Sponsor Visibility · Investor Relevance", summary: "Technology and AI events show shared investor and sponsor visibility signals." },
+  { metro: "San Francisco, CA", events: "19 events", type: "Tech & AI Cluster", window: "Oct 13-Oct 17", signals: "AI / Software · Sponsor Visibility · Investor Relevance", summary: "Software, AI, and growth equity activity concentrates." },
   { metro: "Chicago, IL", events: "15 events", type: "Industrials Cluster", window: "Oct 26-Nov 1", signals: "Industrials · Infrastructure · Banker Relevance", summary: "Industrial and infrastructure meetings compress into one market window." },
+  { metro: "Dallas-Fort Worth", events: "12 events", type: "Deal / BD Cluster", window: "Nov 16-Nov 20", signals: "Private Markets · Sponsor Visibility · BD Coverage", summary: "Sponsor, advisor, and private-markets activity shows a shared commercial reason to watch." },
 ];
 
 const sectors = [["Healthcare", 42], ["Financial Services", 31], ["Technology", 28], ["Real Estate", 23], ["Energy Transition", 18]];
@@ -185,6 +186,7 @@ function CalendarBrandGlyph({ brand }: { brand: "google" | "apple" | "outlook" }
 
 export default function MarketViewV3PreviewClient() {
   const [primaryMetro, setPrimaryMetro] = useState("");
+  const [signalTab, setSignalTab] = useState<"hotWeeks" | "clusters">("hotWeeks");
 
   useEffect(() => {
     try {
@@ -210,6 +212,10 @@ export default function MarketViewV3PreviewClient() {
       // Static preview only.
     }
   };
+
+  const activeHotWeek = hotWeeks[0];
+  const activeCluster = clusters[0];
+  const isHotSignal = signalTab === "hotWeeks";
 
   return (
     <div className="v3-page">
@@ -251,6 +257,46 @@ export default function MarketViewV3PreviewClient() {
         .v3-kpi span { color: var(--kpi-accent,#cbd5e1); font-size: 9px; text-transform: uppercase; letter-spacing: .1em; font-weight: 900; }
         .v3-kpi strong { color: #f7fbff; font-size: 14px; line-height: 1.05; }
         .v3-kpi small { color: #7892ad; font-size: 9.5px; line-height: 1.1; }
+        .v3-signal-forecast { overflow: hidden; padding: 0; border-radius: 10px; border: 1px solid rgba(121,158,197,.26); background: linear-gradient(180deg,rgba(8,24,40,.98),rgba(5,17,30,.98)); box-shadow: 0 18px 42px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.05); }
+        .v3-signal-forecast.hot { border-color: rgba(245,158,11,.4); box-shadow: 0 0 0 1px rgba(245,158,11,.08), 0 18px 42px rgba(0,0,0,.26); }
+        .v3-signal-forecast.cluster { border-color: rgba(139,92,246,.44); box-shadow: 0 0 0 1px rgba(34,211,238,.08), 0 18px 42px rgba(0,0,0,.26); }
+        .v3-signal-head { padding: 12px 14px; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 14px; align-items: center; border-bottom: 1px solid rgba(125,162,199,.2); }
+        .v3-signal-titleline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .v3-signal-icon { width: 24px; height: 24px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: #f8fbff; font-size: 14px; font-weight: 900; }
+        .hot .v3-signal-icon { background: rgba(245,158,11,.18); color: #fbbf24; }
+        .cluster .v3-signal-icon { background: rgba(124,58,237,.2); color: #c4b5fd; }
+        .v3-signal-head h2 { font-size: 18px; letter-spacing: .08em; text-transform: uppercase; }
+        .v3-signal-head p { margin-top: 4px; max-width: 760px; color: #a9bbce; font-size: 12px; }
+        .v3-signal-tabs { display: inline-flex; gap: 6px; padding: 4px; border-radius: 999px; background: rgba(3,12,23,.46); border: 1px solid rgba(125,162,199,.18); }
+        .v3-signal-tabs button { height: 30px; border: 0; border-radius: 999px; padding: 0 12px; background: transparent; color: #91a8bf; font-size: 11px; font-weight: 900; cursor: pointer; }
+        .v3-signal-tabs button.is-active.hot { background: rgba(245,158,11,.18); color: #fbbf24; box-shadow: inset 0 0 0 1px rgba(245,158,11,.3); }
+        .v3-signal-tabs button.is-active.cluster { background: rgba(99,102,241,.2); color: #c4b5fd; box-shadow: inset 0 0 0 1px rgba(125,211,252,.22); }
+        .v3-signal-body { display: grid; grid-template-columns: minmax(320px,.92fr) minmax(360px,1.08fr); gap: 0; }
+        .v3-signal-list { border-right: 1px solid rgba(125,162,199,.2); max-height: 430px; overflow: auto; }
+        .v3-signal-item { width: 100%; border: 0; border-bottom: 1px solid rgba(117,153,190,.16); background: transparent; color: #dbeafe; text-align: left; padding: 11px 13px; display: grid; grid-template-columns: 30px minmax(0,1fr); gap: 10px; cursor: pointer; }
+        .v3-signal-item.is-active { background: linear-gradient(90deg,rgba(245,158,11,.16),rgba(14,165,233,.06)); }
+        .cluster .v3-signal-item.is-active { background: linear-gradient(90deg,rgba(124,58,237,.18),rgba(34,211,238,.07)); }
+        .v3-rank { width: 24px; height: 24px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; background: rgba(15,35,56,.9); border: 1px solid rgba(125,162,199,.2); color: #dbeafe; }
+        .hot .v3-signal-item.is-active .v3-rank { background: rgba(245,158,11,.22); border-color: rgba(245,158,11,.42); color: #fbbf24; }
+        .cluster .v3-signal-item.is-active .v3-rank { background: rgba(124,58,237,.24); border-color: rgba(167,139,250,.42); color: #c4b5fd; }
+        .v3-signal-item strong { color: #f8fbff; font-size: 14px; line-height: 1.15; }
+        .v3-signal-meta { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 6px; color: #91a8bf; font-size: 10.5px; font-weight: 750; }
+        .v3-signal-meta span { border: 1px solid rgba(125,162,199,.18); background: rgba(4,15,27,.48); border-radius: 999px; padding: 2px 6px; }
+        .v3-hot-tag { color: #fbbf24 !important; border-color: rgba(245,158,11,.34) !important; background: rgba(245,158,11,.12) !important; }
+        .v3-signal-reason { margin-top: 6px; color: #aebfd2; font-size: 11.5px; line-height: 1.35; }
+        .v3-signal-detail { padding: 15px; display: grid; align-content: start; gap: 12px; background: radial-gradient(circle at 92% 12%,rgba(56,189,248,.12),transparent 26%), rgba(4,14,26,.36); }
+        .v3-signal-detail h3 { font-size: 17px; color: #f8fbff; }
+        .v3-feature-list { display: grid; gap: 7px; color: #c7d6e7; font-size: 12px; line-height: 1.35; }
+        .v3-feature-list div { display: flex; gap: 8px; }
+        .v3-feature-list div:before { content: ""; width: 5px; height: 5px; margin-top: 6px; border-radius: 999px; background: #38bdf8; flex: 0 0 auto; }
+        .hot .v3-feature-list div:before { background: #f59e0b; }
+        .v3-detail-label { color: #7dd3fc; font-size: 10px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+        .hot .v3-detail-label { color: #fbbf24; }
+        .v3-metric-row { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); border: 1px solid rgba(125,162,199,.18); border-radius: 9px; overflow: hidden; }
+        .v3-metric-cell { padding: 8px 9px; display: grid; gap: 3px; background: rgba(7,23,39,.55); border-left: 1px solid rgba(125,162,199,.16); }
+        .v3-metric-cell:first-child { border-left: 0; }
+        .v3-metric-cell span { color: #91a8bf; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
+        .v3-metric-cell strong { color: #f8fbff; font-size: 12px; }
         .v3-primary-stack { display: grid; gap: 9px; }
         .v3-product { overflow: hidden; padding: 0; border-radius: 8px; }
         .v3-product.hot { border-color: rgba(245,158,11,.48); box-shadow: 0 0 0 1px rgba(245,158,11,.12), 0 18px 42px rgba(0,0,0,.24); }
@@ -417,44 +463,87 @@ export default function MarketViewV3PreviewClient() {
             </div>
           </section>
 
-          <section className="v3-primary-stack">
-            <div className="v3-panel v3-product hot">
-              <div className="v3-product-head">
-                <div className="v3-product-title"><div className="v3-marker">Hot Weeks</div><h2>Weeks with concentrated market activity</h2></div>
-                <p>Weeks where event volume, issuer access, investor attendance, and sector signals concentrate around the same dates.</p>
-                <div className="v3-helper">A hot week is a signal worth inspecting. It does not mean every event is equally important.</div>
+          <section className={`v3-signal-forecast ${isHotSignal ? "hot" : "cluster"}`}>
+            <div className="v3-signal-head">
+              <div>
+                <div className="v3-signal-titleline">
+                  <span className="v3-signal-icon">{isHotSignal ? "♨" : "◎"}</span>
+                  <h2>Market Signal Forecast</h2>
+                </div>
+                <p>Forward-looking signals showing where conference activity, issuer access, investor concentration, and market attention are building.</p>
               </div>
-              <div className="v3-scroll-list">
-                {hotWeeks.map((row, index) => (
-                  <div className="v3-row" key={row.week}>
-                    <div className="v3-row-top"><span className="v3-row-title">{row.week}</span><span className="v3-row-count">{row.events}</span><p>{row.summary}</p></div>
-                    <div className="v3-chipline"><span>{row.theme}</span><span>{row.focus}</span><span>{row.signal}</span><OpenLink>Open week events</OpenLink></div>
-                    <details className="v3-inspect" open={index === 0}>
-                      <summary>Inspect signal</summary>
-                      <div className="v3-detail"><div className="v3-detail-grid"><strong>Why flagged</strong><span>{row.detail || row.summary}</span><strong>Events included</strong><span>{row.eventsIncluded || "Representative event set aligned by week, sector, and audience signal."}</span><strong>Signal context</strong><span>Issuer access and investor concentration are the lead signals; meeting-day context is secondary.</span></div></div>
-                    </details>
-                  </div>
-                ))}
+              <div className="v3-signal-tabs" aria-label="Market Signal Forecast tabs">
+                <button type="button" className={isHotSignal ? "is-active hot" : ""} onClick={() => setSignalTab("hotWeeks")}>Hot Weeks</button>
+                <button type="button" className={!isHotSignal ? "is-active cluster" : ""} onClick={() => setSignalTab("clusters")}>Cluster Forecast</button>
               </div>
             </div>
 
-            <div className="v3-panel v3-product cluster">
-              <div className="v3-product-head">
-                <div className="v3-product-title"><div className="v3-marker">Cluster Alerts</div><h2>Metro and market-signal clusters</h2></div>
-                <p>Metro, timing, sector, focus, and access signals that suggest concentrated conference activity — not just raw city volume.</p>
-                <div className="v3-helper">Clusters surface groups of events with a shared market reason to attend.</div>
+            <div className="v3-signal-body">
+              <div className="v3-signal-list">
+                {isHotSignal
+                  ? hotWeeks.map((row, index) => (
+                    <button type="button" className={`v3-signal-item ${index === 0 ? "is-active" : ""}`} key={row.week}>
+                      <span className="v3-rank">{index + 1}</span>
+                      <span>
+                        <strong>{row.week}</strong>
+                        <span className="v3-signal-meta"><span>{row.events}</span><span className={index === 0 ? "v3-hot-tag" : ""}>{index === 0 ? "HOT" : row.focus}</span></span>
+                        <span className="v3-signal-reason">{row.summary}</span>
+                      </span>
+                    </button>
+                  ))
+                  : clusters.map((row, index) => (
+                    <button type="button" className={`v3-signal-item ${index === 0 ? "is-active" : ""}`} key={row.metro}>
+                      <span className="v3-rank">{index + 1}</span>
+                      <span>
+                        <strong>{row.metro}</strong>
+                        <span className="v3-signal-meta"><span>{row.events}</span><span>{row.type}</span><span>{row.window}</span></span>
+                        <span className="v3-signal-reason">{row.summary}</span>
+                      </span>
+                    </button>
+                  ))}
               </div>
-              <div className="v3-scroll-list">
-                {clusters.map((row, index) => (
-                  <div className="v3-row" key={row.metro}>
-                    <div className="v3-row-top"><span className="v3-row-title">{row.metro}</span><span className="v3-row-count">{row.events}</span><p>{row.summary}</p></div>
-                    <div className="v3-chipline"><span>{row.type}</span><span>{row.window}</span><span>Shared signals: {row.signals}</span><OpenLink>Open cluster events</OpenLink></div>
-                    <details className="v3-inspect" open={index === 0}>
-                      <summary>Inspect cluster</summary>
-                      <div className="v3-detail"><div className="v3-detail-grid"><strong>Why flagged</strong><span>{row.detail || row.summary}</span><strong>Cities included</strong><span>{row.cities || row.metro}</span><strong>Shared signals</strong><span>{row.signals}</span><strong>Events included</strong><span>{row.eventsIncluded || "Representative related events aligned by metro, timing, and signal overlap."}</span><strong>Supporting context</strong><span>Potential private-meeting days may exist between related events, but meeting-day context is secondary to the cluster signal.</span></div></div>
-                    </details>
+
+              <div className="v3-signal-detail">
+                <div>
+                  <div className="v3-detail-label">{isHotSignal ? "Hot Week Detail" : "Cluster Detail"}</div>
+                  <h3>{isHotSignal ? "Why this week is hot" : "Why this is a cluster"}</h3>
+                </div>
+                <p>{isHotSignal ? activeHotWeek.detail : `${activeCluster.detail ?? activeCluster.summary} This is stronger than simple city volume.`}</p>
+
+                {!isHotSignal ? (
+                  <div>
+                    <div className="v3-detail-label">Cities included</div>
+                    <p>{activeCluster.cities ?? activeCluster.metro}</p>
                   </div>
-                ))}
+                ) : null}
+
+                <div>
+                  <div className="v3-detail-label">Featured Events</div>
+                  <div className="v3-feature-list">
+                    {(isHotSignal ? activeHotWeek.eventsIncluded ?? "" : activeCluster.eventsIncluded ?? "").split(" · ").filter(Boolean).map((event) => <div key={event}>{event}</div>)}
+                  </div>
+                </div>
+
+                {!isHotSignal ? (
+                  <>
+                    <div>
+                      <div className="v3-detail-label">Shared signals</div>
+                      <div className="v3-feature-list">{(activeCluster.signals ?? "").split(" · ").filter(Boolean).map((signal) => <div key={signal}>{signal}</div>)}</div>
+                    </div>
+                    <p>Potential private-meeting days may exist between related events, but meeting-day context is secondary to the cluster signal.</p>
+                  </>
+                ) : (
+                  <div className="v3-metric-row">
+                    {[
+                      ["Investor Overlap", "78%"],
+                      ["Issuer Access", "High"],
+                      ["Sector Breadth", "Wide"],
+                      ["Relationship Density", "Very High"],
+                    ].map(([label, value]) => <div className="v3-metric-cell" key={label}><span>{label}</span><strong>{value}</strong></div>)}
+                  </div>
+                )}
+
+                <OpenLink>{isHotSignal ? "View all hot weeks →" : "View all clusters →"}</OpenLink>
               </div>
             </div>
           </section>
