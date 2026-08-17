@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 const metroStorageKey = "marketViewV3.primaryMetro";
 
@@ -238,11 +238,15 @@ export default function MarketViewV3PreviewClient() {
         .v3-metric span { color: #8fb3d4; font-size: 9px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
         .v3-metric strong { color: #f8fbff; font-size: 12px; }
         .v3-metric small { color: #7290ad; font-size: 10px; text-align: right; }
-        .v3-kpi-strip { display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 6px; }
-        .v3-kpi { min-height: 54px; padding: 8px 9px; border-radius: 7px; border: 1px solid rgba(82,126,170,.28); background: rgba(8,24,39,.82); display: grid; align-content: center; gap: 3px; }
-        .v3-kpi span { color: #83a5c7; font-size: 9px; text-transform: uppercase; letter-spacing: .1em; font-weight: 900; }
-        .v3-kpi strong { color: #f7fbff; font-size: 15px; line-height: 1.1; }
-        .v3-kpi small { color: #7892ad; font-size: 10px; }
+        .v3-kpi-strip { display: grid; grid-template-columns: 132px minmax(0,1fr); gap: 8px; align-items: stretch; }
+        .v3-view-toggle { display: grid; grid-template-rows: repeat(2,minmax(0,1fr)); gap: 6px; }
+        .v3-view-toggle button { min-height: 42px; border-radius: 9px; border: 1px solid rgba(88,132,180,.26); background: rgba(5,16,29,.92); color: #a9bdd2; font-size: 12px; font-weight: 800; cursor: pointer; }
+        .v3-view-toggle button.is-active { background: linear-gradient(180deg,rgba(37,99,235,.95),rgba(29,78,216,.88)); border-color: rgba(147,197,253,.42); color: #f8fbff; box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 0 18px rgba(37,99,235,.22); }
+        .v3-kpi-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 6px; }
+        .v3-kpi { min-height: 42px; padding: 7px 9px; border-radius: 9px; border: 1px solid rgba(103,142,181,.18); background: linear-gradient(180deg,rgba(8,25,41,.78),rgba(5,17,30,.82)); display: grid; align-content: center; gap: 2px; box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
+        .v3-kpi span { color: var(--kpi-accent,#cbd5e1); font-size: 9px; text-transform: uppercase; letter-spacing: .1em; font-weight: 900; }
+        .v3-kpi strong { color: #f7fbff; font-size: 14px; line-height: 1.05; }
+        .v3-kpi small { color: #7892ad; font-size: 9.5px; line-height: 1.1; }
         .v3-primary-stack { display: grid; gap: 9px; }
         .v3-product { overflow: hidden; padding: 0; border-radius: 8px; }
         .v3-product.hot { border-color: rgba(245,158,11,.48); box-shadow: 0 0 0 1px rgba(245,158,11,.12), 0 18px 42px rgba(0,0,0,.24); }
@@ -389,13 +393,23 @@ export default function MarketViewV3PreviewClient() {
           </section>
 
           <section className="v3-kpi-strip" aria-label="Market View KPI strip">
-            {kpis.map(([label, value, note]) => (
-              <div className="v3-kpi" key={label}>
-                <span>{label}</span>
-                <strong>{value}</strong>
-                <small>{note}</small>
-              </div>
-            ))}
+            <div className="v3-view-toggle" aria-label="Market view scope">
+              <button type="button" className="is-active">Full Market View</button>
+              <button type="button">Current Filter View</button>
+            </div>
+            <div className="v3-kpi-grid">
+              {kpis.map(([label, value, note], index) => (
+                <div
+                  className="v3-kpi"
+                  key={label}
+                  style={{ "--kpi-accent": ["#f8fafc", "#67e8f9", "#5eead4", "#fbbf24", "#60a5fa", "#a78bfa"][index] } as CSSProperties}
+                >
+                  <span>{label}</span>
+                  <strong>{value}</strong>
+                  <small>{note}</small>
+                </div>
+              ))}
+            </div>
           </section>
 
           <section className="v3-primary-stack">
