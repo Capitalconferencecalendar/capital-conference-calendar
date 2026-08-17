@@ -75,7 +75,7 @@ function Bar({ label, value, tone = "blue" }: { label: string; value: number; to
   );
 }
 
-function OpenLink({ children = "Open" }: { children?: ReactNode }) {
+function OpenLink({ children = "Inspect" }: { children?: ReactNode }) {
   return <span className="v3-link">{children}</span>;
 }
 
@@ -110,65 +110,69 @@ export default function MarketViewV3PreviewClient() {
   return (
     <div className="v3-page">
       <style jsx>{`
-        .v3-page { height: 100%; overflow: hidden; background: #eef3f8; color: #142235; font-family: var(--font-body), Arial, sans-serif; }
-        .v3-shell { height: 100%; display: grid; grid-template-columns: 220px minmax(0, 1fr) 260px; gap: 18px; padding: 18px; }
-        .v3-left { background: linear-gradient(180deg,#07192e,#03101f); color: #eaf3ff; border-radius: 18px; padding: 18px; display: grid; align-content: start; gap: 20px; box-shadow: 0 18px 40px rgba(7,25,46,.22); }
-        .v3-main { overflow: auto; display: grid; gap: 18px; max-width: 1240px; width: 100%; justify-self: center; }
-        .v3-right { background: rgba(255,255,255,.78); border: 1px solid #d7e2ee; border-radius: 18px; padding: 16px; align-self: start; display: grid; gap: 14px; box-shadow: 0 16px 34px rgba(24,47,75,.10); }
+        .v3-page { height: 100%; overflow: hidden; background: #f3f6f9; color: #172233; font-family: var(--font-body), Arial, sans-serif; }
+        .v3-shell { height: 100%; display: grid; grid-template-columns: 220px minmax(0, 1fr) 260px; gap: 14px; padding: 14px; }
+        .v3-left { background: #07182b; color: #eaf3ff; border-radius: 10px; padding: 14px; display: grid; align-content: start; gap: 16px; box-shadow: 0 12px 28px rgba(7,25,46,.18); }
+        .v3-main { overflow: auto; display: grid; gap: 14px; max-width: 1240px; width: 100%; justify-self: center; }
+        .v3-right { background: #ffffff; border: 1px solid #d9e1ea; border-radius: 10px; padding: 14px; align-self: start; display: grid; gap: 12px; box-shadow: 0 8px 20px rgba(24,47,75,.06); }
         .v3-brand { display: grid; gap: 4px; }
-        .v3-brand small, .v3-eyebrow { font-size: 11px; font-weight: 900; letter-spacing: .18em; text-transform: uppercase; color: #2f6ff3; }
-        .v3-brand strong { font-size: 20px; line-height: 1.05; }
+        .v3-brand small, .v3-eyebrow { font-size: 10px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; color: #265fbb; }
+        .v3-brand strong { font-size: 17px; line-height: 1.1; }
         .v3-nav, .v3-feed, .v3-card-list { display: grid; gap: 8px; }
-        .v3-nav div { padding: 9px 10px; border-radius: 10px; color: #b8c8db; font-size: 13px; font-weight: 800; }
+        .v3-nav div { padding: 8px 9px; border-radius: 7px; color: #b8c8db; font-size: 12px; font-weight: 800; }
         .v3-nav div:first-child { background: rgba(96,165,250,.16); color: #fff; }
         .v3-feed-row, .v3-summary-row { display: flex; justify-content: space-between; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(148,163,184,.25); font-size: 12px; }
-        .v3-panel { background: #fff; border: 1px solid #dbe5ef; border-radius: 18px; padding: 20px; box-shadow: 0 18px 38px rgba(24,47,75,.09); }
+        .v3-panel { background: #fff; border: 1px solid #dbe3eb; border-radius: 10px; padding: 15px; box-shadow: 0 8px 20px rgba(24,47,75,.05); }
         .v3-readout { display: grid; grid-template-columns: minmax(0,1.2fr) minmax(320px,.8fr); gap: 22px; align-items: center; }
-        h1 { margin: 0; font-size: 38px; line-height: 1; letter-spacing: -.01em; color: #0f1f33; }
-        h2 { margin: 0; font-size: 24px; line-height: 1.1; color: #0f1f33; }
-        h3 { margin: 0; font-size: 16px; line-height: 1.2; color: #12243a; }
-        p { margin: 0; color: #506178; font-size: 14px; line-height: 1.48; }
-        .v3-subtitle { max-width: 720px; color: #5f7188; font-size: 15px; }
-        .v3-metrics { display: grid; gap: 10px; }
-        .v3-metric { display: flex; justify-content: space-between; gap: 14px; padding-bottom: 10px; border-bottom: 1px solid #e3ebf3; }
-        .v3-metric span { color: #73849a; font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
-        .v3-metric strong { color: #142235; font-size: 14px; }
+        h1 { margin: 0; font-size: 32px; line-height: 1.04; letter-spacing: -.01em; color: #101a28; }
+        h2 { margin: 0; font-size: 20px; line-height: 1.12; color: #101a28; }
+        h3 { margin: 0; font-size: 15px; line-height: 1.2; color: #172233; }
+        p { margin: 0; color: #536174; font-size: 13px; line-height: 1.45; }
+        .v3-subtitle { max-width: 700px; color: #5f6f82; font-size: 14px; }
+        .v3-metrics { display: grid; gap: 0; border: 1px solid #e2e8ef; border-radius: 8px; overflow: hidden; }
+        .v3-metric { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 14px; padding: 9px 11px; border-bottom: 1px solid #e7edf3; background: #fbfcfd; }
+        .v3-metric span { color: #66778b; font-size: 10px; font-weight: 900; letter-spacing: .11em; text-transform: uppercase; }
+        .v3-metric strong { color: #172233; font-size: 13px; }
         .v3-primary-row { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
-        .v3-product { overflow: hidden; padding: 0; }
-        .v3-product-head { padding: 18px 20px; color: #fff; display: grid; gap: 6px; }
-        .hot .v3-product-head { background: linear-gradient(135deg,#9a5a08,#d89220); }
-        .cluster .v3-product-head { background: linear-gradient(135deg,#312e81,#2563eb 62%,#0891b2); }
+        .v3-product { overflow: hidden; padding: 0; border-radius: 10px; }
+        .v3-product.hot { border-left: 3px solid #b7791f; }
+        .v3-product.cluster { border-left: 3px solid #4f46a5; }
+        .v3-product-head { padding: 14px 16px 12px; color: #172233; display: grid; gap: 5px; border-bottom: 1px solid #e5ebf1; background: #fff; }
         .v3-product-title { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
-        .v3-product-title h2 { color: #fff; }
-        .v3-scroll-list { max-height: 470px; overflow: auto; display: grid; gap: 0; }
-        .v3-row { padding: 16px 20px; border-bottom: 1px solid #e6edf5; display: grid; gap: 8px; }
+        .v3-product-title h2 { color: #111c2b; font-size: 19px; }
+        .v3-marker { display: inline-flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
+        .hot .v3-marker { color: #9a5a08; }
+        .cluster .v3-marker { color: #3730a3; }
+        .v3-scroll-list { max-height: 430px; overflow: auto; display: grid; gap: 0; }
+        .v3-row { padding: 12px 16px; border-bottom: 1px solid #e6edf5; display: grid; gap: 6px; }
         .v3-row-top { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
-        .v3-row-title { font-size: 18px; font-weight: 900; color: #102136; }
-        .v3-chipline { display: flex; flex-wrap: wrap; gap: 8px; color: #52647a; font-size: 12px; font-weight: 800; }
-        .v3-detail { background: #f7fafc; border: 1px solid #e2ebf3; border-radius: 14px; padding: 14px; display: grid; gap: 10px; }
-        .v3-detail ul { margin: 0; padding-left: 18px; color: #43556c; font-size: 13px; line-height: 1.5; }
-        .v3-link { color: #1d5fd1; font-size: 13px; font-weight: 900; }
+        .v3-row-title { font-size: 15px; font-weight: 850; color: #102136; }
+        .v3-chipline { display: flex; flex-wrap: wrap; gap: 7px; color: #52647a; font-size: 12px; font-weight: 700; }
+        .v3-detail { background: #fafbfc; border-top: 1px solid #e3eaf1; padding: 9px 0 0; display: grid; gap: 7px; }
+        .v3-detail-grid { display: grid; grid-template-columns: 112px minmax(0,1fr); gap: 8px 12px; color: #43556c; font-size: 12px; line-height: 1.38; }
+        .v3-detail-grid strong { color: #25364a; font-size: 11px; text-transform: uppercase; letter-spacing: .09em; }
+        .v3-link { color: #1d5fd1; font-size: 12px; font-weight: 850; }
         .v3-support { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
-        .v3-support-card { background: #fff; border: 1px solid #dce7f0; border-radius: 16px; padding: 16px; display: grid; gap: 10px; box-shadow: 0 12px 28px rgba(24,47,75,.07); }
-        .v3-muted-row { padding: 9px 0; border-bottom: 1px solid #edf2f7; font-size: 13px; color: #40536a; }
+        .v3-support-card { background: #fff; border: 1px solid #dce7f0; border-radius: 10px; padding: 13px; display: grid; gap: 8px; box-shadow: 0 8px 18px rgba(24,47,75,.04); }
+        .v3-muted-row { padding: 7px 0; border-bottom: 1px solid #edf2f7; font-size: 12px; color: #40536a; }
         .v3-analytics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 14px; }
-        .v3-data-card { background: #fff; border: 1px solid #dce7f0; border-radius: 16px; padding: 16px; display: grid; gap: 12px; }
+        .v3-data-card { background: #fff; border: 1px solid #dce7f0; border-radius: 10px; padding: 13px; display: grid; gap: 10px; }
         .v3-bar-row { display: grid; grid-template-columns: minmax(110px,.85fr) minmax(0,1fr) 38px; gap: 10px; align-items: center; font-size: 12px; color: #33455c; }
         .v3-bar-track { height: 8px; border-radius: 999px; background: #e7eef6; overflow: hidden; }
         .v3-bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg,#2563eb,#0ea5e9); }
-        .v3-bar-fill.amber { background: linear-gradient(90deg,#b7791f,#f6ad32); }
-        .v3-bar-fill.indigo { background: linear-gradient(90deg,#4f46e5,#0891b2); }
+        .v3-bar-fill.amber { background: #b7791f; }
+        .v3-bar-fill.indigo { background: #4f46a5; }
         .v3-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
-        .v3-tabs span { padding: 7px 10px; border-radius: 999px; background: #f1f6fb; color: #40536a; font-size: 12px; font-weight: 800; }
+        .v3-tabs span { padding: 6px 9px; border-radius: 999px; background: #f1f6fb; color: #40536a; font-size: 11px; font-weight: 800; }
         .v3-tabs span:first-child { background: #102f5f; color: #fff; }
         table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #dce7f0; border-radius: 14px; overflow: hidden; }
         th { text-align: left; padding: 12px 10px; color: #60748c; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; background: #f5f8fb; border-bottom: 1px solid #dce7f0; }
         td { padding: 12px 10px; color: #26384e; font-size: 13px; border-bottom: 1px solid #edf2f7; }
         .v3-metro-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
-        .v3-metro-card { background: #fff; border: 1px solid #dce7f0; border-radius: 15px; padding: 15px; display: grid; gap: 6px; }
+        .v3-metro-card { background: #fff; border: 1px solid #dce7f0; border-radius: 10px; padding: 13px; display: grid; gap: 5px; }
         .v3-watch { display: grid; grid-template-columns: minmax(240px,.35fr) minmax(0,1fr); gap: 14px; }
         select { height: 36px; border-radius: 10px; border: 1px solid #cbd9e7; background: #fff; color: #142235; padding: 0 10px; font-weight: 800; }
-        .v3-info { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 999px; background: rgba(255,255,255,.22); border: 1px solid rgba(255,255,255,.38); color: #fff; font-size: 11px; font-weight: 900; cursor: help; }
+        .v3-info { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; border-radius: 999px; background: #f6f8fb; border: 1px solid #cbd8e6; color: #41546d; font-size: 10px; font-weight: 900; cursor: help; }
         .v3-tooltip { position: absolute; z-index: 10; right: 0; bottom: calc(100% + 8px); width: 260px; border-radius: 10px; background: #102136; color: #fff; padding: 10px; font-size: 12px; line-height: 1.35; box-shadow: 0 16px 32px rgba(0,0,0,.25); opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
         .v3-info:hover .v3-tooltip, .v3-info:focus .v3-tooltip { opacity: 1; }
         @media (max-width: 1180px) { .v3-page { overflow: auto; } .v3-shell { height: auto; grid-template-columns: 1fr; } .v3-main { overflow: visible; } .v3-readout, .v3-primary-row, .v3-support, .v3-analytics, .v3-watch { grid-template-columns: 1fr; } }
@@ -207,15 +211,15 @@ export default function MarketViewV3PreviewClient() {
           <section className="v3-primary-row">
             <div className="v3-panel v3-product hot">
               <div className="v3-product-head">
-                <div className="v3-product-title"><h2>Hot Weeks</h2><InfoTip text="A hot week highlights a forward calendar period worth inspecting. It does not mean every event is equally important." /></div>
-                <p style={{ color: "rgba(255,255,255,.88)" }}>Weeks where conference activity, access signals, and related event density concentrate around the same dates.</p>
+                <div className="v3-product-title"><div><div className="v3-marker">▌ Hot Weeks</div><h2>Weeks with concentrated activity</h2></div><InfoTip text="A hot week highlights a forward calendar period worth inspecting. It does not mean every event is equally important." /></div>
+                <p>Weeks where conference activity and related signals concentrate around the same dates.</p>
               </div>
               <div className="v3-scroll-list">
                 {hotWeeks.map((row, index) => (
                   <div className="v3-row" key={row.week}>
-                    <div className="v3-row-top"><span className="v3-row-title">{row.week}</span><OpenLink>Read more</OpenLink></div>
+                    <div className="v3-row-top"><span className="v3-row-title">{row.week}</span><OpenLink>Inspect</OpenLink></div>
                     <div className="v3-chipline"><span>{row.events}</span><span>{row.theme}</span><span>{row.signal}</span></div>
-                    {index === 0 ? <div className="v3-detail"><h3>Why this is a hot week</h3><p>{row.detail}</p><h3>Events included</h3><ul><li>Healthcare Investor Forum</li><li>Institutional Investor Conference</li><li>Capital Markets Summit</li></ul><h3>Why these events are included</h3><p>They share timing proximity and classification signals such as Healthcare, Institutional Investors, Issuer Access, or Company Presentations.</p></div> : null}
+                    {index === 0 ? <div className="v3-detail"><div className="v3-detail-grid"><strong>Why flagged</strong><span>Multiple investor-focused and issuer-access events fall in the same week.</span><strong>Events included</strong><span>Healthcare Investor Forum · Institutional Investor Conference · Capital Markets Summit</span><strong>Why included</strong><span>Shared timing proximity and classification signals.</span></div></div> : null}
                   </div>
                 ))}
               </div>
@@ -223,15 +227,15 @@ export default function MarketViewV3PreviewClient() {
 
             <div className="v3-panel v3-product cluster">
               <div className="v3-product-head">
-                <div className="v3-product-title"><h2>Cluster Alerts</h2><InfoTip text="A cluster is created when events are close enough in timing and location and share a reason to attend." /></div>
-                <p style={{ color: "rgba(255,255,255,.88)" }}>Groups of events connected by metro, timing, sector, focus, and access signals, not just raw city volume.</p>
+                <div className="v3-product-title"><div><div className="v3-marker">▌ Cluster Alerts</div><h2>Metro and signal clusters</h2></div><InfoTip text="A cluster is created when events are close enough in timing and location and share a reason to attend." /></div>
+                <p>Events grouped by metro, timing, sector, focus, and access signals.</p>
               </div>
               <div className="v3-scroll-list">
                 {clusters.map((row, index) => (
                   <div className="v3-row" key={row.metro}>
-                    <div className="v3-row-top"><span className="v3-row-title">{row.metro}</span><OpenLink>Read more</OpenLink></div>
+                    <div className="v3-row-top"><span className="v3-row-title">{row.metro}</span><OpenLink>Inspect</OpenLink></div>
                     <div className="v3-chipline"><span>{row.events}</span><span>{row.type}</span><span>{row.window}</span></div>
-                    {index === 0 ? <div className="v3-detail"><h3>Why this is a cluster</h3><p>{row.detail}</p><h3>Events included</h3><ul><li>Healthcare Investor Forum</li><li>Institutional Investor Conference</li><li>Capital Markets Summit</li></ul><h3>Why these events are included</h3><p>They share metro proximity, week timing, and classification signals. This is stronger than simple city volume.</p><h3>Meeting-day note</h3><p>This cluster includes a potential private-meeting day between related events, but the meeting day is supporting context rather than the reason for the signal.</p></div> : null}
+                    {index === 0 ? <div className="v3-detail"><div className="v3-detail-grid"><strong>Why flagged</strong><span>Events occur in the same metro and week and share Healthcare, Institutional Investor, and Issuer Access signals.</span><strong>Cities</strong><span>New York · Jersey City · Stamford</span><strong>Meeting-day note</strong><span>Potential private-meeting day exists, but this is supporting context only.</span></div></div> : null}
                   </div>
                 ))}
               </div>
