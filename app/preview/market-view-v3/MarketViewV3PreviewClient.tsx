@@ -219,19 +219,20 @@ export default function MarketViewV3PreviewClient() {
         .v3-brand small, .v3-eyebrow { font-size: 9px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; color: #38bdf8; }
         .v3-brand strong { font-size: 15px; line-height: 1.1; }
         .v3-panel { background: linear-gradient(180deg,rgba(10,27,44,.96),rgba(7,20,34,.96)); border: 1px solid rgba(94,139,184,.28); border-radius: 8px; padding: 12px; box-shadow: 0 18px 40px rgba(0,0,0,.22); }
-        .v3-readout { position: relative; overflow: hidden; display: grid; gap: 9px; align-items: center; min-height: 174px; padding: 18px 20px; border: 1px solid rgba(191,211,232,.18); border-radius: 14px; background: linear-gradient(135deg,rgba(6,22,38,.98),rgba(10,31,51,.95) 46%,rgba(7,18,32,.98)); box-shadow: inset 0 1px 0 rgba(240,248,255,.13), inset 0 -1px 0 rgba(99,132,166,.12), 0 0 0 1px rgba(148,178,210,.08), 0 18px 38px rgba(0,0,0,.24), 0 0 34px rgba(126,166,205,.12); }
-        .v3-readout:before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 83% 34%,rgba(125,185,230,.22),transparent 30%), radial-gradient(circle at 52% -30%,rgba(235,244,255,.09),transparent 45%), linear-gradient(105deg,rgba(255,255,255,.04),transparent 44%); pointer-events: none; }
-        .v3-readout:after { content: ""; position: absolute; inset: 0; opacity: .34; pointer-events: none; background-image: radial-gradient(circle,rgba(196,222,245,.42) 0 1px,transparent 1.4px), linear-gradient(115deg,transparent 0 54%,rgba(148,190,224,.16) 54.2%,transparent 54.7%), linear-gradient(145deg,transparent 0 61%,rgba(148,190,224,.12) 61.2%,transparent 61.7%), linear-gradient(25deg,transparent 0 70%,rgba(148,190,224,.12) 70.2%,transparent 70.7%); background-size: 34px 34px, 100% 100%, 100% 100%, 100% 100%; background-position: right center; mask-image: linear-gradient(90deg,transparent 0%,rgba(0,0,0,.18) 42%,#000 100%); }
+        .v3-readout { position: relative; overflow: hidden; display: grid; align-items: center; min-height: 252px; padding: 30px 34px; border: 1px solid rgba(213,226,240,.08); border-radius: 22px; background: radial-gradient(circle at 80% 18%,rgba(51,112,160,.26),transparent 36%), linear-gradient(132deg,#030b16 0%,#06182a 43%,#08111f 100%); box-shadow: inset 0 1px 0 rgba(245,250,255,.16), inset 0 -1px 0 rgba(112,146,180,.1), 0 24px 54px rgba(0,0,0,.34), 0 0 48px rgba(144,178,211,.13); }
+        .v3-readout:before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 78% 40%,rgba(177,216,245,.24),transparent 3%,transparent 4%), radial-gradient(circle at 88% 20%,rgba(177,216,245,.2),transparent 2.5%,transparent 4%), radial-gradient(circle at 70% 24%,rgba(177,216,245,.18),transparent 2%,transparent 4%), radial-gradient(circle at 91% 55%,rgba(177,216,245,.16),transparent 2.5%,transparent 4%), radial-gradient(circle at 63% 58%,rgba(177,216,245,.14),transparent 2%,transparent 4%), radial-gradient(ellipse at 82% 40%,rgba(103,164,211,.28),transparent 43%), linear-gradient(105deg,rgba(255,255,255,.05),transparent 38%); pointer-events: none; }
+        .v3-readout:after { content: ""; position: absolute; inset: 0; opacity: .48; pointer-events: none; background-image: radial-gradient(circle,rgba(207,229,248,.5) 0 1px,transparent 1.5px), linear-gradient(118deg,transparent 0 52%,rgba(166,207,238,.2) 52.2%,transparent 52.8%), linear-gradient(146deg,transparent 0 60%,rgba(166,207,238,.16) 60.2%,transparent 60.8%), linear-gradient(24deg,transparent 0 68%,rgba(166,207,238,.15) 68.2%,transparent 68.8%), radial-gradient(ellipse at 84% 42%,transparent 0 32%,rgba(178,215,241,.22) 32.4%,transparent 33.2%,transparent 42%,rgba(178,215,241,.12) 42.4%,transparent 43.2%); background-size: 36px 36px, 100% 100%, 100% 100%, 100% 100%, 100% 100%; background-position: right center; mask-image: linear-gradient(90deg,transparent 0%,rgba(0,0,0,.08) 36%,rgba(0,0,0,.82) 58%,#000 100%); }
         .v3-readout > * { position: relative; }
+        .v3-readout .v3-eyebrow { color: #7dd3fc; font-size: 10px; letter-spacing: .2em; text-shadow: 0 0 18px rgba(56,189,248,.28); }
+        .v3-readout h1 { color: #ffffff; font-size: 40px; line-height: .98; font-weight: 950; letter-spacing: 0; text-shadow: 0 18px 32px rgba(0,0,0,.28); }
         h1 { margin: 0; font-size: 29px; line-height: 1.04; letter-spacing: 0; color: #f8fbff; }
         h2 { margin: 0; font-size: 17px; line-height: 1.12; color: #f8fbff; }
         h3 { margin: 0; font-size: 13px; line-height: 1.2; color: #eaf2fb; }
         p { margin: 0; color: #aebfd2; font-size: 12px; line-height: 1.42; }
         .v3-subtitle { max-width: 760px; color: #b8dcff; font-size: 14px; line-height: 1.35; }
-        .v3-hero-copy { display: grid; gap: 9px; max-width: 800px; }
-        .v3-hero-primary { max-width: 780px; color: #c3ddf5; font-size: 14px; line-height: 1.42; }
-        .v3-hero-body { max-width: 820px; color: #aebfd2; font-size: 12.5px; line-height: 1.58; }
-        .v3-hero-close { max-width: 760px; color: #d7e8f8; font-size: 12px; line-height: 1.45; font-weight: 700; }
+        .v3-hero-copy { display: grid; gap: 14px; max-width: 820px; }
+        .v3-hero-primary { max-width: 800px; color: #d8ecff; font-size: 17px; line-height: 1.45; font-weight: 700; }
+        .v3-hero-body { max-width: 770px; color: #b7c8db; font-size: 13.5px; line-height: 1.68; }
         .v3-metrics { display: grid; gap: 0; border: 1px solid rgba(96,165,250,.2); border-radius: 8px; overflow: hidden; background: rgba(5,15,27,.52); }
         .v3-metric { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px; padding: 8px 10px; border-bottom: 1px solid rgba(96,165,250,.14); }
         .v3-metric span { color: #8fb3d4; font-size: 9px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
@@ -383,8 +384,7 @@ export default function MarketViewV3PreviewClient() {
               <div className="v3-eyebrow">Market View Live Intelligence</div>
               <h1>Capital Markets Conference Intelligence</h1>
               <p className="v3-hero-primary">A forward-looking view of where issuer access, investor concentration, sector activity, and market attention are building across the conference landscape.</p>
-              <p className="v3-hero-body">Capital Conference Calendar transforms conference records into market-intelligence signals for investor relations, business development, bankers, and capital markets teams. Instead of just showing what events exist, Market View helps surface where attention is clustering, which weeks matter most, and where conference activity may signal stronger opportunity, access, or competitive presence.</p>
-              <p className="v3-hero-close">Use Market View to spot concentrated activity, evaluate signal-rich weeks, and identify metros or themes where market participation appears to be building.</p>
+              <p className="v3-hero-body">Capital Conference Calendar transforms conference records into market-intelligence signals for investor relations, business development, bankers, and capital markets teams. Instead of only showing what events exist, Market View helps surface where attention is concentrating, where activity is clustering, and where the strongest market signals are emerging.</p>
             </div>
           </section>
 
