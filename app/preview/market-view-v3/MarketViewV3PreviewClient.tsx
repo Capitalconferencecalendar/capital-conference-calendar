@@ -257,7 +257,7 @@ export default function MarketViewV3PreviewClient() {
         .v3-kpi span { color: var(--kpi-accent,#cbd5e1); font-size: 9px; text-transform: uppercase; letter-spacing: .1em; font-weight: 900; }
         .v3-kpi strong { color: #f7fbff; font-size: 14px; line-height: 1.05; }
         .v3-kpi small { color: #7892ad; font-size: 9.5px; line-height: 1.1; }
-        .v3-signal-forecast { overflow: hidden; padding: 0; border-radius: 10px; border: 1px solid rgba(121,158,197,.26); background: linear-gradient(180deg,rgba(8,24,40,.98),rgba(5,17,30,.98)); box-shadow: 0 18px 42px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.05); }
+        .v3-signal-forecast { position: relative; z-index: 1; overflow: hidden; display: grid; grid-template-rows: auto minmax(300px,auto); min-height: 354px; padding: 0; border-radius: 10px; border: 1px solid rgba(121,158,197,.26); background: linear-gradient(180deg,rgba(8,24,40,.98),rgba(5,17,30,.98)); box-shadow: 0 18px 42px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.05); }
         .v3-signal-forecast.hot { border-color: rgba(245,158,11,.4); box-shadow: 0 0 0 1px rgba(245,158,11,.08), 0 18px 42px rgba(0,0,0,.26); }
         .v3-signal-forecast.cluster { border-color: rgba(139,92,246,.44); box-shadow: 0 0 0 1px rgba(34,211,238,.08), 0 18px 42px rgba(0,0,0,.26); }
         .v3-signal-head { padding: 12px 14px; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 14px; align-items: center; border-bottom: 1px solid rgba(125,162,199,.2); }
@@ -271,7 +271,7 @@ export default function MarketViewV3PreviewClient() {
         .v3-signal-tabs button { height: 30px; border: 0; border-radius: 999px; padding: 0 12px; background: transparent; color: #91a8bf; font-size: 11px; font-weight: 900; cursor: pointer; }
         .v3-signal-tabs button.is-active.hot { background: rgba(245,158,11,.18); color: #fbbf24; box-shadow: inset 0 0 0 1px rgba(245,158,11,.3); }
         .v3-signal-tabs button.is-active.cluster { background: rgba(99,102,241,.2); color: #c4b5fd; box-shadow: inset 0 0 0 1px rgba(125,211,252,.22); }
-        .v3-signal-body { display: grid; grid-template-columns: minmax(320px,.92fr) minmax(360px,1.08fr); gap: 0; }
+        .v3-signal-body { display: grid; grid-template-columns: minmax(320px,.92fr) minmax(360px,1.08fr); gap: 0; min-height: 300px; background: rgba(3,12,23,.18); }
         .v3-signal-list { border-right: 1px solid rgba(125,162,199,.2); max-height: 430px; overflow: auto; }
         .v3-signal-item { width: 100%; border: 0; border-bottom: 1px solid rgba(117,153,190,.16); background: transparent; color: #dbeafe; text-align: left; padding: 11px 13px; display: grid; grid-template-columns: 30px minmax(0,1fr); gap: 10px; cursor: pointer; }
         .v3-signal-item.is-active { background: linear-gradient(90deg,rgba(245,158,11,.16),rgba(14,165,233,.06)); }
@@ -325,25 +325,25 @@ export default function MarketViewV3PreviewClient() {
         .v3-inspect summary { width: fit-content; color: #38bdf8; font-size: 11px; font-weight: 850; cursor: pointer; list-style: none; }
         .v3-inspect summary::-webkit-details-marker { display: none; }
         .v3-support { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
-        .v3-support-card { background: #fff; border: 1px solid #dce7f0; border-radius: 10px; padding: 13px; display: grid; gap: 8px; box-shadow: 0 8px 18px rgba(24,47,75,.04); }
-        .v3-muted-row { padding: 7px 0; border-bottom: 1px solid #edf2f7; font-size: 12px; color: #40536a; }
+        .v3-support-card { background: linear-gradient(180deg,rgba(9,27,45,.94),rgba(6,19,34,.94)); border: 1px solid rgba(121,158,197,.22); border-radius: 10px; padding: 13px; display: grid; gap: 8px; box-shadow: 0 10px 24px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.04); }
+        .v3-muted-row { padding: 7px 0; border-bottom: 1px solid rgba(121,158,197,.16); font-size: 12px; color: #b5c8dc; }
         .v3-analytics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 14px; }
-        .v3-data-card { background: #fff; border: 1px solid #dce7f0; border-radius: 10px; padding: 13px; display: grid; gap: 10px; }
-        .v3-bar-row { display: grid; grid-template-columns: minmax(110px,.85fr) minmax(0,1fr) 38px; gap: 10px; align-items: center; font-size: 12px; color: #33455c; }
-        .v3-bar-track { height: 8px; border-radius: 999px; background: #e7eef6; overflow: hidden; }
+        .v3-data-card { background: linear-gradient(180deg,rgba(9,27,45,.94),rgba(6,19,34,.94)); border: 1px solid rgba(121,158,197,.22); border-radius: 10px; padding: 13px; display: grid; gap: 10px; }
+        .v3-bar-row { display: grid; grid-template-columns: minmax(110px,.85fr) minmax(0,1fr) 38px; gap: 10px; align-items: center; font-size: 12px; color: #c0d1e4; }
+        .v3-bar-track { height: 8px; border-radius: 999px; background: rgba(14,39,63,.9); overflow: hidden; }
         .v3-bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg,#2563eb,#0ea5e9); }
         .v3-bar-fill.amber { background: #b7791f; }
         .v3-bar-fill.indigo { background: #4f46a5; }
         .v3-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
-        .v3-tabs span { padding: 6px 9px; border-radius: 999px; background: #f1f6fb; color: #40536a; font-size: 11px; font-weight: 800; }
-        .v3-tabs span:first-child { background: #102f5f; color: #fff; }
-        table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #dce7f0; border-radius: 14px; overflow: hidden; }
-        th { text-align: left; padding: 12px 10px; color: #60748c; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; background: #f5f8fb; border-bottom: 1px solid #dce7f0; }
-        td { padding: 12px 10px; color: #26384e; font-size: 13px; border-bottom: 1px solid #edf2f7; }
+        .v3-tabs span { padding: 6px 9px; border-radius: 999px; background: rgba(9,27,45,.92); border: 1px solid rgba(121,158,197,.18); color: #aebfd2; font-size: 11px; font-weight: 800; }
+        .v3-tabs span:first-child { background: rgba(37,99,235,.72); color: #fff; border-color: rgba(147,197,253,.32); }
+        table { width: 100%; border-collapse: collapse; background: rgba(7,22,37,.92); border: 1px solid rgba(121,158,197,.22); border-radius: 14px; overflow: hidden; }
+        th { text-align: left; padding: 12px 10px; color: #91a8bf; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; background: rgba(10,31,50,.96); border-bottom: 1px solid rgba(121,158,197,.18); }
+        td { padding: 12px 10px; color: #dbeafe; font-size: 13px; border-bottom: 1px solid rgba(121,158,197,.14); }
         .v3-metro-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
-        .v3-metro-card { background: #fff; border: 1px solid #dce7f0; border-radius: 10px; padding: 13px; display: grid; gap: 5px; }
+        .v3-metro-card { background: linear-gradient(180deg,rgba(9,27,45,.94),rgba(6,19,34,.94)); border: 1px solid rgba(121,158,197,.22); border-radius: 10px; padding: 13px; display: grid; gap: 5px; }
         .v3-watch { display: grid; grid-template-columns: minmax(240px,.35fr) minmax(0,1fr); gap: 14px; }
-        select { height: 36px; border-radius: 10px; border: 1px solid #cbd9e7; background: #fff; color: #142235; padding: 0 10px; font-weight: 800; }
+        select { height: 36px; border-radius: 10px; border: 1px solid rgba(121,158,197,.28); background: rgba(5,16,29,.94); color: #dbeafe; padding: 0 10px; font-weight: 800; }
         .v3-info { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; border-radius: 999px; background: #f6f8fb; border: 1px solid #cbd8e6; color: #41546d; font-size: 10px; font-weight: 900; cursor: help; }
         .v3-tooltip { position: absolute; z-index: 10; right: 0; bottom: calc(100% + 8px); width: 260px; border-radius: 10px; background: #102136; color: #fff; padding: 10px; font-size: 12px; line-height: 1.35; box-shadow: 0 16px 32px rgba(0,0,0,.25); opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
         .v3-info:hover .v3-tooltip, .v3-info:focus .v3-tooltip { opacity: 1; }
