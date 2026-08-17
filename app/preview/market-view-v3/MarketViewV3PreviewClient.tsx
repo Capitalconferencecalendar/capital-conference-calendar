@@ -5,8 +5,17 @@ import type { ReactNode } from "react";
 
 const metroStorageKey = "marketViewV3.primaryMetro";
 
-const navItems = ["Overview", "Hot Weeks", "Clusters", "Windows", "Momentum", "Organizers", "Metro"];
-const quickFeeds = [["Hot Weeks", "7"], ["Issuer Access", "31"], ["Healthcare", "42"], ["Private Markets", "18"], ["New York Metro", "15"]];
+const filterRows = ["Date & Timing", "Location", "Market Segments", "Participation", "Organizers"];
+const quickFeeds = [
+  ["Investor Conferences", "115", "#3b82f6"],
+  ["Healthcare", "0", "#14b8a6"],
+  ["Private Markets", "154", "#7c3aed"],
+  ["Canada Events", "33", "#dc2626"],
+  ["Next 30 Days", "37", "#2563eb"],
+  ["Hot Weeks", "22", "#f97316"],
+];
+
+const quickActions = ["Clear", "Share Selected", "Save Market View", "Save Selected"];
 
 const kpis = [
   ["Conference Universe", "2,864", "Next 180 days"],
@@ -121,17 +130,38 @@ export default function MarketViewV3PreviewClient() {
     <div className="v3-page">
       <style jsx>{`
         .v3-page { height: 100%; overflow: hidden; background: #061421; color: #e6f0fb; font-family: var(--font-body), Arial, sans-serif; }
-        .v3-shell { height: 100%; display: grid; grid-template-columns: 190px minmax(0, 1fr) 224px; gap: 12px; padding: 12px; }
-        .v3-left { background: linear-gradient(180deg,#071b2e,#071423); color: #eaf3ff; border: 1px solid rgba(88,126,166,.22); border-radius: 8px; padding: 11px; display: grid; align-content: start; gap: 12px; box-shadow: 0 18px 34px rgba(0,0,0,.28); }
+        .v3-shell { height: 100%; display: grid; grid-template-columns: minmax(280px, 290px) minmax(0, 1fr) minmax(300px, 320px); gap: 18px; padding: 0; }
+        .v3-left { position: relative; align-self: stretch; min-width: 0; min-height: 0; width: 100%; max-width: 280px; height: 100%; overflow: hidden; padding-right: 2px; color: #eaf3ff; }
         .v3-main { overflow: auto; display: grid; gap: 9px; max-width: 1320px; width: 100%; justify-self: center; }
-        .v3-right { background: linear-gradient(180deg,#0a1a2b,#071421); border: 1px solid rgba(99,133,171,.28); border-radius: 8px; padding: 11px; align-self: start; display: grid; gap: 10px; box-shadow: 0 16px 32px rgba(0,0,0,.22); color: #dbeafe; }
+        .v3-right { position: relative; align-self: stretch; min-width: 0; min-height: 0; width: 100%; max-width: 320px; height: 100%; max-height: 100%; overflow: hidden; padding-right: 1px; color: #dbeafe; }
+        .v3-rail-scroll { height: 100%; max-height: 100%; overflow-y: auto; overflow-x: hidden; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
+        .v3-left-inner { width: 100%; max-width: 100%; overflow: visible; padding: 10px 4px 6px 0; display: grid; gap: 10px; }
+        .v3-right-inner { height: 100%; max-height: 100%; padding: 10px 16px 16px; display: grid; gap: 8px; }
+        .v3-rail-title { color: #dbeafe; font-weight: 900; font-size: 20px; line-height: 1.05; margin-bottom: 6px; text-align: center; }
+        .v3-rail-copy { color: #93aeca; font-size: 12px; line-height: 1.35; }
+        .v3-clear-button { height: 36px; width: 100%; border-radius: 10px; border: 1px solid rgba(120,160,220,.2); background: rgba(8,26,46,.42); color: #c9dff7; cursor: pointer; font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+        .v3-filter-stack, .v3-feed, .v3-card-list { display: grid; gap: 6px; }
+        .v3-filter-row { height: 48px; border: 1px solid rgba(96,165,250,.28); border-radius: 10px; background: linear-gradient(180deg, rgba(12,34,60,.48), rgba(7,24,44,.36)); box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 0 10px rgba(59,130,246,.12); color: #dbeafe; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; }
+        .v3-filter-label { font-size: 12px; font-weight: 800; letter-spacing: .07em; color: #d7e5f5; display: inline-flex; align-items: center; gap: 9px; text-transform: uppercase; }
+        .v3-filter-icon, .v3-action-icon { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; color: #b6c6da; font-size: 14px; }
+        .v3-rail-section-title { color: #f8fbff; font-weight: 800; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; margin: 6px 0; }
+        .v3-feed-row { height: 38px; border-radius: 8px; border: 1px solid rgba(147,197,253,.08); background: rgba(147,197,253,.02); color: #dbeafe; display: flex; align-items: center; gap: 10px; padding: 0 10px; }
+        .v3-feed-row span:nth-child(2) { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; color: #dce8f8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .v3-feed-row strong { color: #f8fbff; font-size: 12px; font-weight: 800; }
+        .v3-sync-card { border: 1px solid rgba(88,145,230,.34); border-radius: 10px; background: linear-gradient(180deg, rgba(13,35,62,.98), rgba(8,25,46,.96)); box-shadow: 0 0 0 1px rgba(70,120,220,.12), 0 12px 24px rgba(0,0,0,.18); padding: 0; overflow: hidden; }
+        .v3-right-heading { min-height: 42px; padding: 0 14px; color: #dbeafe; display: flex; align-items: center; font-size: 12px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; gap: 9px; }
+        .v3-sync-buttons { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+        .v3-sync-buttons button, .v3-action-button { border-radius: 10px; border: 1px solid rgba(92,136,184,.28); background: rgba(17,38,67,.9); color: #e7f2ff; font-weight: 800; cursor: pointer; box-shadow: 0 0 10px rgba(59,130,246,.12), inset 0 1px 0 rgba(255,255,255,.06); }
+        .v3-sync-buttons button { height: 36px; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+        .v3-actions-head { width: 100%; height: 40px; padding: 0 4px; color: #dbeafe; display: flex; align-items: center; justify-content: space-between; }
+        .v3-action-button { height: 38px; font-size: 13px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px 0 12px; }
+        .v3-rail-accordion { width: 100%; min-height: 48px; border: 1px solid rgba(205,220,239,.18); border-radius: 10px; background: linear-gradient(180deg, rgba(12,34,60,.42), rgba(7,24,44,.32)); box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 0 8px rgba(205,220,239,.06); }
+        .v3-rail-accordion button { width: 100%; height: 48px; border: 0; background: transparent; color: #dbeafe; cursor: pointer; padding: 0 14px; display: flex; align-items: center; justify-content: space-between; }
+        .v3-right-footer { margin-top: auto; padding-top: 28px; border-top: 1px solid rgba(205,220,239,.12); color: #dbeafe; display: flex; gap: 18px; justify-content: center; font-size: 13px; }
         .v3-brand { display: grid; gap: 4px; }
         .v3-brand small, .v3-eyebrow { font-size: 9px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; color: #38bdf8; }
         .v3-brand strong { font-size: 15px; line-height: 1.1; }
-        .v3-nav, .v3-feed, .v3-card-list { display: grid; gap: 6px; }
-        .v3-nav div { padding: 7px 8px; border-radius: 6px; color: #aac0d7; font-size: 11px; font-weight: 800; border: 1px solid transparent; }
-        .v3-nav div:first-child { background: rgba(37,99,235,.22); border-color: rgba(96,165,250,.28); color: #fff; }
-        .v3-feed-row, .v3-summary-row { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; border-bottom: 1px solid rgba(148,163,184,.2); font-size: 11px; }
+        .v3-summary-row { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; border-bottom: 1px solid rgba(148,163,184,.2); font-size: 11px; }
         .v3-panel { background: linear-gradient(180deg,rgba(10,27,44,.96),rgba(7,20,34,.96)); border: 1px solid rgba(94,139,184,.28); border-radius: 8px; padding: 12px; box-shadow: 0 18px 40px rgba(0,0,0,.22); }
         .v3-readout { position: relative; overflow: hidden; display: grid; gap: 8px; align-items: center; min-height: 136px; }
         .v3-readout:before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 82% 44%,rgba(14,165,233,.28),transparent 27%), linear-gradient(110deg,rgba(3,105,161,.2),transparent 52%); pointer-events: none; }
@@ -207,15 +237,36 @@ export default function MarketViewV3PreviewClient() {
 
       <div className="v3-shell">
         <aside className="v3-left">
-          <div className="v3-brand">
-            <small>Market View V3</small>
-            <strong>Conference Intelligence</strong>
-            <p style={{ color: "#9fb3ca", fontSize: 12 }}>Static design preview</p>
-          </div>
-          <nav className="v3-nav">{navItems.map((item) => <div key={item}>{item}</div>)}</nav>
-          <div className="v3-feed">
-            <small className="v3-eyebrow" style={{ color: "#8fbfff" }}>Quick Feeds</small>
-            {quickFeeds.map(([label, value]) => <div className="v3-feed-row" key={label}><span>{label}</span><strong>{value}</strong></div>)}
+          <div className="v3-rail-scroll">
+            <div className="v3-left-inner">
+              <div style={{ marginBottom: 0 }}>
+                <div className="v3-rail-title">Refine Your Market View</div>
+                <div className="v3-rail-copy" style={{ marginBottom: 8 }}>Filter conferences by date, location, theme, and participation.</div>
+                <button type="button" className="v3-clear-button"><span className="v3-action-icon">↻</span>Clear Filters</button>
+              </div>
+
+              <div className="v3-filter-stack">
+                {filterRows.map((row, index) => (
+                  <button type="button" className="v3-filter-row" key={row}>
+                    <span className="v3-filter-label"><span className="v3-filter-icon">{["◷", "⌖", "▤", "♙", "║"][index]}</span>{row}</span>
+                    <span style={{ color: "#dbeafe", fontSize: 16, lineHeight: 1 }}>▸</span>
+                  </button>
+                ))}
+              </div>
+
+              <div>
+                <div className="v3-rail-section-title">Quick Feeds</div>
+                <div className="v3-feed">
+                  {quickFeeds.map(([label, count, color]) => (
+                    <button type="button" className="v3-feed-row" key={label}>
+                      <span className="v3-filter-icon" style={{ color }}>{label === "Hot Weeks" ? "♨" : label === "Canada Events" ? "◎" : label === "Next 30 Days" ? "□" : "◇"}</span>
+                      <span>{label}</span>
+                      <strong>({count})</strong>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </aside>
 
@@ -314,8 +365,53 @@ export default function MarketViewV3PreviewClient() {
         </main>
 
         <aside className="v3-right">
-          <div className="v3-card-list"><div className="v3-eyebrow">Current View Summary</div>{[["Dataset", "Static V3"], ["Lead products", "Hot Weeks + Clusters"], ["Peak week", "Sep 14-Sep 20"], ["Top metro", "New York Metro"]].map(([label, value]) => <div className="v3-summary-row" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
-          <div className="v3-card-list"><div className="v3-eyebrow">Saved View Controls</div>{["Save View", "Export", "Calendar Sync"].map((item) => <button key={item} style={{ height: 38, borderRadius: 10, border: "1px solid #ccd9e6", background: "#fff", color: "#173454", fontWeight: 900 }}>{item}</button>)}</div>
+          <div className="v3-rail-scroll">
+            <div className="v3-right-inner">
+              <div style={{ marginBottom: 2, textAlign: "center", display: "grid", justifyItems: "center" }}>
+                <div className="v3-rail-title">Control Panel</div>
+                <div className="v3-rail-copy" style={{ maxWidth: 230, width: "100%", textAlign: "left", justifySelf: "stretch" }}>Export, save, sync, and manage this market view.</div>
+              </div>
+
+              <div className="v3-sync-card">
+                <div className="v3-right-heading"><span className="v3-action-icon" style={{ color: "#8fc2ff" }}>▣</span>Sync Calendar</div>
+                <div style={{ padding: "0 14px 14px" }}>
+                  <div style={{ color: "#c6d7ee", fontSize: 13, marginBottom: 12, lineHeight: 1.4 }}>Turn this market view into a live calendar workflow.</div>
+                  <div className="v3-sync-buttons">
+                    {["Google", "Apple", "Outlook"].map((item) => <button type="button" key={item}>{item}</button>)}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ padding: 0 }}>
+                <div className="v3-actions-head">
+                  <span style={{ fontSize: 12, fontWeight: 900, letterSpacing: ".12em", textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 9 }}><span className="v3-action-icon">⚡</span>Quick Actions</span>
+                  <span style={{ color: "#8fb3df", fontSize: 12, fontWeight: 700 }}>0 selected</span>
+                </div>
+                <div style={{ display: "grid", gap: 8, padding: "0 4px 8px" }}>
+                  {quickActions.map((action, index) => (
+                    <button type="button" className="v3-action-button" key={action}>
+                      <span>{action}</span>
+                      <span className="v3-action-icon" style={{ color: ["#9fc3ff", "#8fd0ff", "#7ad6c8", "#ffbf66"][index] }}>{["↻", "⇧", "▣", "+"][index]}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {["Saved Lists", "Saved Views"].map((section) => (
+                <div className="v3-rail-accordion" key={section}>
+                  <button type="button">
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 9, fontSize: 12, fontWeight: 900, letterSpacing: ".12em", textTransform: "uppercase", color: "#f1f7ff" }}><span className="v3-action-icon">☷</span>{section}</span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ color: "#9fc3e7", fontSize: 12, fontWeight: 700 }}>0 saved</span>
+                      <span style={{ color: "#9fb6d4", fontSize: 14, lineHeight: 1 }}>▸</span>
+                    </span>
+                  </button>
+                </div>
+              ))}
+
+              <div className="v3-right-footer"><span>Subscribe</span><span>Legal</span></div>
+            </div>
+          </div>
         </aside>
       </div>
     </div>
