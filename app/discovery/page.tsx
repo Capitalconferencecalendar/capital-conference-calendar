@@ -2,10 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import AppShell from "../components/AppShell";
 import DiscoveryClient from "./DiscoveryClient";
-import {
-  getPublicDatasetSnapshot,
-  type PublicWorkspaceEvent,
-} from "../../lib/airtablePublicDataset";
+import { getDiscoveryPage } from "../../lib/discoveryDataset";
 
 export const metadata: Metadata = {
   title: "Discovery | Capital Conference Calendar",
@@ -24,29 +21,35 @@ export default async function DiscoveryPage({ searchParams }: DiscoveryPageProps
   const initialSearchQuery = Array.isArray(qParam) ? qParam[0] || "" : qParam || "";
   const eventIdParam = params.eventId;
   const initialEventId = Array.isArray(eventIdParam) ? eventIdParam[0] || "" : eventIdParam || "";
+  const initialPage = await getDiscoveryPage({
+    q: initialSearchQuery,
+    eventIds: initialEventId ? [initialEventId] : undefined,
+    limit: 30,
+  });
+  const tickerPage = await getDiscoveryPage({ limit: 20 });
+  const tickerEvents = tickerPage.events.length ? tickerPage.events : initialPage.events;
   const initialCity = reqHeaders.get("x-vercel-ip-city") || reqHeaders.get("x-city") || "";
-  const { approvedEvents, previewContext } = await getPublicDatasetSnapshot();
-  const events = approvedEvents as PublicWorkspaceEvent[];
 
   return (
     <AppShell
       active="dashboard"
       searchQuery={initialSearchQuery}
-      workspaceMode="discovery"
-      tickerEvents={events.map((event) => ({
+      tickerEvents={tickerEvents.map((event) => ({
         id: event.id,
         title: event.title,
         startDate: event.startDate,
         endDate: event.endDate,
         city: event.city,
       }))}
+      workspaceMode="discovery"
     >
       <DiscoveryClient
-        events={events}
+        events={initialPage.events}
+        initialPage={initialPage}
         initialCity={initialCity}
         initialSearchQuery={initialSearchQuery}
+        initialMode="market"
         initialEventId={initialEventId}
-        previewContext={previewContext}
       />
     </AppShell>
   );
