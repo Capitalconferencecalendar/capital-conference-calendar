@@ -279,7 +279,7 @@ export default function MarketViewV3PreviewClient() {
         .v3-kpi span { color: var(--kpi-accent,#cbd5e1); font-size: 9px; text-transform: uppercase; letter-spacing: .1em; font-weight: 900; }
         .v3-kpi strong { color: #f7fbff; font-size: 14px; line-height: 1.05; }
         .v3-kpi small { color: #7892ad; font-size: 9.5px; line-height: 1.1; }
-        .v3-signal-forecast { position: relative; z-index: 1; overflow: hidden; display: grid; grid-template-rows: auto auto; padding: 0; border-radius: 10px; border: 1px solid rgba(121,158,197,.26); background: linear-gradient(180deg,rgba(8,24,40,.98),rgba(5,17,30,.98)); box-shadow: 0 18px 42px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.05); }
+        .v3-signal-forecast { position: relative; z-index: 1; overflow: visible; display: block; min-height: 430px; padding: 0; border-radius: 10px; border: 1px solid rgba(121,158,197,.26); background: linear-gradient(180deg,rgba(8,24,40,.98),rgba(5,17,30,.98)); box-shadow: 0 18px 42px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.05); }
         .v3-signal-forecast.hot { border-color: rgba(245,158,11,.4); box-shadow: 0 0 0 1px rgba(245,158,11,.08), 0 18px 42px rgba(0,0,0,.26); }
         .v3-signal-forecast.cluster { border-color: rgba(248,113,113,.46); box-shadow: 0 0 0 1px rgba(248,113,113,.1), 0 18px 42px rgba(0,0,0,.26); }
         .v3-signal-head { padding: 13px 14px; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 14px; align-items: center; border-bottom: 1px solid rgba(125,162,199,.2); }
@@ -293,7 +293,7 @@ export default function MarketViewV3PreviewClient() {
         .v3-signal-tabs button { min-height: 40px; border: 1px solid rgba(125,162,199,.3); border-radius: 10px; padding: 0 16px; background: rgba(9,27,45,.86); color: #d2deea; font-size: 12px; font-weight: 950; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.04); }
         .v3-signal-tabs button.is-active.hot { background: linear-gradient(180deg,rgba(245,158,11,.28),rgba(126,62,8,.34)); color: #fff7ed; border-color: rgba(245,158,11,.58); box-shadow: inset 0 0 0 1px rgba(245,158,11,.22), 0 0 20px rgba(245,158,11,.18); }
         .v3-signal-tabs button.is-active.cluster { background: linear-gradient(180deg,rgba(220,38,38,.3),rgba(127,29,29,.36)); color: #fff1f2; border-color: rgba(248,113,113,.62); box-shadow: inset 0 0 0 1px rgba(248,113,113,.18), 0 0 20px rgba(220,38,38,.2); }
-        .v3-signal-body { display: grid; grid-template-columns: minmax(320px,.92fr) minmax(360px,1.08fr); gap: 0; align-items: stretch; background: rgba(3,12,23,.18); }
+        .v3-signal-body { display: grid; grid-template-columns: minmax(320px,.92fr) minmax(360px,1.08fr); gap: 0; align-items: stretch; min-height: 320px; background: rgba(3,12,23,.18); }
         .v3-signal-list { border-right: 1px solid rgba(125,162,199,.2); overflow: visible; }
         .v3-signal-item { width: 100%; border: 0; border-left: 3px solid transparent; border-bottom: 1px solid rgba(117,153,190,.16); background: transparent; color: #dbeafe; text-align: left; padding: 11px 13px 11px 10px; display: grid; grid-template-columns: 30px minmax(0,1fr); gap: 10px; cursor: pointer; }
         .v3-signal-item.is-active { background: linear-gradient(90deg,rgba(245,158,11,.2),rgba(14,165,233,.07)); border-left-color: #f59e0b; box-shadow: inset 0 0 0 1px rgba(245,158,11,.1); }
