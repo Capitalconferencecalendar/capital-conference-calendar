@@ -415,7 +415,7 @@ export default function Header({
               }}
             >
               <WorkspaceNavButton
-                href="/?mode=market"
+                href="/events"
                 label="Discovery"
                 isActive={isDiscoveryActive}
               />
@@ -488,7 +488,7 @@ export default function Header({
                 >
                   {[
                     { href: "/?mode=getstarted", label: "Get Started", active: workspaceMode === "getstarted" },
-                    { href: "/?mode=market", label: "Discovery", active: workspaceMode === "discovery" },
+                    { href: "/events", label: "Discovery", active: workspaceMode === "discovery" },
                     { href: "/market-view", label: "Market View", active: workspaceMode === "marketview" },
                     { href: "/?mode=about", label: "About", icon: "about" as const, active: active === "about" },
                     { href: "/?mode=contact", label: "Contact", icon: "contact" as const, active: active === "help" },
