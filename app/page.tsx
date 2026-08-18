@@ -1,5 +1,3 @@
-import { redirect } from "next/navigation";
+import DiscoveryPage from "./discovery/page";
 
-export default function HomePage() {
-  redirect("/market-view");
-}
+export default DiscoveryPage;

@@ -278,10 +278,11 @@ export default function Header({
           method="get"
           onSubmit={(event) => {
             event.preventDefault();
-            const params = new URLSearchParams({ mode: "market" });
+            const params = new URLSearchParams();
             const value = query.trim();
             if (value) params.set("q", value);
-            window.location.assign(`/?${params.toString()}`);
+            const queryString = params.toString();
+            window.location.assign(queryString ? `/?${queryString}` : "/");
           }}
           style={{
             display: compactNav ? "flex" : "grid",
@@ -415,7 +416,7 @@ export default function Header({
               }}
             >
               <WorkspaceNavButton
-                href="/events"
+                href="/"
                 label="Discovery"
                 isActive={isDiscoveryActive}
               />
@@ -488,7 +489,7 @@ export default function Header({
                 >
                   {[
                     { href: "/?mode=getstarted", label: "Get Started", active: workspaceMode === "getstarted" },
-                    { href: "/events", label: "Discovery", active: workspaceMode === "discovery" },
+                    { href: "/", label: "Discovery", active: workspaceMode === "discovery" },
                     { href: "/market-view", label: "Market View", active: workspaceMode === "marketview" },
                     { href: "/?mode=about", label: "About", icon: "about" as const, active: active === "about" },
                     { href: "/?mode=contact", label: "Contact", icon: "contact" as const, active: active === "help" },

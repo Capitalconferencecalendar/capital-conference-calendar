@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import AddToCalendar from "../../components/AddToCalendar";
+import AddToCalendar from "../components/AddToCalendar";
 import type {
   PreviewDatasetContext,
   PublicWorkspaceEvent,
-} from "../../../lib/airtablePublicDataset";
+} from "../../lib/airtablePublicDataset";
 
-type DiscoveryPreviewClientProps = {
+type DiscoveryClientProps = {
   events: PublicWorkspaceEvent[];
   initialCity: string;
   initialSearchQuery?: string;
@@ -427,13 +427,13 @@ function Icon({
   }
 }
 
-export default function DiscoveryPreviewClient({
+export default function DiscoveryClient({
   events,
   initialCity,
   initialSearchQuery = "",
   initialEventId = "",
   previewContext,
-}: DiscoveryPreviewClientProps) {
+}: DiscoveryClientProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("database");
   const [filters, setFilters] = useState<FilterState>({
     ...DEFAULT_FILTERS,
