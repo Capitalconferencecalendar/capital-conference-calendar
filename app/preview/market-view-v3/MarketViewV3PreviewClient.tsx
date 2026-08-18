@@ -460,7 +460,7 @@ export default function MarketViewV3PreviewClient() {
         <main className="v3-main">
           <section className="v3-panel v3-readout">
             <div className="v3-hero-copy">
-              <div className="v3-eyebrow">Market View Live Intelligence</div>
+              <div className="v3-eyebrow">Market View Intelligence</div>
               <h1>Capital Markets Conference Intelligence</h1>
               <p className="v3-hero-primary">A forward-looking view of where issuer access, investor concentration, sector activity, and market attention are building across the conference landscape.</p>
               <p className="v3-hero-body">Capital Conference Calendar transforms conference records into market-intelligence signals for investor relations, business development, bankers, and capital markets teams. Instead of only showing what events exist, Market View helps surface where attention is concentrating, where activity is clustering, and where the strongest market signals are emerging.</p>
