@@ -1,3 +1,5 @@
-import EventsPage from "./events/page";
+import { redirect } from "next/navigation";
 
-export default EventsPage;
+export default function HomePage() {
+  redirect("/market-view");
+}
