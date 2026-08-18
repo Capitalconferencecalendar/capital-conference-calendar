@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import AppShell from "../../components/AppShell";
-import MarketViewV3PreviewClient from "./MarketViewV3PreviewClient";
+import MarketViewClient from "../../market-view/MarketViewClient";
 
 export const metadata: Metadata = {
-  title: "Market View V3 Preview",
+  title: "Market View | Capital Conference Calendar",
   robots: {
     index: false,
     follow: false,
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default function MarketViewV3PreviewPage() {
   return (
     <AppShell active="dashboard" workspaceMode="marketview" tickerEvents={[]}>
-      <MarketViewV3PreviewClient />
+      <MarketViewClient />
     </AppShell>
   );
 }

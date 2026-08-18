@@ -203,7 +203,7 @@ function CalendarBrandGlyph({ brand }: { brand: "google" | "apple" | "outlook" }
   return <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5" fill="none" stroke="#38BDF8" strokeWidth="1.8" /><path d="M3.5 8.5 12 14l8.5-5.5" fill="none" stroke="#38BDF8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 
-export default function MarketViewV3PreviewClient() {
+export default function MarketViewClient() {
   const [primaryMetro, setPrimaryMetro] = useState("");
   const [signalTab, setSignalTab] = useState<ForecastMode>("hotWeeks");
   const [selectedHotWeekIndex, setSelectedHotWeekIndex] = useState(0);
@@ -214,7 +214,7 @@ export default function MarketViewV3PreviewClient() {
       const saved = localStorage.getItem(metroStorageKey);
       if (saved) setPrimaryMetro(saved);
     } catch {
-      // Static preview only.
+      // Browser storage may be unavailable.
     }
   }, []);
 
@@ -230,7 +230,7 @@ export default function MarketViewV3PreviewClient() {
       if (value) localStorage.setItem(metroStorageKey, value);
       else localStorage.removeItem(metroStorageKey);
     } catch {
-      // Static preview only.
+      // Browser storage may be unavailable.
     }
   };
 
