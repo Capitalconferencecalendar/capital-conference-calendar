@@ -12,7 +12,7 @@ const quickFeeds = [
   ["Private Markets", "154", "#7c3aed", "private"],
   ["Canada Events", "33", "#dc2626", "canada"],
   ["Next 30 Days", "37", "#2563eb", "next30"],
-  ["Hot Weeks", "22", "#38bdf8", "next60"],
+  ["Hot Weeks", "22", "#f97316", "next60"],
 ];
 
 const quickActions = ["Clear", "Share Selected", "Save Market View", "Save Selected"];
@@ -280,31 +280,31 @@ export default function MarketViewV3PreviewClient() {
         .v3-kpi strong { color: #f7fbff; font-size: 14px; line-height: 1.05; }
         .v3-kpi small { color: #7892ad; font-size: 9.5px; line-height: 1.1; }
         .v3-signal-forecast { position: relative; z-index: 1; overflow: visible; display: block; min-height: 760px; padding: 0; border-radius: 10px; border: 1px solid rgba(121,158,197,.26); background: linear-gradient(180deg,rgba(8,24,40,.98),rgba(5,17,30,.98)); box-shadow: 0 18px 42px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.05); }
-        .v3-signal-forecast.hot { border-color: rgba(56,189,248,.36); box-shadow: 0 0 0 1px rgba(14,165,233,.08), 0 18px 42px rgba(0,0,0,.26), 0 0 34px rgba(14,165,233,.1); }
+        .v3-signal-forecast.hot { border-color: rgba(245,158,11,.4); box-shadow: 0 0 0 1px rgba(245,158,11,.08), 0 18px 42px rgba(0,0,0,.26); }
         .v3-signal-forecast.cluster { border-color: rgba(248,113,113,.46); box-shadow: 0 0 0 1px rgba(248,113,113,.1), 0 18px 42px rgba(0,0,0,.26); }
         .v3-signal-head { padding: 13px 14px; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 14px; align-items: center; border-bottom: 1px solid rgba(125,162,199,.2); }
         .v3-signal-titleline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
         .v3-signal-icon { width: 28px; height: 28px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; color: #f8fbff; font-size: 17px; font-weight: 900; }
-        .hot .v3-signal-icon { background: rgba(14,165,233,.18); color: #7dd3fc; }
+        .hot .v3-signal-icon { background: rgba(245,158,11,.18); color: #fbbf24; }
         .cluster .v3-signal-icon { background: rgba(220,38,38,.18); color: #fca5a5; }
         .v3-signal-head h2 { font-size: 18px; letter-spacing: .08em; text-transform: uppercase; }
         .v3-signal-head p { margin-top: 7px; max-width: 760px; color: #c4d6e8; font-size: 13px; line-height: 1.42; }
         .v3-signal-tabs { display: inline-flex; gap: 8px; align-items: center; justify-content: flex-end; }
         .v3-signal-tabs button { min-height: 40px; border: 1px solid rgba(125,162,199,.3); border-radius: 10px; padding: 0 16px; background: rgba(9,27,45,.86); color: #d2deea; font-size: 12px; font-weight: 950; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.04); }
-        .v3-signal-tabs button.is-active.hot { background: linear-gradient(180deg,rgba(14,165,233,.28),rgba(30,64,175,.34)); color: #effbff; border-color: rgba(125,211,252,.54); box-shadow: inset 0 0 0 1px rgba(125,211,252,.18), 0 0 20px rgba(14,165,233,.18); }
+        .v3-signal-tabs button.is-active.hot { background: linear-gradient(180deg,rgba(245,158,11,.28),rgba(126,62,8,.34)); color: #fff7ed; border-color: rgba(245,158,11,.58); box-shadow: inset 0 0 0 1px rgba(245,158,11,.22), 0 0 20px rgba(245,158,11,.18); }
         .v3-signal-tabs button.is-active.cluster { background: linear-gradient(180deg,rgba(220,38,38,.3),rgba(127,29,29,.36)); color: #fff1f2; border-color: rgba(248,113,113,.62); box-shadow: inset 0 0 0 1px rgba(248,113,113,.18), 0 0 20px rgba(220,38,38,.2); }
         .v3-signal-body { display: grid; grid-template-columns: minmax(320px,.92fr) minmax(360px,1.08fr); gap: 0; align-items: stretch; min-height: 640px; background: rgba(3,12,23,.18); }
         .v3-signal-list { border-right: 1px solid rgba(125,162,199,.2); overflow: visible; }
         .v3-signal-item { width: 100%; border: 0; border-left: 3px solid transparent; border-bottom: 1px solid rgba(117,153,190,.16); background: transparent; color: #dbeafe; text-align: left; padding: 10px 13px 10px 10px; display: grid; grid-template-columns: 30px minmax(0,1fr); gap: 10px; cursor: pointer; }
-        .v3-signal-item.is-active { background: linear-gradient(90deg,rgba(14,165,233,.18),rgba(37,99,235,.08)); border-left-color: #38bdf8; box-shadow: inset 0 0 0 1px rgba(125,211,252,.1); }
+        .v3-signal-item.is-active { background: linear-gradient(90deg,rgba(245,158,11,.2),rgba(14,165,233,.07)); border-left-color: #f59e0b; box-shadow: inset 0 0 0 1px rgba(245,158,11,.1); }
         .cluster .v3-signal-item.is-active { background: linear-gradient(90deg,rgba(220,38,38,.22),rgba(248,113,113,.08)); border-left-color: #f87171; box-shadow: inset 0 0 0 1px rgba(248,113,113,.12); }
         .v3-rank { width: 24px; height: 24px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; background: rgba(15,35,56,.9); border: 1px solid rgba(125,162,199,.2); color: #dbeafe; }
-        .hot .v3-signal-item.is-active .v3-rank { background: rgba(14,165,233,.22); border-color: rgba(125,211,252,.4); color: #bae6fd; }
+        .hot .v3-signal-item.is-active .v3-rank { background: rgba(245,158,11,.22); border-color: rgba(245,158,11,.42); color: #fbbf24; }
         .cluster .v3-signal-item.is-active .v3-rank { background: rgba(220,38,38,.24); border-color: rgba(248,113,113,.44); color: #fecaca; }
         .v3-signal-item strong { color: #f8fbff; font-size: 14px; line-height: 1.15; }
         .v3-signal-meta { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 6px; color: #91a8bf; font-size: 10.5px; font-weight: 750; }
         .v3-signal-meta span { border: 1px solid rgba(125,162,199,.18); background: rgba(4,15,27,.48); border-radius: 999px; padding: 2px 6px; }
-        .v3-hot-tag { color: #7dd3fc !important; border-color: rgba(125,211,252,.34) !important; background: rgba(14,165,233,.12) !important; }
+        .v3-hot-tag { color: #fbbf24 !important; border-color: rgba(245,158,11,.34) !important; background: rgba(245,158,11,.12) !important; }
         .v3-signal-reason { margin-top: 5px; color: #aebfd2; font-size: 11.5px; line-height: 1.28; }
         .v3-signal-detail { overflow: visible; padding: 17px 16px 18px; display: grid; align-content: start; gap: 13px; background: radial-gradient(circle at 92% 12%,rgba(56,189,248,.12),transparent 26%), rgba(4,14,26,.36); }
         .v3-signal-detail h3 { font-size: 13px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; color: #a9c1d8; }
@@ -312,10 +312,10 @@ export default function MarketViewV3PreviewClient() {
         .v3-feature-list { display: grid; gap: 7px; color: #c7d6e7; font-size: 12px; line-height: 1.35; }
         .v3-feature-list div { display: flex; gap: 8px; }
         .v3-feature-list div:before { content: ""; width: 5px; height: 5px; margin-top: 6px; border-radius: 999px; background: #38bdf8; flex: 0 0 auto; }
-        .hot .v3-feature-list div:before { background: #38bdf8; }
+        .hot .v3-feature-list div:before { background: #f59e0b; }
         .cluster .v3-feature-list div:before { background: #ef4444; }
         .v3-detail-label { color: #7dd3fc; font-size: 9.5px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
-        .hot .v3-detail-label { color: #7dd3fc; }
+        .hot .v3-detail-label { color: #fbbf24; }
         .cluster .v3-detail-label { color: #fca5a5; }
         .v3-metric-row { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); border: 1px solid rgba(125,162,199,.18); border-radius: 9px; overflow: hidden; }
         .v3-metric-cell { padding: 8px 9px; display: grid; gap: 3px; background: rgba(7,23,39,.55); border-left: 1px solid rgba(125,162,199,.16); }
@@ -324,16 +324,16 @@ export default function MarketViewV3PreviewClient() {
         .v3-metric-cell strong { color: #f8fbff; font-size: 12px; }
         .v3-primary-stack { display: grid; gap: 9px; }
         .v3-product { overflow: hidden; padding: 0; border-radius: 8px; }
-        .v3-product.hot { border-color: rgba(56,189,248,.42); box-shadow: 0 0 0 1px rgba(14,165,233,.1), 0 18px 42px rgba(0,0,0,.24); }
+        .v3-product.hot { border-color: rgba(245,158,11,.48); box-shadow: 0 0 0 1px rgba(245,158,11,.12), 0 18px 42px rgba(0,0,0,.24); }
         .v3-product.cluster { border-color: rgba(139,92,246,.5); box-shadow: 0 0 0 1px rgba(34,211,238,.12), 0 18px 42px rgba(0,0,0,.24); }
         .v3-product-head { padding: 11px 13px 10px; display: grid; gap: 5px; border-bottom: 1px solid rgba(125,162,199,.22); }
-        .hot .v3-product-head { background: linear-gradient(90deg,rgba(14,165,233,.16),rgba(37,99,235,.08),transparent); }
+        .hot .v3-product-head { background: linear-gradient(90deg,rgba(245,158,11,.14),rgba(14,165,233,.08),transparent); }
         .cluster .v3-product-head { background: linear-gradient(90deg,rgba(139,92,246,.16),rgba(34,211,238,.08),transparent); }
         .v3-product-title { display: grid; gap: 4px; }
         .v3-product-title h2 { color: #f8fbff; font-size: 17px; }
         .v3-helper { color: #8fa6bd; font-size: 11px; line-height: 1.35; }
         .v3-marker { display: inline-flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
-        .hot .v3-marker { color: #7dd3fc; }
+        .hot .v3-marker { color: #fbbf24; }
         .cluster .v3-marker { color: #c4b5fd; }
         .v3-scroll-list { max-height: 318px; overflow: auto; display: grid; gap: 0; }
         .v3-row { padding: 10px 13px; border-bottom: 1px solid rgba(117,153,190,.18); display: grid; gap: 6px; }
@@ -478,7 +478,7 @@ export default function MarketViewV3PreviewClient() {
                 <div
                   className="v3-kpi"
                   key={label}
-                  style={{ "--kpi-accent": ["#f8fafc", "#67e8f9", "#5eead4", "#93c5fd", "#60a5fa", "#a78bfa"][index] } as CSSProperties}
+                  style={{ "--kpi-accent": ["#f8fafc", "#67e8f9", "#5eead4", "#fbbf24", "#60a5fa", "#a78bfa"][index] } as CSSProperties}
                 >
                   <span>{label}</span>
                   <strong>{value}</strong>
