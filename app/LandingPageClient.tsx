@@ -37,6 +37,27 @@ const audiences = [
   "Sponsors / Service Providers",
 ];
 
+const supportItems = [
+  {
+    title: "Private Beta",
+    body: "Selective onboarding for early capital markets users.",
+    accent: "#a78bfa",
+    icon: "B",
+  },
+  {
+    title: "Signal-Driven",
+    body: "Built around attention, access, timing, and opportunity.",
+    accent: "#f59e0b",
+    icon: "S",
+  },
+  {
+    title: "Institutional Focus",
+    body: "Designed for teams where conference decisions affect coverage and relationships.",
+    accent: "#38bdf8",
+    icon: "I",
+  },
+];
+
 export default function LandingPageClient() {
   const [submitState, setSubmitState] = useState<"idle" | "submitting" | "success" | "error">("idle");
 
@@ -138,16 +159,16 @@ export default function LandingPageClient() {
 
       <section
         style={{
-          maxWidth: "1180px",
+          maxWidth: "1280px",
           margin: "0 auto",
-          padding: "78px 20px 58px",
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-          gap: "34px",
+          padding: "62px 20px 50px",
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "30px",
           alignItems: "center",
         }}
       >
-        <div style={{ display: "grid", gap: "24px" }}>
+        <div style={{ display: "grid", gap: "21px", minWidth: 0, flex: "1 1 680px" }}>
           <div
             style={{
               color: "#7dd3fc",
@@ -163,11 +184,11 @@ export default function LandingPageClient() {
             style={{
               margin: 0,
               color: "#ffffff",
-              fontSize: "clamp(46px, 6vw, 76px)",
-              lineHeight: 0.96,
+              fontSize: "clamp(42px, 5.2vw, 66px)",
+              lineHeight: 0.98,
               letterSpacing: "-0.03em",
               fontWeight: 950,
-              maxWidth: "780px",
+              maxWidth: "900px",
             }}
           >
             Every capital markets conference in one place — for the first time.
@@ -176,13 +197,13 @@ export default function LandingPageClient() {
             style={{
               margin: 0,
               color: "#c7d8ee",
-              fontSize: "clamp(18px, 2vw, 23px)",
+              fontSize: "clamp(17px, 1.7vw, 21px)",
               lineHeight: 1.5,
-              maxWidth: "780px",
+              maxWidth: "820px",
               fontWeight: 650,
             }}
           >
-            Capital Conference Calendar is a private beta for select users across investor relations, business development, banking, and capital markets teams. We&apos;re building a new layer of market intelligence designed to help users identify the right conferences, the right opportunities, and the best use of their time.
+            Capital Conference Calendar is running a private beta for select users across investor relations, business development, banking, and capital markets teams. We&apos;re building a new layer of market intelligence designed to help users identify the right conferences, the right opportunities, and the best use of their time.
           </p>
           <div style={{ display: "grid", gap: "10px", justifyItems: "start" }}>
             <a
@@ -216,32 +237,57 @@ export default function LandingPageClient() {
             borderRadius: "22px",
             border: "1px solid rgba(125,211,252,0.18)",
             background:
-              "linear-gradient(145deg, rgba(8,31,55,0.86) 0%, rgba(4,17,31,0.92) 100%)",
+              "radial-gradient(90% 110% at 0% 0%, rgba(99,102,241,0.16) 0%, rgba(8,31,55,0) 46%), linear-gradient(145deg, rgba(8,31,55,0.78) 0%, rgba(4,17,31,0.9) 100%)",
             boxShadow: "0 24px 70px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.04)",
-            padding: "22px",
+            padding: "18px",
             display: "grid",
-            gap: "16px",
+            gap: "12px",
+            alignSelf: "center",
+            flex: "0 1 360px",
+            width: "100%",
           }}
         >
-          {[
-            ["Private Beta", "Selective onboarding for early capital markets users."],
-            ["Signal-Driven", "Built around attention, access, timing, and opportunity."],
-            ["Institutional Focus", "Designed for teams where conference decisions affect coverage and relationships."],
-          ].map(([label, body]) => (
+          <div style={{ color: "#8fbfff", fontSize: "10px", fontWeight: 950, letterSpacing: "0.16em", textTransform: "uppercase" }}>
+            Beta Signal Layer
+          </div>
+          {supportItems.map((item) => (
             <div
-              key={label}
+              key={item.title}
               style={{
-                padding: "16px",
-                borderRadius: "16px",
-                background: "rgba(8,24,44,0.68)",
+                padding: "13px",
+                borderRadius: "14px",
+                background: "rgba(8,24,44,0.62)",
                 border: "1px solid rgba(148,163,184,0.14)",
+                display: "grid",
+                gridTemplateColumns: "34px minmax(0, 1fr)",
+                gap: "11px",
+                alignItems: "start",
               }}
             >
-              <div style={{ color: "#7dd3fc", fontSize: "11px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>
-                {label}
+              <div
+                aria-hidden="true"
+                style={{
+                  width: "30px",
+                  height: "30px",
+                  borderRadius: "10px",
+                  display: "grid",
+                  placeItems: "center",
+                  color: "#061422",
+                  background: item.accent,
+                  boxShadow: `0 0 24px ${item.accent}38`,
+                  fontSize: "11px",
+                  fontWeight: 950,
+                }}
+              >
+                {item.icon}
               </div>
-              <div style={{ marginTop: "7px", color: "#dbeafe", fontSize: "14px", lineHeight: 1.45, fontWeight: 650 }}>
-                {body}
+              <div>
+                <div style={{ color: item.accent, fontSize: "10.5px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>
+                  {item.title}
+                </div>
+                <div style={{ marginTop: "5px", color: "#dbeafe", fontSize: "13px", lineHeight: 1.45, fontWeight: 650 }}>
+                  {item.body}
+                </div>
               </div>
             </div>
           ))}
