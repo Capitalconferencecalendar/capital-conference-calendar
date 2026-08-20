@@ -5,25 +5,25 @@ import { FormEvent, useState } from "react";
 const betaCards = [
   {
     title: "Market Intelligence",
-    body: "Track capital markets conference activity in one place.",
+    body: "See capital markets conference activity through an intelligence lens — not scattered lists, emails, and one-off searches.",
     accent: "#38bdf8",
     icon: "M",
   },
   {
     title: "Market Signals",
-    body: "Use signal-driven context to identify where attention and opportunity may be building.",
+    body: "Identify early indicators of where investor attention, issuer access, and sector activity are beginning to concentrate.",
     accent: "#f59e0b",
     icon: "S",
   },
   {
     title: "Coverage Prioritization",
-    body: "Focus on the conferences, relationships, and time allocation that may matter most.",
+    body: "Prioritize the conferences, relationships, and coverage decisions most likely to matter before the calendar fills up.",
     accent: "#60a5fa",
     icon: "C",
   },
   {
     title: "Private Beta",
-    body: "Join a limited early group helping shape the platform.",
+    body: "Access is being reserved for select market participants who can help evaluate and shape the beta.",
     accent: "#a78bfa",
     icon: "B",
   },
