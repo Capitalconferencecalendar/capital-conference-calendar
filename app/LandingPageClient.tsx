@@ -42,19 +42,19 @@ const supportItems = [
     title: "Private Beta",
     body: "Selective onboarding for early capital markets users.",
     accent: "#a78bfa",
-    icon: "B",
+    icon: "lock",
   },
   {
     title: "Signal-Driven",
     body: "Built around attention, access, timing, and opportunity.",
     accent: "#f59e0b",
-    icon: "S",
+    icon: "signal",
   },
   {
     title: "Institutional Focus",
     body: "Designed for teams where conference decisions affect coverage and relationships.",
     accent: "#38bdf8",
-    icon: "I",
+    icon: "building",
   },
 ];
 
@@ -102,18 +102,6 @@ export default function LandingPageClient() {
         overflowX: "hidden",
       }}
     >
-      <div
-        aria-hidden="true"
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: "36px",
-          background: "linear-gradient(90deg, #061422 0%, #0b1f34 50%, #061422 100%)",
-          borderBottom: "1px solid rgba(148,163,184,0.16)",
-        }}
-      />
       <nav
         style={{
           position: "relative",
@@ -184,14 +172,27 @@ export default function LandingPageClient() {
             style={{
               margin: 0,
               color: "#ffffff",
-              fontSize: "clamp(42px, 5.2vw, 66px)",
-              lineHeight: 0.98,
+              fontSize: "clamp(40px, 5vw, 62px)",
+              lineHeight: 1,
               letterSpacing: "-0.03em",
               fontWeight: 950,
               maxWidth: "900px",
             }}
           >
-            Every capital markets conference in one place — for the first time.
+            <span
+              style={{
+                display: "block",
+                marginBottom: "10px",
+                color: "#9fb5cf",
+                fontSize: "clamp(17px, 1.8vw, 24px)",
+                fontStyle: "italic",
+                fontWeight: 700,
+                letterSpacing: "-0.01em",
+              }}
+            >
+              for the first time
+            </span>
+            Every capital markets conference in one place
           </h1>
           <p
             style={{
@@ -203,7 +204,7 @@ export default function LandingPageClient() {
               fontWeight: 650,
             }}
           >
-            Capital Conference Calendar is running a private beta for select users across investor relations, business development, banking, and capital markets teams. We&apos;re building a new layer of market intelligence designed to help users identify the right conferences, the right opportunities, and the best use of their time.
+            Capital Conference Calendar is running a private beta for select users across investor relations, business development, banking, and capital markets teams. We&apos;re building the most complete capital markets conference database for planning and market intelligence — helping users spot early signals, understand where attention is building, and make better decisions around coverage, relationships, and investment strategy.
           </p>
           <div style={{ display: "grid", gap: "10px", justifyItems: "start" }}>
             <a
@@ -234,20 +235,14 @@ export default function LandingPageClient() {
 
         <div
           style={{
-            borderRadius: "22px",
-            border: "1px solid rgba(125,211,252,0.18)",
-            background:
-              "radial-gradient(90% 110% at 0% 0%, rgba(99,102,241,0.16) 0%, rgba(8,31,55,0) 46%), linear-gradient(145deg, rgba(8,31,55,0.78) 0%, rgba(4,17,31,0.9) 100%)",
-            boxShadow: "0 24px 70px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.04)",
-            padding: "18px",
             display: "grid",
-            gap: "12px",
+            gap: "10px",
             alignSelf: "center",
             flex: "0 1 360px",
             width: "100%",
           }}
         >
-          <div style={{ color: "#8fbfff", fontSize: "10px", fontWeight: 950, letterSpacing: "0.16em", textTransform: "uppercase" }}>
+          <div style={{ color: "#8fbfff", fontSize: "10px", fontWeight: 950, letterSpacing: "0.16em", textTransform: "uppercase", paddingLeft: "2px" }}>
             Beta Signal Layer
           </div>
           {supportItems.map((item) => (
@@ -262,6 +257,7 @@ export default function LandingPageClient() {
                 gridTemplateColumns: "34px minmax(0, 1fr)",
                 gap: "11px",
                 alignItems: "start",
+                boxShadow: "0 16px 40px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.03)",
               }}
             >
               <div
@@ -275,11 +271,9 @@ export default function LandingPageClient() {
                   color: "#061422",
                   background: item.accent,
                   boxShadow: `0 0 24px ${item.accent}38`,
-                  fontSize: "11px",
-                  fontWeight: 950,
                 }}
               >
-                {item.icon}
+                <SupportIcon icon={item.icon} />
               </div>
               <div>
                 <div style={{ color: item.accent, fontSize: "10.5px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>
@@ -507,6 +501,39 @@ function LandingInput({
       <span style={labelStyle}>{label}</span>
       <input name={name} type={type} required={required} style={fieldStyle} />
     </label>
+  );
+}
+
+function SupportIcon({ icon }: { icon: string }) {
+  if (icon === "lock") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="5" y="10" width="14" height="10" rx="2" />
+        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+      </svg>
+    );
+  }
+
+  if (icon === "signal") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 18h2" />
+        <path d="M9 18h2v-5H9z" />
+        <path d="M15 18h2V8h-2z" />
+        <path d="M20 18h0" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 20h16" />
+      <path d="M6 20V6l6-3 6 3v14" />
+      <path d="M9 9h1" />
+      <path d="M14 9h1" />
+      <path d="M9 13h1" />
+      <path d="M14 13h1" />
+    </svg>
   );
 }
 
