@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     const baseId = process.env.AIRTABLE_BASE_ID;
     const token = process.env.AIRTABLE_TOKEN;
     const accessRequestsTable =
-      process.env.AIRTABLE_ACCESS_REQUESTS_TABLE_NAME || "Beta Access Request";
+      process.env.AIRTABLE_ACCESS_REQUESTS_TABLE_NAME || "Beta Access Requests";
 
     if (!baseId || !token) {
       return NextResponse.json(
