@@ -32,22 +32,47 @@ const audiences = [
 ];
 
 const useCases = [
-  "Investor access mapping",
-  "Issuer and sector coverage",
-  "Business development planning",
-  "Banking / advisory coverage",
-  "Conference sponsorship strategy",
-  "Organizer market intelligence",
+  "Investor Relations",
+  "Business Development",
+  "Banking / Advisory",
+  "Capital Markets",
+  "Sponsor / Service Provider",
+  "Conference Organizer",
+  "Investor",
+  "Other",
 ];
 
 export default function LandingPageClient() {
-  const [submitted, setSubmitted] = useState(false);
+  const [submitState, setSubmitState] = useState<"idle" | "submitting" | "success" | "error">("idle");
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    // Temporary UI-only request flow: no request-access API/table exists yet.
-    setSubmitted(true);
-    event.currentTarget.reset();
+    setSubmitState("submitting");
+
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const payload = {
+      fullName: String(data.get("fullName") || ""),
+      workEmail: String(data.get("workEmail") || ""),
+      company: String(data.get("company") || ""),
+      role: String(data.get("role") || ""),
+      primaryUseCase: String(data.get("primaryUseCase") || ""),
+      notes: String(data.get("notes") || ""),
+    };
+
+    try {
+      const response = await fetch("/api/request-access", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) throw new Error("Request access submission failed.");
+      form.reset();
+      setSubmitState("success");
+    } catch {
+      setSubmitState("error");
+    }
   }
 
   return (
@@ -309,59 +334,82 @@ export default function LandingPageClient() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} style={{ display: "grid", gap: "12px" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-              <LandingInput label="Full name" name="name" required />
-              <LandingInput label="Work email" name="email" type="email" required />
+          {submitState === "success" ? (
+            <div
+              style={{
+                borderRadius: "18px",
+                border: "1px solid rgba(134,239,172,0.26)",
+                background: "rgba(20,83,45,0.18)",
+                padding: "22px",
+                alignSelf: "start",
+              }}
+            >
+              <div style={{ color: "#ffffff", fontSize: "22px", fontWeight: 950, marginBottom: "10px" }}>
+                Thank you for your interest in Capital Conference Calendar.
+              </div>
+              <p style={{ margin: 0, color: "#bbf7d0", fontSize: "15px", lineHeight: 1.55 }}>
+                We&apos;ll review your request and reach out if we think there is a good fit for beta testing.
+              </p>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-              <LandingInput label="Company" name="company" required />
-              <LandingInput label="Role" name="role" required />
-            </div>
-            <label style={{ display: "grid", gap: "6px" }}>
-              <span style={labelStyle}>Primary use case</span>
-              <select name="useCase" required style={fieldStyle}>
-                <option value="">Select one</option>
-                {useCases.map((useCase) => (
-                  <option key={useCase} value={useCase}>
-                    {useCase}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label style={{ display: "grid", gap: "6px" }}>
-              <span style={labelStyle}>Optional notes</span>
-              <textarea
-                name="notes"
-                rows={4}
-                style={{ ...fieldStyle, height: "auto", resize: "vertical", paddingTop: "11px" }}
-                placeholder="Tell us what conferences, sectors, or workflows matter most."
-              />
-            </label>
-            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-              <button
-                type="submit"
-                style={{
-                  height: "46px",
-                  padding: "0 18px",
-                  borderRadius: "12px",
-                  border: "1px solid rgba(147,197,253,0.44)",
-                  background: "linear-gradient(180deg, #2f6df6 0%, #1747aa 100%)",
-                  color: "#ffffff",
-                  fontSize: "14px",
-                  fontWeight: 950,
-                  cursor: "pointer",
-                }}
-              >
-                Request Access
-              </button>
-              {submitted ? (
-                <span style={{ color: "#86efac", fontSize: "13px", fontWeight: 850 }}>
-                  Request received. We&apos;ll follow up shortly.
-                </span>
-              ) : null}
-            </div>
-          </form>
+          ) : (
+            <form onSubmit={handleSubmit} style={{ display: "grid", gap: "12px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <LandingInput label="Full name" name="fullName" required />
+                <LandingInput label="Work email" name="workEmail" type="email" required />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <LandingInput label="Company" name="company" required />
+                <LandingInput label="Role / title" name="role" required />
+              </div>
+              <label style={{ display: "grid", gap: "6px" }}>
+                <span style={labelStyle}>Primary use case</span>
+                <select name="primaryUseCase" style={fieldStyle} defaultValue="">
+                  <option value="">Select one</option>
+                  {useCases.map((useCase) => (
+                    <option key={useCase} value={useCase}>
+                      {useCase}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label style={{ display: "grid", gap: "6px" }}>
+                <span style={labelStyle}>Optional notes</span>
+                <textarea
+                  name="notes"
+                  rows={4}
+                  style={{ ...fieldStyle, height: "auto", resize: "vertical", paddingTop: "11px" }}
+                  placeholder="Tell us what conferences, sectors, or workflows matter most."
+                />
+              </label>
+              <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+                <button
+                  type="submit"
+                  disabled={submitState === "submitting"}
+                  style={{
+                    height: "46px",
+                    padding: "0 18px",
+                    borderRadius: "12px",
+                    border: "1px solid rgba(147,197,253,0.44)",
+                    background: submitState === "submitting"
+                      ? "linear-gradient(180deg, #1e3a8a 0%, #172554 100%)"
+                      : "linear-gradient(180deg, #2f6df6 0%, #1747aa 100%)",
+                    color: "#ffffff",
+                    fontSize: "14px",
+                    fontWeight: 950,
+                    cursor: submitState === "submitting" ? "wait" : "pointer",
+                    opacity: submitState === "submitting" ? 0.78 : 1,
+                  }}
+                >
+                  {submitState === "submitting" ? "Submitting..." : "Request Access"}
+                </button>
+                {submitState === "error" ? (
+                  <span style={{ color: "#fecaca", fontSize: "13px", fontWeight: 850 }}>
+                    We couldn&apos;t submit your request. Please try again or contact us directly.
+                  </span>
+                ) : null}
+              </div>
+            </form>
+          )}
         </div>
       </section>
 
