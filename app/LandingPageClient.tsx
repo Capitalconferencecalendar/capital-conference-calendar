@@ -190,7 +190,7 @@ export default function LandingPageClient() {
                 letterSpacing: "-0.01em",
               }}
             >
-              for the first time
+              For the first time
             </span>
             Every capital markets conference in one place
           </h1>
@@ -201,7 +201,7 @@ export default function LandingPageClient() {
               fontSize: "clamp(17px, 1.7vw, 21px)",
               lineHeight: 1.5,
               maxWidth: "820px",
-              fontWeight: 650,
+              fontWeight: 400,
             }}
           >
             Capital Conference Calendar is running a private beta for select users across investor relations, business development, banking, and capital markets teams. We&apos;re building the most complete capital markets conference database for planning and market intelligence — helping users spot early signals, understand where attention is building, and make better decisions around coverage, relationships, and investment strategy.
