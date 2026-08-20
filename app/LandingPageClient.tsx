@@ -253,15 +253,11 @@ export default function LandingPageClient() {
             <div
               key={item.title}
               style={{
-                padding: "13px",
-                borderRadius: "14px",
-                background: "rgba(8,24,44,0.62)",
-                border: "1px solid rgba(148,163,184,0.14)",
+                padding: "4px 2px",
                 display: "grid",
                 gridTemplateColumns: "34px minmax(0, 1fr)",
                 gap: "11px",
                 alignItems: "start",
-                boxShadow: "0 16px 40px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.03)",
               }}
             >
               <div
