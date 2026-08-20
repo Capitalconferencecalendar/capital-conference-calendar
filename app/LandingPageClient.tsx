@@ -110,7 +110,7 @@ export default function LandingPageClient() {
         style={{
           position: "relative",
           zIndex: 2,
-          maxWidth: "1180px",
+          maxWidth: "1280px",
           margin: "0 auto",
           padding: "50px 20px 0",
           display: "flex",
