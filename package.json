@@ -11,6 +11,7 @@
     "preview:discovery:stress": "node scripts/preview-discovery-stress.mjs"
   },
   "dependencies": {
+    "@vercel/speed-insights": "^2.0.0",
     "next": "16.2.1",
     "react": "19.2.4",
     "react-dom": "19.2.4"
