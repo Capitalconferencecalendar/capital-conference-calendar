@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 type RequestAccessPayload = {
-  fullName?: string;
-  workEmail?: string;
+  firstName?: string;
+  lastName?: string;
   company?: string;
-  role?: string;
-  primaryUseCase?: string;
-  notes?: string;
+  title?: string;
+  email?: string;
+  howHeard?: string;
 };
 
 function clean(value: unknown): string {
@@ -21,23 +21,23 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as RequestAccessPayload;
 
-    const fullName = clean(body.fullName);
-    const workEmail = clean(body.workEmail);
+    const firstName = clean(body.firstName);
+    const lastName = clean(body.lastName);
     const company = clean(body.company);
-    const role = clean(body.role);
-    const primaryUseCase = clean(body.primaryUseCase);
-    const notes = clean(body.notes);
+    const title = clean(body.title);
+    const email = clean(body.email);
+    const howHeard = clean(body.howHeard);
 
-    if (!fullName || !workEmail || !company || !role) {
+    if (!firstName || !lastName || !company || !title || !email) {
       return NextResponse.json(
-        { error: "Full name, work email, company, and role are required." },
+        { error: "First name, last name, company, title, and email are required." },
         { status: 400 }
       );
     }
 
-    if (!isValidEmail(workEmail)) {
+    if (!isValidEmail(email)) {
       return NextResponse.json(
-        { error: "Please enter a valid work email address." },
+        { error: "Please enter a valid email address." },
         { status: 400 }
       );
     }
@@ -45,10 +45,9 @@ export async function POST(req: NextRequest) {
     const baseId = process.env.AIRTABLE_BASE_ID;
     const token = process.env.AIRTABLE_TOKEN;
     const accessRequestsTable =
-      process.env.AIRTABLE_ACCESS_REQUESTS_TABLE_ID ||
-      process.env.AIRTABLE_ACCESS_REQUESTS_TABLE_NAME;
+      process.env.AIRTABLE_ACCESS_REQUESTS_TABLE_NAME || "Beta Access Request";
 
-    if (!baseId || !token || !accessRequestsTable) {
+    if (!baseId || !token) {
       return NextResponse.json(
         { error: "Request access is not configured." },
         { status: 500 }
@@ -67,15 +66,12 @@ export async function POST(req: NextRequest) {
           records: [
             {
               fields: {
-                "Full Name": fullName,
-                "Work Email": workEmail,
+                "First Name": firstName,
+                "Last Name": lastName,
                 Company: company,
-                Role: role,
-                "Primary Use Case": primaryUseCase,
-                Notes: notes,
-                Source: "Website Landing Page",
-                Status: "New",
-                "Submitted At": new Date().toISOString(),
+                Title: title,
+                Email: email,
+                "How did you hear about us?": howHeard,
               },
             },
           ],

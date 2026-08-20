@@ -31,17 +31,6 @@ const audiences = [
   "Conference Organizers",
 ];
 
-const useCases = [
-  "Investor Relations",
-  "Business Development",
-  "Banking / Advisory",
-  "Capital Markets",
-  "Sponsor / Service Provider",
-  "Conference Organizer",
-  "Investor",
-  "Other",
-];
-
 export default function LandingPageClient() {
   const [submitState, setSubmitState] = useState<"idle" | "submitting" | "success" | "error">("idle");
 
@@ -52,12 +41,12 @@ export default function LandingPageClient() {
     const form = event.currentTarget;
     const data = new FormData(form);
     const payload = {
-      fullName: String(data.get("fullName") || ""),
-      workEmail: String(data.get("workEmail") || ""),
+      firstName: String(data.get("firstName") || ""),
+      lastName: String(data.get("lastName") || ""),
       company: String(data.get("company") || ""),
-      role: String(data.get("role") || ""),
-      primaryUseCase: String(data.get("primaryUseCase") || ""),
-      notes: String(data.get("notes") || ""),
+      title: String(data.get("title") || ""),
+      email: String(data.get("email") || ""),
+      howHeard: String(data.get("howHeard") || ""),
     };
 
     try {
@@ -354,31 +343,21 @@ export default function LandingPageClient() {
           ) : (
             <form onSubmit={handleSubmit} style={{ display: "grid", gap: "12px" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-                <LandingInput label="Full name" name="fullName" required />
-                <LandingInput label="Work email" name="workEmail" type="email" required />
+                <LandingInput label="First Name" name="firstName" required />
+                <LandingInput label="Last Name" name="lastName" required />
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 <LandingInput label="Company" name="company" required />
-                <LandingInput label="Role / title" name="role" required />
+                <LandingInput label="Title" name="title" required />
               </div>
+              <LandingInput label="Email" name="email" type="email" required />
               <label style={{ display: "grid", gap: "6px" }}>
-                <span style={labelStyle}>Primary use case</span>
-                <select name="primaryUseCase" style={fieldStyle} defaultValue="">
-                  <option value="">Select one</option>
-                  {useCases.map((useCase) => (
-                    <option key={useCase} value={useCase}>
-                      {useCase}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label style={{ display: "grid", gap: "6px" }}>
-                <span style={labelStyle}>Optional notes</span>
+                <span style={labelStyle}>How did you hear about us?</span>
                 <textarea
-                  name="notes"
+                  name="howHeard"
                   rows={4}
                   style={{ ...fieldStyle, height: "auto", resize: "vertical", paddingTop: "11px" }}
-                  placeholder="Tell us what conferences, sectors, or workflows matter most."
+                  placeholder="Optional"
                 />
               </label>
               <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
