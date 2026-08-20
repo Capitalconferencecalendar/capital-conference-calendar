@@ -341,7 +341,6 @@ export default function LandingPageClient() {
           margin: "0 auto",
           padding: "0 20px 52px",
           display: "grid",
-          gridTemplateColumns: "0.85fr 1.15fr",
           gap: "18px",
           alignItems: "start",
         }}
@@ -350,7 +349,7 @@ export default function LandingPageClient() {
           <div style={{ color: "#7dd3fc", fontSize: "12px", fontWeight: 950, letterSpacing: "0.16em", textTransform: "uppercase" }}>
             Private Beta Participants
           </div>
-          <h2 style={{ margin: "10px 0 0", color: "#ffffff", fontSize: "34px", lineHeight: 1.1 }}>
+          <h2 style={{ margin: "10px 0 0", color: "#dbeafe", fontSize: "clamp(20px, 2vw, 26px)", lineHeight: 1.28, fontWeight: 650, maxWidth: "1080px" }}>
             Private beta access is being reserved for market participants who can help evaluate how conference intelligence supports capital access, coverage planning, relationship strategy, and market signal identification.
           </h2>
         </div>
