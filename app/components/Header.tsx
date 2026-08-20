@@ -89,7 +89,7 @@ function TopNavLink({
   isActive?: boolean;
   compact?: boolean;
 }) {
-  const isSubmit = icon === "submit";
+  const isSubmit = icon === "submit" || label === "Request Access";
   const isDesktopSecondary = !compact && (label === "About" || label === "Contact" || label === "Submit");
   return (
     <Link
@@ -99,8 +99,8 @@ function TopNavLink({
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        minWidth: compact ? "62px" : label === "Submit" ? "72px" : "64px",
-        maxWidth: compact ? "74px" : label === "Contact" ? "74px" : label === "Submit" ? "76px" : "68px",
+        minWidth: compact ? "62px" : label === "Request Access" ? "116px" : label === "Submit" ? "72px" : "64px",
+        maxWidth: compact ? "74px" : label === "Request Access" ? "124px" : label === "Contact" ? "74px" : label === "Submit" ? "76px" : "68px",
         height: compact ? "44px" : "36px",
         padding: compact ? "3px 5px" : "0 10px",
         borderRadius: compact ? "10px" : "8px",
@@ -147,8 +147,8 @@ function WorkspaceNavButton({
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        minWidth: label === "Get Started" ? "110px" : label === "Market View" ? "118px" : "108px",
-        maxWidth: label === "Get Started" ? "116px" : label === "Market View" ? "124px" : "114px",
+        minWidth: label === "Request Access" ? "122px" : label === "Get Started" ? "110px" : label === "Market View" ? "118px" : "108px",
+        maxWidth: label === "Request Access" ? "130px" : label === "Get Started" ? "116px" : label === "Market View" ? "124px" : "114px",
         height: "42px",
         padding: "0 10px",
         borderRadius: "10px",
@@ -274,7 +274,7 @@ export default function Header({
 
         <form
           className="ccc-header-search ccc-header-core-group"
-          action="/"
+          action="/discovery"
           method="get"
           onSubmit={(event) => {
             event.preventDefault();
@@ -282,7 +282,7 @@ export default function Header({
             const value = query.trim();
             if (value) params.set("q", value);
             const queryString = params.toString();
-            window.location.assign(queryString ? `/?${queryString}` : "/");
+            window.location.assign(queryString ? `/discovery?${queryString}` : "/discovery");
           }}
           style={{
             display: compactNav ? "flex" : "grid",
@@ -306,8 +306,8 @@ export default function Header({
               }}
             >
               <WorkspaceNavButton
-                href="/?mode=getstarted"
-                label="Get Started"
+                href="/#request-access"
+                label="Request Access"
                 isActive={isGetStartedActive}
               />
             </div>
@@ -416,7 +416,7 @@ export default function Header({
               }}
             >
               <WorkspaceNavButton
-                href="/"
+                href="/discovery"
                 label="Discovery"
                 isActive={isDiscoveryActive}
               />
@@ -488,14 +488,13 @@ export default function Header({
                   }}
                 >
                   {[
-                    { href: "/?mode=getstarted", label: "Get Started", active: workspaceMode === "getstarted" },
-                    { href: "/", label: "Discovery", active: workspaceMode === "discovery" },
+                    { href: "/#request-access", label: "Request Access", active: workspaceMode === "getstarted" },
+                    { href: "/discovery", label: "Discovery", active: workspaceMode === "discovery" },
                     { href: "/market-view", label: "Market View", active: workspaceMode === "marketview" },
-                    { href: "/?mode=about", label: "About", icon: "about" as const, active: active === "about" },
-                    { href: "/?mode=contact", label: "Contact", icon: "contact" as const, active: active === "help" },
-                    { href: "/?mode=legal", label: "Legal", icon: "legal" as const, active: active === "legal" },
-                    { href: "/?mode=subscribe", label: "Subscribe", icon: "subscribe" as const, active: active === "subscribe" },
-                    { href: "/?mode=submit", label: "Submit", icon: "submit" as const, active: active === "submit" },
+                    { href: "/about", label: "About", icon: "about" as const, active: active === "about" },
+                    { href: "/help", label: "Contact", icon: "contact" as const, active: active === "help" },
+                    { href: "/legal", label: "Legal", icon: "legal" as const, active: active === "legal" },
+                    { href: "/subscribe", label: "Subscribe", icon: "subscribe" as const, active: active === "subscribe" },
                   ].map((item) => (
                     <Link
                       key={item.label}
@@ -537,18 +536,18 @@ export default function Header({
                 }}
               />
               <TopNavLink
-                href="/?mode=about"
+                href="/about"
                 label="About"
                 isActive={active === "about"}
               />
               <TopNavLink
-                href="/?mode=contact"
+                href="/help"
                 label="Contact"
                 isActive={active === "help"}
               />
               <TopNavLink
-                href="/?mode=submit"
-                label="Submit"
+                href="/#request-access"
+                label="Request Access"
                 icon="submit"
                 isActive={active === "submit"}
                 compact={false}
