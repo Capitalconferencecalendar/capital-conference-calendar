@@ -204,7 +204,7 @@ export default function LandingPageClient() {
               fontWeight: 400,
             }}
           >
-            Capital Conference Calendar is running a private beta for select users across investor relations, business development, banking, and capital markets teams. We&apos;re building the most complete capital markets conference database for planning and market intelligence — helping users spot early signals, understand where attention is building, and make better decisions around coverage, relationships, and investment strategy.
+            Capital Conference Calendar is running a private beta for select market participants across investor relations, banking, public and private company leadership, conference organization, and capital markets services. The platform turns capital markets conferences into a cohesive intelligence layer — helping decision-makers plan coverage, identify early market signals, understand where attention is building, and make better decisions around relationships, capital access, and investment strategy.
           </p>
           <div style={{ display: "grid", gap: "10px", justifyItems: "start" }}>
             <a
