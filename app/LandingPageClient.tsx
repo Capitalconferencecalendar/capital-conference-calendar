@@ -121,9 +121,9 @@ export default function LandingPageClient() {
       >
         <a href="/" aria-label="Capital Conference Calendar home" style={{ display: "inline-flex", alignItems: "center" }}>
           <img
-            src="/logo.png"
+            src="/landing-calendar-logo.png"
             alt="Capital Conference Calendar"
-            style={{ height: "42px", width: "auto", display: "block", filter: "drop-shadow(0 10px 22px rgba(0,0,0,0.24))" }}
+            style={{ height: "40px", width: "auto", display: "block", filter: "drop-shadow(0 10px 22px rgba(0,0,0,0.24))" }}
           />
         </a>
         <a
