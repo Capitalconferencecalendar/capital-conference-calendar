@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import LandingPageClient from "./LandingPageClient";
 
 export const metadata: Metadata = {
-  title: "Capital Conference Calendar | Conference Intelligence",
+  title: "Capital Conference Calendar | Private Beta",
   description:
-    "Capital markets conference intelligence for issuer access, investor concentration, sector activity, and relationship-driven market signals.",
+    "Private beta for capital markets conference intelligence across market attention, access, timing, and relationship-driven signals.",
 };
 
 export default function HomePage() {
