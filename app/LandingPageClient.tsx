@@ -30,11 +30,15 @@ const betaCards = [
 ];
 
 const audiences = [
-  "Investor Relations",
-  "Business Development",
-  "Banking / Advisory",
-  "Capital Markets Teams",
+  "Investor Relations Leaders",
+  "Public Company Executives",
+  "Private Company Executives",
+  "Investment Bankers",
+  "Capital Markets Advisors",
+  "Corporate Access Teams",
+  "Conference Organizers",
   "Sponsors / Service Providers",
+  "Institutional Investors",
 ];
 
 const supportItems = [
@@ -344,26 +348,46 @@ export default function LandingPageClient() {
       >
         <div>
           <div style={{ color: "#7dd3fc", fontSize: "12px", fontWeight: 950, letterSpacing: "0.16em", textTransform: "uppercase" }}>
-            Who We&apos;re Speaking With
+            Private Beta Participants
           </div>
           <h2 style={{ margin: "10px 0 0", color: "#ffffff", fontSize: "34px", lineHeight: 1.1 }}>
-            Early conversations are focused on teams closest to market attention, access, and relationship-driven activity.
+            Private beta access is being reserved for market participants who can help evaluate how conference intelligence supports capital access, coverage planning, relationship strategy, and market signal identification.
           </h2>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
-          {audiences.map((audience) => (
+          {audiences.map((audience, index) => (
             <span
               key={audience}
               style={{
-                padding: "11px 13px",
+                padding: "10px 13px 10px 11px",
                 borderRadius: "999px",
-                border: "1px solid rgba(125,211,252,0.18)",
-                background: "rgba(8,24,44,0.72)",
-                color: "#dbeafe",
+                border: "1px solid rgba(96,165,250,0.36)",
+                background:
+                  index % 3 === 0
+                    ? "linear-gradient(180deg, rgba(15,38,69,0.94) 0%, rgba(6,20,38,0.94) 100%)"
+                    : index % 3 === 1
+                      ? "linear-gradient(180deg, rgba(8,32,58,0.94) 0%, rgba(4,18,34,0.94) 100%)"
+                      : "linear-gradient(180deg, rgba(12,45,73,0.9) 0%, rgba(5,22,40,0.94) 100%)",
+                boxShadow: "inset 0 1px 0 rgba(191,219,254,0.1), 0 0 22px rgba(56,189,248,0.08)",
+                color: "#e6f2ff",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
                 fontSize: "13px",
                 fontWeight: 800,
               }}
             >
+              <span
+                aria-hidden="true"
+                style={{
+                  width: "7px",
+                  height: "7px",
+                  borderRadius: "999px",
+                  background: index % 4 === 1 ? "#f59e0b" : index % 4 === 2 ? "#60a5fa" : "#38bdf8",
+                  boxShadow: "0 0 14px rgba(56,189,248,0.46)",
+                  flex: "0 0 auto",
+                }}
+              />
               {audience}
             </span>
           ))}
