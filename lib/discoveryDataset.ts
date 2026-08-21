@@ -706,8 +706,8 @@ function encodeCursor(index: number) {
   return Buffer.from(String(index), "utf8").toString("base64url");
 }
 
-function hasAllMatches(values: string[], candidates: string[]) {
-  return values.length === 0 || values.every((value) => candidates.includes(value));
+function hasAnyMatch(values: string[], candidates: string[]) {
+  return values.length === 0 || values.some((value) => candidates.includes(value));
 }
 
 function filterEvents(events: DiscoveryEvent[], query: DiscoveryQuery) {
@@ -727,19 +727,19 @@ function filterEvents(events: DiscoveryEvent[], query: DiscoveryQuery) {
     if (futureOnly && startTime < todayTime) return false;
     if (query.fromDate && event.startDate < query.fromDate) return false;
     if (query.toDate && event.startDate > query.toDate) return false;
-    if (!hasAllMatches(query.country || [], [event.country])) return false;
-    if (!hasAllMatches(query.region || [], [event.region])) return false;
-    if (!hasAllMatches(query.state || [], [event.state])) return false;
-    if (!hasAllMatches(query.cities || [], [[event.city, event.state].filter(Boolean).join(", ")])) return false;
-    if (!hasAllMatches(query.conferenceType || [], [event.primaryCategory])) return false;
-    if (!hasAllMatches(query.issuerParticipation || [], splitCsv(event.issuerParticipation))) return false;
-    if (!hasAllMatches(query.organizer || [], [event.organizer])) return false;
-    if (!hasAllMatches(query.marketFocus || [], splitCsv(event.marketFocus))) return false;
-    if (!hasAllMatches(query.publicCompanySectors || [], [
+    if (!hasAnyMatch(query.country || [], [event.country])) return false;
+    if (!hasAnyMatch(query.region || [], [event.region])) return false;
+    if (!hasAnyMatch(query.state || [], [event.state])) return false;
+    if (!hasAnyMatch(query.cities || [], [[event.city, event.state].filter(Boolean).join(", ")])) return false;
+    if (!hasAnyMatch(query.conferenceType || [], [event.primaryCategory])) return false;
+    if (!hasAnyMatch(query.issuerParticipation || [], splitCsv(event.issuerParticipation))) return false;
+    if (!hasAnyMatch(query.organizer || [], [event.organizer])) return false;
+    if (!hasAnyMatch(query.marketFocus || [], splitCsv(event.marketFocus))) return false;
+    if (!hasAnyMatch(query.publicCompanySectors || [], [
       ...splitCsv(event.publicCompanySector || ""),
       ...splitCsv(event.additionalPublicCompanySectors || ""),
     ])) return false;
-    if (!hasAllMatches(query.sectorThemes || [], splitCsv(event.sectorThemes))) return false;
+    if (!hasAnyMatch(query.sectorThemes || [], splitCsv(event.sectorThemes))) return false;
     if (ids.size && !ids.has(event.id)) return false;
     if (!search) return true;
     return [event.title, event.organizer, event.city, event.state, event.primaryCategory, event.marketFocus, event.sectorThemes]
