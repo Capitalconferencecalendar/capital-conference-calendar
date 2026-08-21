@@ -17,6 +17,29 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+async function readAirtableError(response: Response) {
+  const text = await response.text();
+
+  try {
+    const parsed = JSON.parse(text) as {
+      error?: {
+        type?: unknown;
+        message?: unknown;
+      };
+    };
+
+    return {
+      type: typeof parsed.error?.type === "string" ? parsed.error.type : undefined,
+      message: typeof parsed.error?.message === "string" ? parsed.error.message : undefined,
+    };
+  } catch {
+    return {
+      type: undefined,
+      message: text ? "Non-JSON Airtable error response" : undefined,
+    };
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as RequestAccessPayload;
@@ -50,7 +73,14 @@ export async function POST(req: NextRequest) {
         ? "Beta Access Requests"
         : configuredAccessRequestsTable;
 
+    const diagnosticBase = {
+      hasAirtableBaseId: Boolean(baseId),
+      hasAirtableToken: Boolean(token),
+      tableName: accessRequestsTable,
+    };
+
     if (!baseId || !token) {
+      console.error("Request access Airtable configuration missing", diagnosticBase);
       return NextResponse.json(
         { error: "Request access is not configured." },
         { status: 500 }
@@ -83,9 +113,12 @@ export async function POST(req: NextRequest) {
     );
 
     if (!createRes.ok) {
+      const airtableError = await readAirtableError(createRes);
       console.error("Airtable request-access write failed", {
+        ...diagnosticBase,
         status: createRes.status,
-        body: await createRes.text(),
+        airtableErrorType: airtableError.type,
+        airtableErrorMessage: airtableError.message,
       });
       return NextResponse.json(
         { error: "Unable to submit request access right now." },
@@ -95,7 +128,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error("Request access submission failed", error);
+    console.error("Request access submission failed", {
+      errorName: error instanceof Error ? error.name : undefined,
+      errorMessage: error instanceof Error ? error.message : undefined,
+    });
     return NextResponse.json(
       { error: "Unable to submit request access right now." },
       { status: 500 }
