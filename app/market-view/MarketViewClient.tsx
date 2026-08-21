@@ -472,7 +472,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const activeForecastMode = forecastModes[signalTab];
   const filterOptions = marketPage.filterOptions || initialPage.filterOptions;
   const hasActiveFilters = !isDefaultFilters(filters);
-  const displayPage = viewScope === "filtered" || hasActiveFilters ? marketPage : initialPage;
+  const displayPage = viewScope === "filtered" ? marketPage : initialPage;
   const displayAggregates = displayPage.aggregates;
   const displayAnalytics = displayPage.marketAnalytics;
   const liveHotWeeks = useMemo<HotWeek[]>(() => {
@@ -511,7 +511,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
       return;
     }
     let active = true;
-    const scopedFilters = viewScope === "filtered" || hasActiveFilters ? filters : DEFAULT_FILTERS;
+    const scopedFilters = viewScope === "filtered" ? filters : DEFAULT_FILTERS;
     const params = buildMarketViewRequest(scopedFilters);
     params.set("fromDate", activeHotWeek.weekStart);
     params.set("toDate", activeHotWeek.weekEnd);
@@ -539,7 +539,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const topMetro = displayAnalytics.cityCounts?.[0];
   const topFocus = displayAnalytics.focusCounts?.[0];
   const liveKpis = [
-    ["Conference Universe", formatNumber(displayAggregates.events), viewScope === "filtered" || hasActiveFilters ? "Current view" : "Approved events"],
+    ["Conference Universe", formatNumber(displayAggregates.events), viewScope === "filtered" ? "Current view" : "Approved events"],
     ["Issuer Access", formatNumber(displayAggregates.issuerAccess), "Classified signals"],
     ["Investor-Heavy", formatNumber(displayAggregates.investorHeavy), "Audience signal"],
     ["Peak Week", displayAggregates.highestActivityWeek?.label || "—", displayAggregates.highestActivityWeek ? `${displayAggregates.highestActivityWeek.count} events` : "No dated events"],
@@ -865,8 +865,8 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
           <section className="v3-kpi-strip" aria-label="Market View KPI strip">
             <div className="v3-kpi-reserve" aria-hidden="true" />
             <div className="v3-view-toggle" aria-label="Market view scope">
-              <button type="button" className={viewScope === "full" && !hasActiveFilters ? "is-active" : ""} onClick={() => setViewScope("full")}>Full Market View</button>
-              <button type="button" className={viewScope === "filtered" || hasActiveFilters ? "is-active" : ""} onClick={() => setViewScope("filtered")}>Current Filter View</button>
+              <button type="button" className={viewScope === "full" ? "is-active" : ""} onClick={() => setViewScope("full")}>Full Market View</button>
+              <button type="button" className={viewScope === "filtered" ? "is-active" : ""} onClick={() => setViewScope("filtered")}>Current Filter View</button>
             </div>
             <div className="v3-kpi-grid">
               {liveKpis.map(([label, value, note], index) => (
@@ -959,6 +959,11 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                       (activeCluster.eventsIncluded ?? "").split(" · ").filter(Boolean).map((event) => <div key={event}>{event}</div>)
                     )}
                   </div>
+                  {isHotSignal && activeHotWeek ? (
+                    <a className="v3-link" href={`/discovery?startDate=${activeHotWeek.weekStart}&endDate=${activeHotWeek.weekEnd}`}>
+                      See all events →
+                    </a>
+                  ) : null}
                 </div>
 
                 {!isHotSignal ? (
@@ -984,11 +989,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                   <p>{isHotSignal ? activeHotWeek?.supportingContext || "This view is based on the current Market View filters." : activeCluster.supportingContext}</p>
                 </div>
 
-                {isHotSignal && activeHotWeek ? (
-                  <a className="v3-link" href={`/discovery?startDate=${activeHotWeek.weekStart}&endDate=${activeHotWeek.weekEnd}`}>
-                    See all events →
-                  </a>
-                ) : <OpenLink>View all clusters →</OpenLink>}
+                {!isHotSignal ? <OpenLink>View all clusters →</OpenLink> : null}
               </div>
             </div>
           </section>
