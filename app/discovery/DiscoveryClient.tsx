@@ -5,6 +5,7 @@ import AddToCalendar from "../components/AddToCalendar";
 import ConcentrationStrip from "../components/ConcentrationStrip";
 import type { ConcentrationItem } from "../components/ConcentrationStrip";
 import SharedFilterRail from "../components/platform/SharedFilterRail";
+import FilterMatchingControl, { type FilterMatchMode } from "../components/platform/FilterMatchingControl";
 
 export type WorkspaceEvent = {
   id: string;
@@ -1381,6 +1382,7 @@ export default function EventsClient({
   const resultsAnchorRef = useRef<HTMLDivElement | null>(null);
   const firstResultCardRef = useRef<HTMLElement | null>(null);
   const [filters, setFilters] = useState<FiltersState>(DEFAULT_FILTERS);
+  const [filterMode, setFilterMode] = useState<FilterMatchMode>("and");
   const [events, setEvents] = useState<WorkspaceEvent[]>(initialEvents);
   const [discoveryPage, setDiscoveryPage] = useState(() => ({
     total: initialPage.total,
@@ -1508,6 +1510,25 @@ export default function EventsClient({
       if (recentActivityRaw) setRecentActivity(JSON.parse(recentActivityRaw));
     } catch {
       // ignore local storage parse issues
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const modeFromUrl = new URLSearchParams(window.location.search).get("filterMode");
+      const savedMode = localStorage.getItem("ccc_filter_match_mode");
+      setFilterMode(modeFromUrl === "or" || (!modeFromUrl && savedMode === "or") ? "or" : "and");
+    } catch {
+      // Keep the default Match All mode when browser storage is unavailable.
+    }
+  }, []);
+
+  const updateFilterMode = useCallback((nextMode: FilterMatchMode) => {
+    setFilterMode(nextMode);
+    try {
+      localStorage.setItem("ccc_filter_match_mode", nextMode);
+    } catch {
+      // Browser storage may be unavailable.
     }
   }, []);
 
@@ -1729,6 +1750,7 @@ export default function EventsClient({
     const params = new URLSearchParams();
     params.set("limit", "30");
     params.set("dateRange", filters.dateRange);
+    params.set("filterMode", filterMode);
     params.set("sort", sortMode);
     if (searchQuery) params.set("q", searchQuery);
     if (fromDate) params.set("fromDate", fromDate);
@@ -1745,7 +1767,7 @@ export default function EventsClient({
     filters.marketFocus.forEach((value) => params.append("marketFocus", value));
     activeSavedList?.eventIds.forEach((value) => params.append("eventId", value));
     return params;
-  }, [activeSavedList?.eventIds, filters, fromDate, searchQuery, sortMode, toDate]);
+  }, [activeSavedList?.eventIds, filterMode, filters, fromDate, searchQuery, sortMode, toDate]);
 
   const loadDiscoveryPage = useCallback(async (cursor?: string | null, append = false) => {
     const params = new URLSearchParams(discoveryRequest);
@@ -5623,7 +5645,10 @@ useEffect(() => {
               zIndex: 8,
             }}
           >
-            <div style={{ color: "#dbeafe", fontWeight: 700 }}>{selectedEvents.length ? `${selectedEvents.length} selected` : `Showing ${events.length} of ${discoveryHeaderMetrics.recordCount} conferences`}</div>
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "10px", minWidth: 0 }}>
+              <div style={{ color: "#dbeafe", fontWeight: 700 }}>{selectedEvents.length ? `${selectedEvents.length} selected` : `Showing ${events.length} of ${discoveryHeaderMetrics.recordCount} conferences`}</div>
+              <FilterMatchingControl value={filterMode} onChange={updateFilterMode} compact />
+            </div>
             <div style={{ display: "none", gap: "6px" }}>
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               <button

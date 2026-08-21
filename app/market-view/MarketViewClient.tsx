@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import SharedFilterRail from "../components/platform/SharedFilterRail";
+import FilterMatchingControl, { type FilterMatchMode } from "../components/platform/FilterMatchingControl";
 
 const metroStorageKey = "marketViewV3.primaryMetro";
 
@@ -339,10 +340,11 @@ function appendMany(params: URLSearchParams, key: string, values: string[]) {
   });
 }
 
-function buildMarketViewRequest(filters: FiltersState) {
+function buildMarketViewRequest(filters: FiltersState, filterMode: FilterMatchMode = "and") {
   const params = new URLSearchParams();
   params.set("limit", "30");
   params.set("dateRange", filters.dateRange);
+  params.set("filterMode", filterMode);
   appendMany(params, "country", filters.country);
   appendMany(params, "region", filters.region);
   appendMany(params, "state", filters.state);
@@ -401,6 +403,7 @@ function CalendarBrandGlyph({ brand }: { brand: "google" | "apple" | "outlook" }
 export default function MarketViewClient({ initialPage }: { initialPage: MarketViewPageData }) {
   const [primaryMetro, setPrimaryMetro] = useState("");
   const [filters, setFilters] = useState<FiltersState>(DEFAULT_FILTERS);
+  const [filterMode, setFilterMode] = useState<FilterMatchMode>("and");
   const [marketPage, setMarketPage] = useState<MarketViewPageData>(initialPage);
   const [viewScope, setViewScope] = useState<"full" | "filtered">("full");
   const [openFilters, setOpenFilters] = useState<Record<string, boolean>>({
@@ -427,8 +430,27 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   }, []);
 
   useEffect(() => {
+    try {
+      const modeFromUrl = new URLSearchParams(window.location.search).get("filterMode");
+      const savedMode = localStorage.getItem("ccc_filter_match_mode");
+      setFilterMode(modeFromUrl === "or" || (!modeFromUrl && savedMode === "or") ? "or" : "and");
+    } catch {
+      // Keep the default Match All mode when browser storage is unavailable.
+    }
+  }, []);
+
+  const updateFilterMode = (nextMode: FilterMatchMode) => {
+    setFilterMode(nextMode);
+    try {
+      localStorage.setItem("ccc_filter_match_mode", nextMode);
+    } catch {
+      // Browser storage may be unavailable.
+    }
+  };
+
+  useEffect(() => {
     let active = true;
-    const params = buildMarketViewRequest(filters);
+    const params = buildMarketViewRequest(filters, filterMode);
     setIsFiltering(true);
     fetch(`/api/events?${params.toString()}`, { cache: "no-store" })
       .then((response) => {
@@ -449,7 +471,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
     return () => {
       active = false;
     };
-  }, [filters, initialPage]);
+  }, [filterMode, filters, initialPage]);
 
   const metroSchedule = useMemo(() => metroSchedules[primaryMetro] || {
     Today: [],
@@ -472,6 +494,18 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const activeForecastMode = forecastModes[signalTab];
   const filterOptions = marketPage.filterOptions || initialPage.filterOptions;
   const hasActiveFilters = !isDefaultFilters(filters);
+  const selectedFilterCount =
+    (filters.dateRange === "all" ? 0 : 1) +
+    filters.country.length +
+    filters.region.length +
+    filters.state.length +
+    filters.cities.length +
+    filters.sectorThemes.length +
+    filters.publicCompanySectors.length +
+    filters.conferenceType.length +
+    filters.issuerParticipation.length +
+    filters.organizer.length +
+    filters.marketFocus.length;
   const displayPage = viewScope === "filtered" ? marketPage : initialPage;
   const displayAggregates = displayPage.aggregates;
   const displayAnalytics = displayPage.marketAnalytics;
@@ -512,7 +546,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
     }
     let active = true;
     const scopedFilters = viewScope === "filtered" ? filters : DEFAULT_FILTERS;
-    const params = buildMarketViewRequest(scopedFilters);
+    const params = buildMarketViewRequest(scopedFilters, filterMode);
     params.set("fromDate", activeHotWeek.weekStart);
     params.set("toDate", activeHotWeek.weekEnd);
     params.set("limit", "4");
@@ -534,7 +568,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
     return () => {
       active = false;
     };
-  }, [activeHotWeek?.weekEnd, activeHotWeek?.weekStart, filters, hasActiveFilters, viewScope]);
+  }, [activeHotWeek?.weekEnd, activeHotWeek?.weekStart, filterMode, filters, hasActiveFilters, viewScope]);
 
   const topMetro = displayAnalytics.cityCounts?.[0];
   const topFocus = displayAnalytics.focusCounts?.[0];
@@ -867,6 +901,12 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
             <div className="v3-view-toggle" aria-label="Market view scope">
               <button type="button" className={viewScope === "full" ? "is-active" : ""} onClick={() => setViewScope("full")}>Full Market View</button>
               <button type="button" className={viewScope === "filtered" ? "is-active" : ""} onClick={() => setViewScope("filtered")}>Current Filter View</button>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "9px", flexWrap: "wrap", gridColumn: "2 / -1", marginTop: "-3px" }}>
+              <span style={{ color: "#91aac6", fontSize: "10px", fontWeight: 800, whiteSpace: "nowrap" }}>
+                {selectedFilterCount ? `${selectedFilterCount} filter${selectedFilterCount === 1 ? "" : "s"} selected` : "No filters selected"}
+              </span>
+              <FilterMatchingControl value={filterMode} onChange={updateFilterMode} compact />
             </div>
             <div className="v3-kpi-grid">
               {liveKpis.map(([label, value, note], index) => (
