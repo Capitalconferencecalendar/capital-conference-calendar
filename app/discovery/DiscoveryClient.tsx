@@ -2755,7 +2755,6 @@ useEffect(() => {
         { label: "Highest Activity Week", value: stats.highestActivityWeek?.label || "—", detail: stats.highestActivityWeek ? `${stats.highestActivityWeek.count} events` : "", tone: "#38d5c4", compact: true },
         { label: "Lowest Activity Week", value: stats.lowestActivityWeek?.label || "—", detail: stats.lowestActivityWeek ? `${stats.lowestActivityWeek.count} events` : "", tone: "#78aaff", compact: true },
         { label: "Leading Sector", value: stats.leadingSector?.label || "Not classified", detail: stats.leadingSector ? `${stats.leadingSector.count} events` : "", tone: "#8fbfff", compact: true },
-        { label: "Most Active Deal Week", value: stats.mostActiveDealWeek?.label || "—", detail: stats.mostActiveDealWeek ? `${stats.mostActiveDealWeek.count} deal-making events` : "", tone: "#fbbf24", compact: true },
       ],
       earliestDate: stats.earliestDate,
       latestDate: stats.latestDate,
@@ -4453,8 +4452,8 @@ useEffect(() => {
           ) : null}
           <div
             style={{
-              padding: "8px 18px 12px",
-              marginBottom: "14px",
+              padding: "8px 18px 8px",
+              marginBottom: "8px",
               display: "grid",
               gap: "12px",
             }}
@@ -4515,7 +4514,7 @@ useEffect(() => {
               className="discovery-header-metrics"
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(7, minmax(0, max-content))",
+                gridTemplateColumns: "repeat(6, minmax(0, max-content))",
                 width: "100%",
                 maxWidth: "100%",
                 marginTop: "10px",
@@ -4547,28 +4546,6 @@ useEffect(() => {
                   ) : null}
                 </div>
               ))}
-            </div>
-
-            <div style={{ fontSize: "10px", color: "#9fb4ca", marginTop: "2px", display: "flex", gap: "12px", flexWrap: "wrap" }}>
-              <span style={{ fontSize: "9px", fontWeight: 700, color: "#8fa8c3" }}>
-                Stats based on filtered view.
-              </span>
-              <span>
-                Coverage window:{" "}
-                <strong style={{ color: "#dbeafe", fontWeight: 700 }}>
-                  {discoveryHeaderMetrics.earliestDate && discoveryHeaderMetrics.latestDate
-                    ? `${formatPreviewDate(discoveryHeaderMetrics.earliestDate)} – ${formatPreviewDate(discoveryHeaderMetrics.latestDate)}`
-                    : "No approved date range"}
-                </strong>
-              </span>
-              {discoveryHeaderMetrics.latestVerificationStamp ? (
-                <span>
-                  Latest verification stamp:{" "}
-                  <strong style={{ color: "#dbeafe", fontWeight: 700 }}>
-                    {formatPreviewDate(discoveryHeaderMetrics.latestVerificationStamp)}
-                  </strong>
-                </span>
-              ) : null}
             </div>
           </div>
         </div>
