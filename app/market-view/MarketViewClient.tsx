@@ -17,14 +17,79 @@ const quickFeeds = [
 
 const quickActions = ["Clear", "Share Selected", "Save Market View", "Save Selected"];
 
-const kpis = [
-  ["Conference Universe", "2,864", "Next 180 days"],
-  ["Issuer Access", "475", "Classified signals"],
-  ["Investor-Heavy", "326", "Audience signal"],
-  ["Peak Week", "Sep 28-Oct 4", "143 events"],
-  ["Top Metro", "New York, NY", "421 events"],
-  ["Top Focus", "Clinical & Commercial", "34% of events"],
-];
+type FilterOptions = {
+  cities: string[];
+  regions: string[];
+  countries: string[];
+  states: string[];
+  themes: string[];
+  publicCompanySectors?: string[];
+  conferenceTypes: string[];
+  issuers: string[];
+  organizers: string[];
+  marketFocuses: string[];
+};
+
+type AggregateStats = {
+  events: number;
+  issuerAccess: number;
+  investorHeavy: number;
+  highestActivityWeek: { label: string; count: number } | null;
+  leadingSector: { label: string; count: number } | null;
+  quickFeeds: {
+    investorConferences: number;
+    healthcareConferences: number;
+    privateMarkets: number;
+    canadaEvents: number;
+    upcoming30: number;
+    hotWeeks: number;
+  };
+};
+
+type MarketAnalytics = {
+  cityCounts: [string, number][];
+  focusCounts: [string, number][];
+};
+
+type MarketViewPageData = {
+  total: number;
+  nextCursor: string | null;
+  filterOptions: FilterOptions;
+  aggregates: AggregateStats;
+  allAggregates: AggregateStats;
+  marketAnalytics: MarketAnalytics;
+  allMarketAnalytics: MarketAnalytics;
+};
+
+type FiltersState = {
+  dateRange: "next30" | "next60" | "next90" | "all";
+  country: string[];
+  region: string[];
+  state: string[];
+  cities: string[];
+  sectorThemes: string[];
+  publicCompanySectors: string[];
+  conferenceType: string[];
+  issuerParticipation: string[];
+  organizer: string[];
+  marketFocus: string[];
+};
+
+type MultiFilterKey = Exclude<keyof FiltersState, "dateRange">;
+
+const DEFAULT_FILTERS: FiltersState = {
+  dateRange: "all",
+  country: [],
+  region: [],
+  state: [],
+  cities: [],
+  sectorThemes: [],
+  publicCompanySectors: [],
+  conferenceType: [],
+  issuerParticipation: [],
+  organizer: [],
+  marketFocus: [],
+};
 
 type ForecastMode = "hotWeeks" | "clusters";
 
@@ -197,14 +262,104 @@ function QuickViewGlyph({
   return <svg {...common} aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M8 2v4M16 2v4M3 10h18" /></svg>;
 }
 
+function formatNumber(value: number | undefined) {
+  return new Intl.NumberFormat("en-US").format(value || 0);
+}
+
+function isDefaultFilters(filters: FiltersState) {
+  return (
+    filters.dateRange === "all" &&
+    filters.country.length === 0 &&
+    filters.region.length === 0 &&
+    filters.state.length === 0 &&
+    filters.cities.length === 0 &&
+    filters.sectorThemes.length === 0 &&
+    filters.publicCompanySectors.length === 0 &&
+    filters.conferenceType.length === 0 &&
+    filters.issuerParticipation.length === 0 &&
+    filters.organizer.length === 0 &&
+    filters.marketFocus.length === 0
+  );
+}
+
+function appendMany(params: URLSearchParams, key: string, values: string[]) {
+  values.forEach((value) => {
+    if (value) params.append(key, value);
+  });
+}
+
+function buildMarketViewRequest(filters: FiltersState) {
+  const params = new URLSearchParams();
+  params.set("limit", "30");
+  params.set("dateRange", filters.dateRange);
+  appendMany(params, "country", filters.country);
+  appendMany(params, "region", filters.region);
+  appendMany(params, "state", filters.state);
+  appendMany(params, "city", filters.cities);
+  appendMany(params, "sectorTheme", filters.sectorThemes);
+  appendMany(params, "publicCompanySector", filters.publicCompanySectors);
+  appendMany(params, "conferenceType", filters.conferenceType);
+  appendMany(params, "issuerParticipation", filters.issuerParticipation);
+  appendMany(params, "organizer", filters.organizer);
+  appendMany(params, "marketFocus", filters.marketFocus);
+  return params;
+}
+
+function optionLabel(count: number, singular: string, plural = `${singular}s`) {
+  return count ? `${count} ${count === 1 ? singular : plural} selected` : "";
+}
+
+function FilterSelect({
+  label,
+  emptyLabel,
+  values,
+  options,
+  onToggle,
+}: {
+  label: string;
+  emptyLabel: string;
+  values: string[];
+  options: string[];
+  onToggle: (value: string) => void;
+}) {
+  return (
+    <select
+      aria-label={label}
+      value=""
+      onChange={(event) => {
+        onToggle(event.target.value);
+        event.currentTarget.value = "";
+      }}
+    >
+      <option value="">{values.length ? optionLabel(values.length, label.toLowerCase().replace(/^public company /, "public ")) : emptyLabel}</option>
+      {options.map((option, index) => (
+        <option key={`${label}-${option}-${index}`} value={option}>
+          {values.includes(option) ? `✓ ${option}` : option}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function CalendarBrandGlyph({ brand }: { brand: "google" | "apple" | "outlook" }) {
   if (brand === "google") return <svg width="14" height="14" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.56 2.7-3.86 2.7-6.62Z" /><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.82.86-3.06.86-2.35 0-4.33-1.58-5.04-3.7H.96v2.33A9 9 0 0 0 9 18Z" /><path fill="#FBBC05" d="M3.96 10.72A5.41 5.41 0 0 1 3.68 9c0-.6.1-1.18.28-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.82.96 4.05l3-2.33Z" /><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.33l2.58-2.58C13.46.89 11.42 0 9 0A9 9 0 0 0 .96 4.95l3 2.33c.7-2.12 2.69-3.7 5.04-3.7Z" /></svg>;
   if (brand === "apple") return <span style={{ fontSize: "14px", lineHeight: 1, color: "#e2e8f0" }}></span>;
   return <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5" fill="none" stroke="#38BDF8" strokeWidth="1.8" /><path d="M3.5 8.5 12 14l8.5-5.5" fill="none" stroke="#38BDF8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 
-export default function MarketViewClient() {
+export default function MarketViewClient({ initialPage }: { initialPage: MarketViewPageData }) {
   const [primaryMetro, setPrimaryMetro] = useState("");
+  const [filters, setFilters] = useState<FiltersState>(DEFAULT_FILTERS);
+  const [marketPage, setMarketPage] = useState<MarketViewPageData>(initialPage);
+  const [viewScope, setViewScope] = useState<"full" | "filtered">("full");
+  const [openFilters, setOpenFilters] = useState<Record<string, boolean>>({
+    "Date & Timing": false,
+    Location: false,
+    "Market Segments": false,
+    Participation: false,
+    Organizers: false,
+  });
+  const [isFiltering, setIsFiltering] = useState(false);
   const [signalTab, setSignalTab] = useState<ForecastMode>("hotWeeks");
   const [selectedHotWeekIndex, setSelectedHotWeekIndex] = useState(0);
   const [selectedClusterIndex, setSelectedClusterIndex] = useState(0);
@@ -217,6 +372,31 @@ export default function MarketViewClient() {
       // Browser storage may be unavailable.
     }
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const params = buildMarketViewRequest(filters);
+    setIsFiltering(true);
+    fetch(`/api/events?${params.toString()}`, { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) throw new Error("Unable to load Market View filters.");
+        return response.json() as Promise<MarketViewPageData>;
+      })
+      .then((next) => {
+        if (!active) return;
+        setMarketPage(next);
+      })
+      .catch(() => {
+        if (!active) return;
+        setMarketPage(initialPage);
+      })
+      .finally(() => {
+        if (active) setIsFiltering(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [filters, initialPage]);
 
   const metroSchedule = useMemo(() => metroSchedules[primaryMetro] || {
     Today: [],
@@ -238,6 +418,45 @@ export default function MarketViewClient() {
   const activeCluster = clusters[selectedClusterIndex] ?? clusters[0];
   const isHotSignal = signalTab === "hotWeeks";
   const activeForecastMode = forecastModes[signalTab];
+  const filterOptions = marketPage.filterOptions || initialPage.filterOptions;
+  const hasActiveFilters = !isDefaultFilters(filters);
+  const displayPage = viewScope === "filtered" || hasActiveFilters ? marketPage : initialPage;
+  const displayAggregates = displayPage.aggregates;
+  const displayAnalytics = displayPage.marketAnalytics;
+  const topMetro = displayAnalytics.cityCounts?.[0];
+  const topFocus = displayAnalytics.focusCounts?.[0];
+  const liveKpis = [
+    ["Conference Universe", formatNumber(displayAggregates.events), viewScope === "filtered" || hasActiveFilters ? "Current view" : "Approved events"],
+    ["Issuer Access", formatNumber(displayAggregates.issuerAccess), "Classified signals"],
+    ["Investor-Heavy", formatNumber(displayAggregates.investorHeavy), "Audience signal"],
+    ["Peak Week", displayAggregates.highestActivityWeek?.label || "—", displayAggregates.highestActivityWeek ? `${displayAggregates.highestActivityWeek.count} events` : "No dated events"],
+    ["Top Metro", topMetro?.[0] || "—", topMetro ? `${topMetro[1]} events` : "No metro signal"],
+    ["Top Focus", topFocus?.[0] || displayAggregates.leadingSector?.label || "—", topFocus ? `${topFocus[1]} events` : "No focus signal"],
+  ];
+  const quickFeedRows = [
+    ["Investor Conferences", String(displayAggregates.quickFeeds.investorConferences), "#3b82f6", "investor", () => setFilters({ ...DEFAULT_FILTERS, conferenceType: filterOptions.conferenceTypes.filter((value) => /investor/i.test(value)).slice(0, 1) })],
+    ["Healthcare", String(displayAggregates.quickFeeds.healthcareConferences), "#14b8a6", "health", () => setFilters({ ...DEFAULT_FILTERS, sectorThemes: filterOptions.themes.filter((value) => /health/i.test(value)).slice(0, 1) })],
+    ["Private Markets", String(displayAggregates.quickFeeds.privateMarkets), "#7c3aed", "private", () => setFilters({ ...DEFAULT_FILTERS, marketFocus: filterOptions.marketFocuses.filter((value) => /private/i.test(value)).slice(0, 1) })],
+    ["Canada Events", String(displayAggregates.quickFeeds.canadaEvents), "#dc2626", "canada", () => setFilters({ ...DEFAULT_FILTERS, country: ["Canada"] })],
+    ["Next 30 Days", String(displayAggregates.quickFeeds.upcoming30), "#2563eb", "next30", () => setFilters({ ...DEFAULT_FILTERS, dateRange: "next30" })],
+    ["Hot Weeks", String(displayAggregates.quickFeeds.hotWeeks), "#f97316", "next60", () => setFilters({ ...DEFAULT_FILTERS, dateRange: "next60" })],
+  ] as const;
+
+  const toggleFilterValue = (key: MultiFilterKey, value: string) => {
+    if (!value) return;
+    setViewScope("filtered");
+    setFilters((previous) => ({
+      ...previous,
+      [key]: previous[key].includes(value)
+        ? previous[key].filter((item) => item !== value)
+        : [...previous[key], value],
+    }));
+  };
+
+  const clearFilters = () => {
+    setFilters(DEFAULT_FILTERS);
+    setViewScope("full");
+  };
 
   return (
     <div className="v3-page">
@@ -388,6 +607,7 @@ export default function MarketViewClient() {
                 <div style={{ color: "#93aeca", fontSize: "12px", lineHeight: 1.35, marginBottom: "8px" }}>Filter conferences by date, location, theme, and participation.</div>
                 <button
                   type="button"
+                  onClick={clearFilters}
                   style={{
                     height: "36px",
                     width: "100%",
@@ -422,7 +642,11 @@ export default function MarketViewClient() {
                       boxShadow: `inset 0 1px 0 rgba(255,255,255,0.04), 0 0 ${14 - index * 2}px rgba(59,130,246,${0.2 - index * 0.03})`,
                     }}
                   >
-                    <button type="button" style={{ width: "100%", height: "48px", padding: "0 14px", border: 0, background: "transparent", color: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
+                    <button
+                      type="button"
+                      onClick={() => setOpenFilters((current) => ({ ...current, [row]: !current[row] }))}
+                      style={{ width: "100%", height: "48px", padding: "0 14px", border: 0, background: "transparent", color: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
+                    >
                       <span style={{ fontSize: "12px", fontWeight: 800, letterSpacing: "0.07em", display: "inline-flex", alignItems: "center", gap: "9px", color: "#d7e5f5" }}>
                         <span style={{ width: "16px", height: "16px", color: "#b6c6da", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
                           <FilterSectionIcon kind={index === 0 ? "date" : index === 1 ? "location" : index === 2 ? "segments" : index === 3 ? "participation" : "organizers"} />
@@ -430,9 +654,43 @@ export default function MarketViewClient() {
                         {row.toUpperCase()}
                       </span>
                       <span style={{ fontSize: "14px", color: "#c7dcf6", fontWeight: 800, letterSpacing: "0.01em", display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                        <span style={{ fontSize: "16px", color: "#dbeafe", lineHeight: 1 }}>▸</span>
+                        <span style={{ fontSize: "16px", color: "#dbeafe", lineHeight: 1 }}>{openFilters[row] ? "▾" : "▸"}</span>
                       </span>
                     </button>
+                    {openFilters[row] ? (
+                      <div style={{ padding: "0 10px 10px", display: "grid", gap: "7px" }}>
+                        {row === "Date & Timing" ? (
+                          <select value={filters.dateRange} onChange={(event) => { setViewScope("filtered"); setFilters((current) => ({ ...current, dateRange: event.target.value as FiltersState["dateRange"] })); }}>
+                            <option value="all">All Dates</option>
+                            <option value="next30">Next 30 Days</option>
+                            <option value="next60">Next 60 Days</option>
+                            <option value="next90">Next 90 Days</option>
+                          </select>
+                        ) : null}
+                        {row === "Location" ? (
+                          <>
+                            <FilterSelect label="Country" emptyLabel="All Countries" values={filters.country} options={filterOptions.countries} onToggle={(value) => toggleFilterValue("country", value)} />
+                            <FilterSelect label="Region" emptyLabel="All Regions" values={filters.region} options={filterOptions.regions} onToggle={(value) => toggleFilterValue("region", value)} />
+                            <FilterSelect label="State" emptyLabel="All States" values={filters.state} options={filterOptions.states} onToggle={(value) => toggleFilterValue("state", value)} />
+                            <FilterSelect label="City" emptyLabel="All Cities" values={filters.cities} options={filterOptions.cities} onToggle={(value) => toggleFilterValue("cities", value)} />
+                          </>
+                        ) : null}
+                        {row === "Market Segments" ? (
+                          <>
+                            <FilterSelect label="Sector / Theme" emptyLabel="All Sectors / Themes" values={filters.sectorThemes} options={filterOptions.themes} onToggle={(value) => toggleFilterValue("sectorThemes", value)} />
+                            <FilterSelect label="Public Company Sector" emptyLabel="All Public Company Sectors" values={filters.publicCompanySectors} options={filterOptions.publicCompanySectors || []} onToggle={(value) => toggleFilterValue("publicCompanySectors", value)} />
+                            <FilterSelect label="Conference Type" emptyLabel="All Types" values={filters.conferenceType} options={filterOptions.conferenceTypes} onToggle={(value) => toggleFilterValue("conferenceType", value)} />
+                            <FilterSelect label="Market Focus" emptyLabel="All Market Focus" values={filters.marketFocus} options={filterOptions.marketFocuses} onToggle={(value) => toggleFilterValue("marketFocus", value)} />
+                          </>
+                        ) : null}
+                        {row === "Participation" ? (
+                          <FilterSelect label="Issuer Participation" emptyLabel="All Issuer Participation" values={filters.issuerParticipation} options={filterOptions.issuers} onToggle={(value) => toggleFilterValue("issuerParticipation", value)} />
+                        ) : null}
+                        {row === "Organizers" ? (
+                          <FilterSelect label="Organizer" emptyLabel="All Organizers" values={filters.organizer} options={filterOptions.organizers} onToggle={(value) => toggleFilterValue("organizer", value)} />
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -440,8 +698,8 @@ export default function MarketViewClient() {
               <div style={{ marginTop: "6px", padding: "0" }}>
                 <div style={{ color: "#f8fbff", fontWeight: 800, fontSize: "14px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>Quick Feeds</div>
                 <div style={{ display: "grid", gap: "4px" }}>
-                  {quickFeeds.map(([label, count, color, icon]) => (
-                    <button key={label} type="button" style={{ height: "38px", borderRadius: "8px", border: "1px solid rgba(147,197,253,0.08)", background: "rgba(147,197,253,0.02)", color: "#dbeafe", cursor: "pointer", display: "flex", alignItems: "center", gap: "10px", padding: "0 10px" }}>
+                  {quickFeedRows.map(([label, count, color, icon, action]) => (
+                    <button key={label} type="button" onClick={action} style={{ height: "38px", borderRadius: "8px", border: "1px solid rgba(147,197,253,0.08)", background: "rgba(147,197,253,0.02)", color: "#dbeafe", cursor: "pointer", display: "flex", alignItems: "center", gap: "10px", padding: "0 10px" }}>
                       <span style={{ width: "20px", height: "20px", display: "inline-flex", alignItems: "center", justifyContent: "center", color, filter: "brightness(1.2)" }}>
                         <QuickViewGlyph kind={icon as "investor" | "health" | "private" | "canada" | "next30" | "next60"} color={color} />
                       </span>
@@ -470,11 +728,11 @@ export default function MarketViewClient() {
           <section className="v3-kpi-strip" aria-label="Market View KPI strip">
             <div className="v3-kpi-reserve" aria-hidden="true" />
             <div className="v3-view-toggle" aria-label="Market view scope">
-              <button type="button" className="is-active">Full Market View</button>
-              <button type="button">Current Filter View</button>
+              <button type="button" className={viewScope === "full" && !hasActiveFilters ? "is-active" : ""} onClick={() => setViewScope("full")}>Full Market View</button>
+              <button type="button" className={viewScope === "filtered" || hasActiveFilters ? "is-active" : ""} onClick={() => setViewScope("filtered")}>Current Filter View</button>
             </div>
             <div className="v3-kpi-grid">
-              {kpis.map(([label, value, note], index) => (
+              {liveKpis.map(([label, value, note], index) => (
                 <div
                   className="v3-kpi"
                   key={label}
@@ -486,6 +744,7 @@ export default function MarketViewClient() {
                 </div>
               ))}
             </div>
+            {isFiltering ? <div style={{ color: "#8fb3df", fontSize: "11px", fontWeight: 800, gridColumn: "2 / -1" }}>Updating filtered Market View…</div> : null}
           </section>
 
           <section className={`v3-signal-forecast ${isHotSignal ? "hot" : "cluster"}`}>
