@@ -341,7 +341,6 @@ function appendMany(params: URLSearchParams, key: string, values: string[]) {
 function buildMarketViewRequest(filters: FiltersState) {
   const params = new URLSearchParams();
   params.set("limit", "30");
-  params.set("filterMode", "or");
   params.set("dateRange", filters.dateRange);
   appendMany(params, "country", filters.country);
   appendMany(params, "region", filters.region);
