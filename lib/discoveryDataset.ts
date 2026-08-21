@@ -175,6 +175,7 @@ export type DiscoveryQuery = {
   marketFocus?: string[];
   eventIds?: string[];
   sort?: "soonest" | "city";
+  filterMode?: "and" | "or";
 };
 
 type AirtableRecord = { id: string; fields: Record<string, unknown> };
@@ -710,6 +711,10 @@ function hasAnyMatch(values: string[], candidates: string[]) {
   return values.length === 0 || values.some((value) => candidates.includes(value));
 }
 
+function hasSelectedFilterMatches(values: string[], candidates: string[]) {
+  return values.length > 0 && values.some((value) => candidates.includes(value));
+}
+
 function filterEvents(events: DiscoveryEvent[], query: DiscoveryQuery) {
   const today = new Date();
   const todayTime = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
@@ -719,6 +724,7 @@ function filterEvents(events: DiscoveryEvent[], query: DiscoveryQuery) {
   const futureOnly = (query.dateRange || "all") === "all" && !hasExplicitDateWindow;
   const search = (query.q || "").trim().toLowerCase();
   const ids = new Set(query.eventIds || []);
+  const useOrFilters = query.filterMode === "or";
 
   return events.filter((event) => {
     const startTime = new Date(`${event.startDate}T00:00:00Z`).getTime();
@@ -727,19 +733,51 @@ function filterEvents(events: DiscoveryEvent[], query: DiscoveryQuery) {
     if (futureOnly && startTime < todayTime) return false;
     if (query.fromDate && event.startDate < query.fromDate) return false;
     if (query.toDate && event.startDate > query.toDate) return false;
-    if (!hasAnyMatch(query.country || [], [event.country])) return false;
-    if (!hasAnyMatch(query.region || [], [event.region])) return false;
-    if (!hasAnyMatch(query.state || [], [event.state])) return false;
-    if (!hasAnyMatch(query.cities || [], [[event.city, event.state].filter(Boolean).join(", ")])) return false;
-    if (!hasAnyMatch(query.conferenceType || [], [event.primaryCategory])) return false;
-    if (!hasAnyMatch(query.issuerParticipation || [], splitCsv(event.issuerParticipation))) return false;
-    if (!hasAnyMatch(query.organizer || [], [event.organizer])) return false;
-    if (!hasAnyMatch(query.marketFocus || [], splitCsv(event.marketFocus))) return false;
-    if (!hasAnyMatch(query.publicCompanySectors || [], [
+
+    const publicCompanySectorCandidates = [
       ...splitCsv(event.publicCompanySector || ""),
       ...splitCsv(event.additionalPublicCompanySectors || ""),
-    ])) return false;
-    if (!hasAnyMatch(query.sectorThemes || [], splitCsv(event.sectorThemes))) return false;
+    ];
+
+    if (useOrFilters) {
+      const selectedFilterGroups = [
+        query.country || [],
+        query.region || [],
+        query.state || [],
+        query.cities || [],
+        query.conferenceType || [],
+        query.issuerParticipation || [],
+        query.organizer || [],
+        query.marketFocus || [],
+        query.publicCompanySectors || [],
+        query.sectorThemes || [],
+      ];
+      const hasSelectedFilters = selectedFilterGroups.some((values) => values.length > 0);
+      const matchesAnySelectedFilter =
+        !hasSelectedFilters ||
+        hasSelectedFilterMatches(query.country || [], [event.country]) ||
+        hasSelectedFilterMatches(query.region || [], [event.region]) ||
+        hasSelectedFilterMatches(query.state || [], [event.state]) ||
+        hasSelectedFilterMatches(query.cities || [], [[event.city, event.state].filter(Boolean).join(", ")]) ||
+        hasSelectedFilterMatches(query.conferenceType || [], [event.primaryCategory]) ||
+        hasSelectedFilterMatches(query.issuerParticipation || [], splitCsv(event.issuerParticipation)) ||
+        hasSelectedFilterMatches(query.organizer || [], [event.organizer]) ||
+        hasSelectedFilterMatches(query.marketFocus || [], splitCsv(event.marketFocus)) ||
+        hasSelectedFilterMatches(query.publicCompanySectors || [], publicCompanySectorCandidates) ||
+        hasSelectedFilterMatches(query.sectorThemes || [], splitCsv(event.sectorThemes));
+      if (!matchesAnySelectedFilter) return false;
+    } else {
+      if (!hasAnyMatch(query.country || [], [event.country])) return false;
+      if (!hasAnyMatch(query.region || [], [event.region])) return false;
+      if (!hasAnyMatch(query.state || [], [event.state])) return false;
+      if (!hasAnyMatch(query.cities || [], [[event.city, event.state].filter(Boolean).join(", ")])) return false;
+      if (!hasAnyMatch(query.conferenceType || [], [event.primaryCategory])) return false;
+      if (!hasAnyMatch(query.issuerParticipation || [], splitCsv(event.issuerParticipation))) return false;
+      if (!hasAnyMatch(query.organizer || [], [event.organizer])) return false;
+      if (!hasAnyMatch(query.marketFocus || [], splitCsv(event.marketFocus))) return false;
+      if (!hasAnyMatch(query.publicCompanySectors || [], publicCompanySectorCandidates)) return false;
+      if (!hasAnyMatch(query.sectorThemes || [], splitCsv(event.sectorThemes))) return false;
+    }
     if (ids.size && !ids.has(event.id)) return false;
     if (!search) return true;
     return [event.title, event.organizer, event.city, event.state, event.primaryCategory, event.marketFocus, event.sectorThemes]

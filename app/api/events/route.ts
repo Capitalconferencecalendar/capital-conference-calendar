@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
     const params = request.nextUrl.searchParams;
     const dateRange = params.get("dateRange");
     const sort = params.get("sort");
+    const filterMode = params.get("filterMode");
     const query: DiscoveryQuery = {
       cursor: params.get("cursor"),
       limit: Number(params.get("limit") || 30),
@@ -58,6 +59,7 @@ export async function GET(request: NextRequest) {
       marketFocus: values(params, "marketFocus"),
       eventIds: values(params, "eventId"),
       sort: sort === "city" ? "city" : "soonest",
+      filterMode: filterMode === "or" ? "or" : "and",
     };
     const response = NextResponse.json(await getDiscoveryPage(query), {
       headers: { "Cache-Control": "no-store, max-age=0" },
