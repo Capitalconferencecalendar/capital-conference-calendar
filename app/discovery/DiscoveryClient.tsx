@@ -4,6 +4,7 @@ import { Fragment, type CSSProperties, type ReactNode, useCallback, useEffect, u
 import AddToCalendar from "../components/AddToCalendar";
 import ConcentrationStrip from "../components/ConcentrationStrip";
 import type { ConcentrationItem } from "../components/ConcentrationStrip";
+import SharedFilterRail from "../components/platform/SharedFilterRail";
 
 export type WorkspaceEvent = {
   id: string;
@@ -3874,6 +3875,30 @@ useEffect(() => {
         style={{ position: "relative", alignSelf: "stretch", display: "grid", gap: "8px", minWidth: 0, minHeight: 0, width: "100%", maxWidth: "280px", height: PANEL_HEIGHT, maxHeight: PANEL_HEIGHT, overflow: "hidden", paddingRight: "2px" }}
       >
         <div style={{ height: "100%", maxHeight: "100%", overflowY: "auto", overflowX: "hidden", overscrollBehaviorY: "contain", WebkitOverflowScrolling: "touch", paddingRight: "4px", paddingBottom: "6px" }}>
+        <SharedFilterRail
+          filters={filters}
+          filterOptions={discoveryPage.filterOptions}
+          openSections={filterGroupsOpen}
+          onToggleSection={(section) => setFilterGroupsOpen((previous) => ({ ...previous, [section]: !previous[section] }))}
+          onDateRangeChange={(dateRange) => setFilters((previous) => ({ ...previous, dateRange }))}
+          onToggleFilter={toggleFilterValue}
+          onClear={clearWorkspaceView}
+          dateRangeExtra={
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: "6px" }}>
+              <input type="date" value={fromDate} onChange={(event) => { setFromDate(event.target.value); if (!toDate || event.target.value > toDate) setToDate(event.target.value); }} style={{ ...controlStyle, padding: "0 30px 0 10px", fontSize: "13px" }} />
+              <input type="date" value={toDate} min={fromDate || undefined} onChange={(event) => setToDate(event.target.value)} style={{ ...controlStyle, padding: "0 30px 0 10px", fontSize: "13px" }} />
+            </div>
+          }
+          quickFeeds={[
+            { key: "investor-conferences", title: "Investor Conferences", color: "#3b82f6", icon: "investor", count: quickFeedCounts.investorConferences, onClick: () => applyHeroQuickView("investor-conferences") },
+            { key: "healthcare-conferences", title: "Healthcare", color: "#14b8a6", icon: "health", count: quickFeedCounts.healthcareConferences, onClick: () => applyHeroQuickView("healthcare-conferences") },
+            { key: "private-markets", title: "Private Markets", color: "#7c3aed", icon: "private", count: quickFeedCounts.privateMarkets, onClick: () => applyHeroQuickView("private-markets") },
+            { key: "canada-events", title: "Canada Events", color: "#dc2626", icon: "canada", count: quickFeedCounts.canadaEvents, onClick: () => applyHeroQuickView("canada-events") },
+            { key: "upcoming-30-days", title: "Next 30 Days", color: "#2563eb", icon: "next30", count: quickFeedCounts.upcoming30, onClick: () => applyHeroQuickView("upcoming-30-days") },
+            { key: "hot-weeks", title: "Hot Weeks", color: "#f97316", icon: "next60", count: quickFeedCounts.hotWeeks, onClick: () => { const firstHot = viewConcentrationCards.find((item) => item.type === "hotweek") || allConcentrationCards.find((item) => item.type === "hotweek"); if (firstHot) { applyConcentrationItem(firstHot); recordActivity("feed", "Quick feed: hot weeks"); } } },
+          ]}
+        />
+        {false ? <>
         <div style={{ width: "100%", maxWidth: "100%", overflow: "visible", padding: "10px 0" }}>
           <div style={{ marginBottom: "10px" }}>
             <div style={{ fontWeight: 900, color: "#dbeafe", fontSize: "20px", lineHeight: 1.05, marginBottom: "6px", textAlign: "center" }}>Refine Your Market View</div>
@@ -4048,6 +4073,7 @@ useEffect(() => {
           </div>
 
         </div>
+        </> : null}
         </div>
       </aside>
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
+import SharedFilterRail from "../components/platform/SharedFilterRail";
 
 const metroStorageKey = "marketViewV3.primaryMetro";
 
@@ -715,6 +716,27 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
           style={{ position: "relative", alignSelf: "stretch", display: "grid", gap: "8px", minWidth: 0, minHeight: 0, width: "100%", maxWidth: "280px", height: "calc(100vh - 126px)", maxHeight: "calc(100vh - 126px)", overflow: "hidden", paddingRight: "2px" }}
         >
           <div style={{ height: "100%", maxHeight: "100%", overflowY: "auto", overflowX: "hidden", overscrollBehaviorY: "contain", WebkitOverflowScrolling: "touch", paddingRight: "4px", paddingBottom: "6px" }}>
+            <SharedFilterRail
+              filters={filters}
+              filterOptions={filterOptions}
+              openSections={{
+                dateTiming: openFilters["Date & Timing"],
+                location: openFilters.Location,
+                marketSegments: openFilters["Market Segments"],
+                participation: openFilters.Participation,
+                organizers: openFilters.Organizers,
+              }}
+              onToggleSection={(section) => {
+                const labels = { dateTiming: "Date & Timing", location: "Location", marketSegments: "Market Segments", participation: "Participation", organizers: "Organizers" } as const;
+                const label = labels[section];
+                setOpenFilters((current) => ({ ...current, [label]: !current[label] }));
+              }}
+              onDateRangeChange={(dateRange) => { setViewScope("filtered"); setFilters((current) => ({ ...current, dateRange })); }}
+              onToggleFilter={toggleFilterValue}
+              onClear={clearFilters}
+              quickFeeds={quickFeedRows.map(([title, count, color, icon, onClick]) => ({ key: title, title, count, color, icon, onClick }))}
+            />
+            {false ? <>
             <div style={{ width: "100%", maxWidth: "100%", overflow: "visible", padding: "10px 0" }}>
               <div style={{ marginBottom: "10px" }}>
                 <div style={{ fontWeight: 900, color: "#dbeafe", fontSize: "20px", lineHeight: 1.05, marginBottom: "6px", textAlign: "center" }}>Refine Your Market View</div>
@@ -826,6 +848,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                 </div>
               </div>
             </div>
+            </> : null}
           </div>
         </aside>
 
