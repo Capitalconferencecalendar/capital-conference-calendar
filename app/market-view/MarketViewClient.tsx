@@ -49,6 +49,18 @@ type AggregateStats = {
 type MarketAnalytics = {
   cityCounts: [string, number][];
   focusCounts: [string, number][];
+  weekCounts: { weekStart: string; count: number }[];
+  weekInsights: Record<string, {
+    topAudience: string;
+    topFocus: string;
+    topIssuerParticipation: string;
+    topCity: string;
+    topCities: string[];
+    investorHeavyCount: number;
+    issuerHeavyCount: number;
+    typeLabel: string;
+    actionLine: string;
+  }>;
 };
 
 type MarketViewPageData = {
@@ -125,6 +137,44 @@ const hotWeeks = [
   { week: "Oct 26-Nov 1, 2025", events: "68 events", theme: "Real Estate", focus: "Sponsor Visibility", signal: "9 deal/BD signals", summary: "Real estate and infrastructure forums compress into one window.", detail: "Real estate, infrastructure, and sponsor-visible events appear in the same market window, creating a stronger BD and banker-relevance signal.", eventsIncluded: "Real Estate Capital Forum · Infrastructure Finance Summit · Sponsor Visibility Forum", supportingContext: "Sponsor visibility and relationship density are the lead signals. Travel planning is supporting context only." },
   { week: "Nov 16-Nov 22, 2025", events: "61 events", theme: "Energy", focus: "Industrials", signal: "8 banker-relevant signals", summary: "Energy transition and industrial access signals cluster late in the month.", detail: "Energy transition and industrials programming builds late-month market attention with banker relevance and sector-intelligence overlap.", eventsIncluded: "Energy Transition Forum · Industrials Investor Summit · Infrastructure Access Day", supportingContext: "Banker relevance and sector intelligence are the lead signals. Meeting-day context is secondary." },
 ];
+
+type HotWeek = {
+  weekStart: string;
+  weekEnd: string;
+  label: string;
+  count: number;
+  focus: string;
+  signal: string;
+  summary: string;
+  detail: string;
+  supportingContext: string;
+};
+
+type HotWeekEvent = {
+  id: string;
+  title: string;
+  startDate: string;
+  city: string;
+  state: string;
+};
+
+function addDays(date: string, days: number) {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
+function formatWeekLabel(weekStart: string, weekEnd: string) {
+  const start = new Date(`${weekStart}T00:00:00Z`);
+  const end = new Date(`${weekEnd}T00:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return weekStart;
+  const month = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" });
+  const startMonth = month.format(start);
+  const endMonth = month.format(end);
+  const startDay = start.getUTCDate();
+  const endDay = end.getUTCDate();
+  return startMonth === endMonth ? `${startMonth} ${startDay}-${endDay}` : `${startMonth} ${startDay}-${endMonth} ${endDay}`;
+}
 
 const clusters = [
   {
@@ -364,6 +414,8 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const [signalTab, setSignalTab] = useState<ForecastMode>("hotWeeks");
   const [selectedHotWeekIndex, setSelectedHotWeekIndex] = useState(0);
   const [selectedClusterIndex, setSelectedClusterIndex] = useState(0);
+  const [hotWeekEvents, setHotWeekEvents] = useState<HotWeekEvent[]>([]);
+  const [isLoadingHotWeekEvents, setIsLoadingHotWeekEvents] = useState(false);
 
   useEffect(() => {
     try {
@@ -415,7 +467,6 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
     }
   };
 
-  const activeHotWeek = hotWeeks[selectedHotWeekIndex] ?? hotWeeks[0];
   const activeCluster = clusters[selectedClusterIndex] ?? clusters[0];
   const isHotSignal = signalTab === "hotWeeks";
   const activeForecastMode = forecastModes[signalTab];
@@ -424,6 +475,67 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const displayPage = viewScope === "filtered" || hasActiveFilters ? marketPage : initialPage;
   const displayAggregates = displayPage.aggregates;
   const displayAnalytics = displayPage.marketAnalytics;
+  const liveHotWeeks = useMemo<HotWeek[]>(() => {
+    return (displayAnalytics.weekCounts || [])
+      .filter((row) => row.count > 0)
+      .slice()
+      .sort((a, b) => b.count - a.count || a.weekStart.localeCompare(b.weekStart))
+      .slice(0, 5)
+      .map((row) => {
+        const weekEnd = addDays(row.weekStart, 6);
+        const insight = displayAnalytics.weekInsights?.[row.weekStart];
+        const topCity = insight?.topCity && insight.topCity !== "N/A" ? insight.topCity : "the current view";
+        const focus = insight?.topFocus || insight?.topAudience || "Classified activity";
+        return {
+          weekStart: row.weekStart,
+          weekEnd,
+          label: formatWeekLabel(row.weekStart, weekEnd),
+          count: row.count,
+          focus,
+          signal: insight?.topIssuerParticipation || "Active conference week",
+          summary: insight?.actionLine || `${row.count} conference${row.count === 1 ? "" : "s"} are scheduled this week.`,
+          detail: `${row.count} conference${row.count === 1 ? " is" : "s are"} scheduled during this week, with activity led by ${topCity}.`,
+          supportingContext: insight?.topFocus ? `Top market focus: ${insight.topFocus}.` : "This view is based on the current Market View filters.",
+        };
+      });
+  }, [displayAnalytics]);
+  const activeHotWeek = liveHotWeeks[selectedHotWeekIndex] ?? liveHotWeeks[0];
+
+  useEffect(() => {
+    if (selectedHotWeekIndex >= liveHotWeeks.length) setSelectedHotWeekIndex(0);
+  }, [liveHotWeeks.length, selectedHotWeekIndex]);
+
+  useEffect(() => {
+    if (!activeHotWeek) {
+      setHotWeekEvents([]);
+      return;
+    }
+    let active = true;
+    const scopedFilters = viewScope === "filtered" || hasActiveFilters ? filters : DEFAULT_FILTERS;
+    const params = buildMarketViewRequest(scopedFilters);
+    params.set("fromDate", activeHotWeek.weekStart);
+    params.set("toDate", activeHotWeek.weekEnd);
+    params.set("limit", "4");
+    setIsLoadingHotWeekEvents(true);
+    fetch(`/api/events?${params.toString()}`, { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) throw new Error("Unable to load hot week events.");
+        return response.json() as Promise<{ events?: HotWeekEvent[] }>;
+      })
+      .then((page) => {
+        if (active) setHotWeekEvents(page.events || []);
+      })
+      .catch(() => {
+        if (active) setHotWeekEvents([]);
+      })
+      .finally(() => {
+        if (active) setIsLoadingHotWeekEvents(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [activeHotWeek?.weekEnd, activeHotWeek?.weekStart, filters, hasActiveFilters, viewScope]);
+
   const topMetro = displayAnalytics.cityCounts?.[0];
   const topFocus = displayAnalytics.focusCounts?.[0];
   const liveKpis = [
@@ -531,6 +643,8 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-detail-summary { color: #d9e8f7; font-size: 13.5px; line-height: 1.55; font-weight: 650; }
         .v3-feature-list { display: grid; gap: 7px; color: #c7d6e7; font-size: 12px; line-height: 1.35; }
         .v3-feature-list div { display: flex; gap: 8px; }
+        .v3-feature-list div > span { display: block; color: #94aeca; font-size: 11px; }
+        .v3-feature-list div > strong { display: block; color: #e6f0fb; }
         .v3-feature-list div:before { content: ""; width: 5px; height: 5px; margin-top: 6px; border-radius: 999px; background: #38bdf8; flex: 0 0 auto; }
         .hot .v3-feature-list div:before { background: #f59e0b; }
         .cluster .v3-feature-list div:before { background: #ef4444; }
@@ -774,12 +888,12 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
             <div className="v3-signal-body">
               <div className="v3-signal-list">
                 {isHotSignal
-                  ? hotWeeks.map((row, index) => (
-                    <button type="button" className={`v3-signal-item ${index === selectedHotWeekIndex ? "is-active" : ""}`} key={row.week} onClick={() => setSelectedHotWeekIndex(index)}>
+                  ? liveHotWeeks.map((row, index) => (
+                    <button type="button" className={`v3-signal-item ${index === selectedHotWeekIndex ? "is-active" : ""}`} key={row.weekStart} onClick={() => setSelectedHotWeekIndex(index)}>
                       <span className="v3-rank">{index + 1}</span>
                       <span>
-                        <strong>{row.week}</strong>
-                        <span className="v3-signal-meta"><span>{row.events}</span><span className={index === selectedHotWeekIndex ? "v3-hot-tag" : ""}>{index === 0 ? "HOT" : row.focus}</span><span>{row.signal}</span></span>
+                        <strong>{row.label}</strong>
+                        <span className="v3-signal-meta"><span>{row.count} event{row.count === 1 ? "" : "s"}</span><span className={index === selectedHotWeekIndex ? "v3-hot-tag" : ""}>{index === 0 ? "HOT" : row.focus}</span><span>{row.signal}</span></span>
                         <span className="v3-signal-reason">{row.summary}</span>
                       </span>
                     </button>
@@ -800,7 +914,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                 <div>
                   <h3>{isHotSignal ? "Why this week matters" : "Why this cluster matters"}</h3>
                 </div>
-                <p className="v3-detail-summary">{isHotSignal ? activeHotWeek.detail : activeCluster.detail}</p>
+                <p className="v3-detail-summary">{isHotSignal ? activeHotWeek?.detail || "No dated events are available for this week." : activeCluster.detail}</p>
 
                 {!isHotSignal ? (
                   <div>
@@ -810,9 +924,18 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                 ) : null}
 
                 <div>
-                  <div className="v3-detail-label">Featured Events</div>
+                  <div className="v3-detail-label">{isHotSignal ? "Hot Week Events" : "Featured Events"}</div>
                   <div className="v3-feature-list">
-                    {(isHotSignal ? activeHotWeek.eventsIncluded ?? "" : activeCluster.eventsIncluded ?? "").split(" · ").filter(Boolean).map((event) => <div key={event}>{event}</div>)}
+                    {isHotSignal ? (
+                      isLoadingHotWeekEvents ? <div>Loading events…</div> : hotWeekEvents.length ? hotWeekEvents.map((event) => (
+                        <div key={event.id}>
+                          <strong>{event.title}</strong>
+                          <span>{event.startDate}{event.city ? ` · ${event.city}${event.state ? `, ${event.state}` : ""}` : ""}</span>
+                        </div>
+                      )) : <div>No events are available for this week.</div>
+                    ) : (
+                      (activeCluster.eventsIncluded ?? "").split(" · ").filter(Boolean).map((event) => <div key={event}>{event}</div>)
+                    )}
                   </div>
                 </div>
 
@@ -836,10 +959,14 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
 
                 <div>
                   <div className="v3-detail-label">Supporting Context</div>
-                  <p>{isHotSignal ? activeHotWeek.supportingContext : activeCluster.supportingContext}</p>
+                  <p>{isHotSignal ? activeHotWeek?.supportingContext || "This view is based on the current Market View filters." : activeCluster.supportingContext}</p>
                 </div>
 
-                <OpenLink>{isHotSignal ? "View all hot weeks →" : "View all clusters →"}</OpenLink>
+                {isHotSignal && activeHotWeek ? (
+                  <a className="v3-link" href={`/discovery?startDate=${activeHotWeek.weekStart}&endDate=${activeHotWeek.weekEnd}`}>
+                    See all events →
+                  </a>
+                ) : <OpenLink>View all clusters →</OpenLink>}
               </div>
             </div>
           </section>
