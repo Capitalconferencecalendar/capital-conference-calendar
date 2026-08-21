@@ -46,6 +46,7 @@ type FiltersState = {
   state: string[];
   cities: string[];
   sectorThemes: string[];
+  publicCompanySectors: string[];
   conferenceType: string[];
   issuerParticipation: string[];
   organizer: string[];
@@ -126,6 +127,7 @@ type DiscoveryFilterOptions = {
   countries: string[];
   states: string[];
   themes: string[];
+  publicCompanySectors: string[];
   conferenceTypes: string[];
   issuers: string[];
   organizers: string[];
@@ -310,6 +312,7 @@ const DEFAULT_FILTERS: FiltersState = {
   state: [],
   cities: [],
   sectorThemes: [],
+  publicCompanySectors: [],
   conferenceType: [],
   issuerParticipation: [],
   organizer: [],
@@ -331,6 +334,7 @@ function normalizeFiltersState(value: Partial<FiltersState> | Record<string, unk
     state: toFilterValues(value.state),
     cities: toFilterValues(value.cities),
     sectorThemes: toFilterValues(value.sectorThemes),
+    publicCompanySectors: toFilterValues(value.publicCompanySectors),
     conferenceType: toFilterValues(value.conferenceType),
     issuerParticipation: toFilterValues(value.issuerParticipation),
     organizer: toFilterValues(value.organizer),
@@ -1733,6 +1737,7 @@ export default function EventsClient({
     filters.state.forEach((value) => params.append("state", value));
     filters.cities.forEach((value) => params.append("city", value));
     filters.sectorThemes.forEach((value) => params.append("sectorTheme", value));
+    filters.publicCompanySectors.forEach((value) => params.append("publicCompanySector", value));
     filters.conferenceType.forEach((value) => params.append("conferenceType", value));
     filters.issuerParticipation.forEach((value) => params.append("issuerParticipation", value));
     filters.organizer.forEach((value) => params.append("organizer", value));
@@ -1776,6 +1781,7 @@ export default function EventsClient({
   const countries = discoveryPage.filterOptions.countries;
   const states = discoveryPage.filterOptions.states;
   const themes = discoveryPage.filterOptions.themes;
+  const publicCompanySectorOptions = discoveryPage.filterOptions.publicCompanySectors || [];
   const conferenceTypes = discoveryPage.filterOptions.conferenceTypes;
   const issuers = discoveryPage.filterOptions.issuers;
   const organizers = discoveryPage.filterOptions.organizers;
@@ -1822,6 +1828,7 @@ export default function EventsClient({
     addChips("state");
     addChips("cities");
     addChips("sectorThemes");
+    addChips("publicCompanySectors", "Public Company Sector: ");
     addChips("conferenceType");
     addChips("marketFocus");
     addChips("issuerParticipation");
@@ -1872,7 +1879,7 @@ useEffect(() => {
   }, [initialEventId, dashboardMode, workspaceViewMode, filteredEvents]);
 
   const locationActiveCount = filters.country.length + filters.region.length + filters.state.length + filters.cities.length;
-  const marketSegmentsActiveCount = filters.sectorThemes.length + filters.conferenceType.length + filters.marketFocus.length;
+  const marketSegmentsActiveCount = filters.sectorThemes.length + filters.publicCompanySectors.length + filters.conferenceType.length + filters.marketFocus.length;
   const participationActiveCount = filters.issuerParticipation.length;
   const organizersActiveCount = filters.organizer.length;
 
@@ -3328,6 +3335,7 @@ useEffect(() => {
     appendMany("state", filters.state);
     appendMany("city", filters.cities);
     appendMany("sectorTheme", filters.sectorThemes);
+    appendMany("publicCompanySector", filters.publicCompanySectors);
     appendMany("category", filters.conferenceType);
     appendMany("issuerParticipation", filters.issuerParticipation);
     appendMany("organizer", filters.organizer);
@@ -3788,6 +3796,7 @@ useEffect(() => {
                   <select aria-label="Conference types" value="" onChange={(e) => { toggleFilterValue("conferenceType", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.conferenceType.length ? `${filters.conferenceType.length} types selected` : "All Types"}</option>{conferenceTypes.map((o, i) => <option key={`m-type-${o}-${i}`} value={o}>{filters.conferenceType.includes(o) ? `✓ ${o}` : o}</option>)}</select>
                   <select aria-label="Issuer participation" value="" onChange={(e) => { toggleFilterValue("issuerParticipation", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.issuerParticipation.length ? `${filters.issuerParticipation.length} selected` : "All Issuer Participation"}</option>{issuers.map((o, i) => <option key={`m-issuer-${o}-${i}`} value={o}>{filters.issuerParticipation.includes(o) ? `✓ ${o}` : o}</option>)}</select>
                   <select aria-label="Sectors and themes" value="" onChange={(e) => { toggleFilterValue("sectorThemes", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.sectorThemes.length ? `${filters.sectorThemes.length} themes selected` : "All Sectors / Themes"}</option>{themes.map((o, i) => <option key={`m-theme-${o}-${i}`} value={o}>{filters.sectorThemes.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                  <select aria-label="Public company sectors" value="" onChange={(e) => { toggleFilterValue("publicCompanySectors", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.publicCompanySectors.length ? `${filters.publicCompanySectors.length} public sectors selected` : "All Public Company Sectors"}</option>{publicCompanySectorOptions.map((o, i) => <option key={`m-public-sector-${o}-${i}`} value={o}>{filters.publicCompanySectors.includes(o) ? `✓ ${o}` : o}</option>)}</select>
                   <select aria-label="Market focus" value="" onChange={(e) => { toggleFilterValue("marketFocus", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.marketFocus.length ? `${filters.marketFocus.length} focus areas selected` : "All Market Focus"}</option>{marketFocusOptions.map((o, i) => <option key={`m-focus-${o}-${i}`} value={o}>{filters.marketFocus.includes(o) ? `✓ ${o}` : o}</option>)}</select>
                   <select aria-label="Organizers" value="" onChange={(e) => { toggleFilterValue("organizer", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.organizer.length ? `${filters.organizer.length} organizers selected` : "All Organizers"}</option>{organizers.map((o, i) => <option key={`m-org-${o}-${i}`} value={o}>{filters.organizer.includes(o) ? `✓ ${o}` : o}</option>)}</select>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", position: "sticky", bottom: 0, background: "linear-gradient(180deg, rgba(4,14,30,0), rgba(4,14,30,0.96) 26%)", paddingTop: "8px" }}>
@@ -3982,6 +3991,7 @@ useEffect(() => {
                     {group.key === "marketSegments" ? (
                       <>
                         <select aria-label="Sectors and themes" value="" onChange={(e) => { toggleFilterValue("sectorThemes", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.sectorThemes.length ? `${filters.sectorThemes.length} themes selected` : "All Sectors / Themes"}</option>{themes.map((o, index) => <option key={`${o}-${index}`} value={o}>{filters.sectorThemes.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                        <select aria-label="Public company sectors" value="" onChange={(e) => { toggleFilterValue("publicCompanySectors", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.publicCompanySectors.length ? `${filters.publicCompanySectors.length} public sectors selected` : "All Public Company Sectors"}</option>{publicCompanySectorOptions.map((o, index) => <option key={`${o}-${index}`} value={o}>{filters.publicCompanySectors.includes(o) ? `✓ ${o}` : o}</option>)}</select>
                         <select aria-label="Conference types" value="" onChange={(e) => { toggleFilterValue("conferenceType", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.conferenceType.length ? `${filters.conferenceType.length} types selected` : "All Types"}</option>{conferenceTypes.map((o, index) => <option key={`${o}-${index}`} value={o}>{filters.conferenceType.includes(o) ? `✓ ${o}` : o}</option>)}</select>
                         <select aria-label="Market focus" value="" onChange={(e) => { toggleFilterValue("marketFocus", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.marketFocus.length ? `${filters.marketFocus.length} focus areas selected` : "All Market Focus"}</option>{marketFocusOptions.map((o, index) => <option key={`${o}-${index}`} value={o}>{filters.marketFocus.includes(o) ? `✓ ${o}` : o}</option>)}</select>
                       </>

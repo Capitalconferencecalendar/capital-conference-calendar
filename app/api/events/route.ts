@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
       state: values(params, "state"),
       cities: values(params, "city"),
       sectorThemes: values(params, "sectorTheme"),
+      publicCompanySectors: values(params, "publicCompanySector"),
       conferenceType: values(params, "conferenceType"),
       issuerParticipation: values(params, "issuerParticipation"),
       organizer: values(params, "organizer"),

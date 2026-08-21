@@ -37,6 +37,7 @@ export type DiscoveryFilterOptions = {
   countries: string[];
   states: string[];
   themes: string[];
+  publicCompanySectors: string[];
   conferenceTypes: string[];
   issuers: string[];
   organizers: string[];
@@ -167,6 +168,7 @@ export type DiscoveryQuery = {
   state?: string[];
   cities?: string[];
   sectorThemes?: string[];
+  publicCompanySectors?: string[];
   conferenceType?: string[];
   issuerParticipation?: string[];
   organizer?: string[];
@@ -310,6 +312,10 @@ function buildFilterOptions(events: DiscoveryEvent[]): DiscoveryFilterOptions {
     countries: unique(events.map((event) => event.country)),
     states: unique(events.map((event) => event.state)),
     themes: unique(events.flatMap((event) => splitCsv(event.sectorThemes))),
+    publicCompanySectors: unique(events.flatMap((event) => [
+      ...splitCsv(event.publicCompanySector || ""),
+      ...splitCsv(event.additionalPublicCompanySectors || ""),
+    ])),
     conferenceTypes: unique(events.map((event) => event.primaryCategory)),
     issuers: unique(events.map((event) => event.issuerParticipation)),
     organizers: unique(events.map((event) => event.organizer)),
@@ -729,6 +735,10 @@ function filterEvents(events: DiscoveryEvent[], query: DiscoveryQuery) {
     if (!hasAllMatches(query.issuerParticipation || [], splitCsv(event.issuerParticipation))) return false;
     if (!hasAllMatches(query.organizer || [], [event.organizer])) return false;
     if (!hasAllMatches(query.marketFocus || [], splitCsv(event.marketFocus))) return false;
+    if (!hasAllMatches(query.publicCompanySectors || [], [
+      ...splitCsv(event.publicCompanySector || ""),
+      ...splitCsv(event.additionalPublicCompanySectors || ""),
+    ])) return false;
     if (!hasAllMatches(query.sectorThemes || [], splitCsv(event.sectorThemes))) return false;
     if (ids.size && !ids.has(event.id)) return false;
     if (!search) return true;
