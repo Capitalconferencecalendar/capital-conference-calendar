@@ -738,6 +738,20 @@ function filterEvents(events: DiscoveryEvent[], query: DiscoveryQuery) {
       ...splitCsv(event.publicCompanySector || ""),
       ...splitCsv(event.additionalPublicCompanySectors || ""),
     ];
+    const cityLabel = [event.city, event.state].filter(Boolean).join(", ");
+    const selectedLocationGroups = [
+      query.country || [],
+      query.region || [],
+      query.state || [],
+      query.cities || [],
+    ];
+    const hasSelectedLocationFilters = selectedLocationGroups.some((values) => values.length > 0);
+    const matchesAnySelectedLocation =
+      !hasSelectedLocationFilters ||
+      hasSelectedFilterMatches(query.country || [], [event.country]) ||
+      hasSelectedFilterMatches(query.region || [], [event.region]) ||
+      hasSelectedFilterMatches(query.state || [], [event.state]) ||
+      hasSelectedFilterMatches(query.cities || [], [cityLabel]);
 
     if (useOrFilters) {
       const selectedFilterGroups = [
@@ -758,7 +772,7 @@ function filterEvents(events: DiscoveryEvent[], query: DiscoveryQuery) {
         hasSelectedFilterMatches(query.country || [], [event.country]) ||
         hasSelectedFilterMatches(query.region || [], [event.region]) ||
         hasSelectedFilterMatches(query.state || [], [event.state]) ||
-        hasSelectedFilterMatches(query.cities || [], [[event.city, event.state].filter(Boolean).join(", ")]) ||
+        hasSelectedFilterMatches(query.cities || [], [cityLabel]) ||
         hasSelectedFilterMatches(query.conferenceType || [], [event.primaryCategory]) ||
         hasSelectedFilterMatches(query.issuerParticipation || [], splitCsv(event.issuerParticipation)) ||
         hasSelectedFilterMatches(query.organizer || [], [event.organizer]) ||
@@ -767,10 +781,7 @@ function filterEvents(events: DiscoveryEvent[], query: DiscoveryQuery) {
         hasSelectedFilterMatches(query.sectorThemes || [], splitCsv(event.sectorThemes));
       if (!matchesAnySelectedFilter) return false;
     } else {
-      if (!hasAnyMatch(query.country || [], [event.country])) return false;
-      if (!hasAnyMatch(query.region || [], [event.region])) return false;
-      if (!hasAnyMatch(query.state || [], [event.state])) return false;
-      if (!hasAnyMatch(query.cities || [], [[event.city, event.state].filter(Boolean).join(", ")])) return false;
+      if (!matchesAnySelectedLocation) return false;
       if (!hasAnyMatch(query.conferenceType || [], [event.primaryCategory])) return false;
       if (!hasAnyMatch(query.issuerParticipation || [], splitCsv(event.issuerParticipation))) return false;
       if (!hasAnyMatch(query.organizer || [], [event.organizer])) return false;

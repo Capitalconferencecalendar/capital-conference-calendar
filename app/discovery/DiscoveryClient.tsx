@@ -38,7 +38,8 @@ export type WorkspaceEvent = {
 };
 
 type SavedList = { id: string; name: string; eventIds: string[]; createdAt: string };
-type SavedView = { id: string; name: string; filters: FiltersState; createdAt: string; eventCount?: number };
+type FilterMode = "and" | "or";
+type SavedView = { id: string; name: string; filters: FiltersState; filterMode?: FilterMode; createdAt: string; eventCount?: number };
 type RecentActivity = { id: string; type: "event" | "feed" | "view"; label: string; detail?: string; at: string };
 
 type FiltersState = {
@@ -1143,24 +1144,6 @@ function MarketViewIcon({
   return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3a13.5 13.5 0 0 1 0 18" /><path d="M12 3a13.5 13.5 0 0 0 0 18" /></svg>;
 }
 
-function FilterChipIcon({ kind }: { kind: "date" | "location" | "theme" | "participation" | "organizer" }) {
-  const common: React.SVGProps<SVGSVGElement> = {
-    width: 18,
-    height: 18,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "#9ec5ff",
-    strokeWidth: 1.85,
-    strokeLinecap: "round",
-    strokeLinejoin: "round",
-  };
-  if (kind === "date") return <svg {...common}><path d="M8 2v4M16 2v4" /><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01" /></svg>;
-  if (kind === "location") return <svg {...common}><path d="M12 22s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Z" /><circle cx="12" cy="11" r="2.8" /></svg>;
-  if (kind === "theme") return <svg {...common}><path d="M20 10V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v4" /><path d="M2 10h20" /><path d="M7 14h.01M12 14h.01M17 14h.01" /><path d="M7 18h.01M12 18h.01M17 18h.01" /></svg>;
-  if (kind === "participation") return <svg {...common}><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="10" cy="7" r="3" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a3 3 0 0 1 0 5.74" /></svg>;
-  return <svg {...common}><rect x="3" y="3" width="7" height="18" rx="1.5" /><rect x="14" y="7" width="7" height="14" rx="1.5" /><path d="M6.5 7h.01M6.5 11h.01M6.5 15h.01M17.5 11h.01M17.5 15h.01" /></svg>;
-}
-
 function WorkspaceViewIcon({ kind }: { kind: "database" | "calendar" | "map" }) {
   const common: React.SVGProps<SVGSVGElement> = {
     width: 17,
@@ -1406,6 +1389,7 @@ export default function EventsClient({
   const [toDate, setToDate] = useState("");
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<"soonest" | "city">("soonest");
+  const [filterMode, setFilterMode] = useState<FilterMode>("and");
   const [urlSeeded, setUrlSeeded] = useState(false);
   const [activeToolbarAction, setActiveToolbarAction] = useState<string>("");
   const [toolbarHelpText, setToolbarHelpText] = useState<string>("");
@@ -1707,11 +1691,13 @@ export default function EventsClient({
     const cityParam = params.get("city") || "";
     const startDateParam = params.get("startDate") || "";
     const endDateParam = params.get("endDate") || "";
+    const filterModeParam = params.get("filterMode");
     if (cityParam || startDateParam || endDateParam) {
       setFilters((prev) => ({ ...prev, cities: cityParam ? [cityParam] : prev.cities }));
       if (startDateParam) setFromDate(startDateParam);
       if (endDateParam) setToDate(endDateParam);
     }
+    if (filterModeParam === "or") setFilterMode("or");
     setUrlSeeded(true);
   }, [urlSeeded]);
 
@@ -1752,6 +1738,7 @@ export default function EventsClient({
     params.set("dateRange", filters.dateRange);
     params.set("filterMode", filterMode);
     params.set("sort", sortMode);
+    params.set("filterMode", filterMode);
     if (searchQuery) params.set("q", searchQuery);
     if (fromDate) params.set("fromDate", fromDate);
     if (toDate) params.set("toDate", toDate);
@@ -1856,6 +1843,7 @@ export default function EventsClient({
     addChips("marketFocus");
     addChips("issuerParticipation");
     addChips("organizer");
+    if (filterMode === "or") chips.push({ key: "filterMode", label: "Match: Any", clear: () => setFilterMode("and") });
     if (filters.dateRange !== "all") chips.push({ key: "dateRange", label: `Date: ${filters.dateRange.replace("next", "Next ").toUpperCase()}`, clear: () => setFilters((p) => ({ ...p, dateRange: "all" })) });
     if (fromDate || toDate) {
       const fromLabel = fromDate ? formatMonthDay(fromDate) : "Start";
@@ -1870,7 +1858,7 @@ export default function EventsClient({
       });
     }
     return chips;
-  }, [filters, fromDate, searchQuery, toDate]);
+  }, [filterMode, filters, fromDate, searchQuery, toDate]);
 
   const compactSingleResultLayout =
     dashboardMode === "market" &&
@@ -3253,6 +3241,7 @@ useEffect(() => {
     const list = savedLists.find((l) => l.id === listId);
     if (!list) return;
     setFilters(DEFAULT_FILTERS);
+    setFilterMode("and");
     setFromDate("");
     setToDate("");
     setActiveQuickView("");
@@ -3277,7 +3266,7 @@ useEffect(() => {
   const saveCurrentView = () => {
     const name = window.prompt("View name", `Saved View ${savedViews.length + 1}`);
     if (!name) return;
-    setSavedViews((prev) => [{ id: `${Date.now()}`, name, filters, createdAt: new Date().toISOString(), eventCount: filteredEvents.length }, ...prev]);
+    setSavedViews((prev) => [{ id: `${Date.now()}`, name, filters, filterMode, createdAt: new Date().toISOString(), eventCount: filteredEvents.length }, ...prev]);
     recordActivity("view", `Saved view: ${name}`, `${filteredEvents.length} events`);
   };
 
@@ -3286,6 +3275,7 @@ useEffect(() => {
     if (!view) return;
     setActiveSavedListId(null);
     setFilters({ ...DEFAULT_FILTERS, ...view.filters });
+    setFilterMode(view.filterMode || "and");
     setFromDate("");
     setToDate("");
     setSelectedEvents([]);
@@ -3363,6 +3353,7 @@ useEffect(() => {
     appendMany("issuerParticipation", filters.issuerParticipation);
     appendMany("organizer", filters.organizer);
     appendMany("marketFocus", filters.marketFocus);
+    params.set("filterMode", filterMode);
     if (computedRangeEnd.from) params.set("from", computedRangeEnd.from);
     if (computedRangeEnd.to) params.set("to", computedRangeEnd.to);
     return params;
@@ -3458,6 +3449,7 @@ useEffect(() => {
 
   const clearWorkspaceView = () => {
     setFilters(DEFAULT_FILTERS);
+    setFilterMode("and");
     setFromDate("");
     setToDate("");
     setSelectedEvents([]);
@@ -4055,7 +4047,42 @@ useEffect(() => {
             ))}
           </div>
 
-          <div style={{ marginTop: "6px", padding: "0" }}>
+          <div
+            role="group"
+            aria-label="Filter match mode"
+            style={{ marginTop: "7px", marginBottom: "14px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px" }}
+          >
+            {[
+              { value: "and" as const, label: "Match All" },
+              { value: "or" as const, label: "Match Any" },
+            ].map((option) => {
+              const active = filterMode === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setFilterMode(option.value)}
+                  aria-pressed={active}
+                  style={{
+                    height: "18px",
+                    borderRadius: "6px",
+                    border: active ? "1px solid rgba(255,255,255,0.38)" : "1px solid rgba(255,255,255,0.12)",
+                    background: active ? "rgba(255,255,255,0.1)" : "rgba(8,26,46,0.24)",
+                    color: active ? "#f8fbff" : "#9eb4cf",
+                    cursor: "pointer",
+                    fontSize: "9px",
+                    fontWeight: 800,
+                    lineHeight: 1,
+                    boxShadow: active ? "0 0 8px rgba(255,255,255,0.18), inset 0 1px 0 rgba(255,255,255,0.08)" : "inset 0 1px 0 rgba(255,255,255,0.02)",
+                  }}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ marginTop: "0", padding: "0" }}>
             <div style={{ color: "#f8fbff", fontWeight: 800, fontSize: "14px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>Quick Feeds</div>
             <div style={{ display: "grid", gap: "4px" }}>
               {[
@@ -5835,16 +5862,17 @@ useEffect(() => {
             {activeFilterChips.length && dashboardMode !== "marketview" ? (
               <div style={{ marginBottom: compactSingleResultLayout ? "4px" : filteredEvents.length === 1 ? "6px" : "10px", display: "flex", flexWrap: "wrap", gap: compactSingleResultLayout ? "6px" : "8px" }}>
                 {activeFilterChips.map((chip) => {
-                  const chipIconKind: "date" | "location" | "theme" | "participation" | "organizer" =
-                    chip.key === "search" || chip.key === "dateRange" || chip.key === "dateWindow"
+                  const chipKey = chip.key.split(":")[0];
+                  const chipIconKind: "date" | "location" | "segments" | "participation" | "organizers" =
+                    chipKey === "search" || chipKey === "dateRange" || chipKey === "dateWindow"
                       ? "date"
-                      : chip.key === "country" || chip.key === "region" || chip.key === "state" || chip.key === "city"
+                      : chipKey === "country" || chipKey === "region" || chipKey === "state" || chipKey === "cities"
                         ? "location"
-                        : chip.key === "theme" || chip.key === "type" || chip.key === "focus"
-                          ? "theme"
-                          : chip.key === "issuer"
+                        : chipKey === "sectorThemes" || chipKey === "publicCompanySectors" || chipKey === "conferenceType" || chipKey === "marketFocus"
+                          ? "segments"
+                          : chipKey === "issuerParticipation"
                             ? "participation"
-                            : "organizer";
+                            : "organizers";
                   return (
                   <button
                     key={chip.key}
@@ -5865,7 +5893,7 @@ useEffect(() => {
                       gap: "8px",
                     }}
                   >
-                    <FilterChipIcon kind={chipIconKind} />
+                    <FilterSectionIcon kind={chipIconKind} />
                     {chip.label} ×
                   </button>
                   );
