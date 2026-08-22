@@ -64,6 +64,9 @@ const supportItems = [
 
 export default function LandingPageClient() {
   const [submitState, setSubmitState] = useState<"idle" | "submitting" | "success" | "error">("idle");
+  const [betaModalOpen, setBetaModalOpen] = useState(false);
+  const [betaCode, setBetaCode] = useState("");
+  const [betaState, setBetaState] = useState<"idle" | "submitting" | "error">("idle");
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -92,6 +95,24 @@ export default function LandingPageClient() {
       setSubmitState("success");
     } catch {
       setSubmitState("error");
+    }
+  }
+
+  async function handleBetaSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBetaState("submitting");
+
+    try {
+      const response = await fetch("/api/beta-access", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: betaCode }),
+      });
+
+      if (!response.ok) throw new Error("Invalid access code.");
+      window.location.href = "/discovery";
+    } catch {
+      setBetaState("error");
     }
   }
 
@@ -211,26 +232,53 @@ export default function LandingPageClient() {
             Capital Conference Calendar is running a private beta for select market participants across investor relations, banking, public and private company leadership, conference organization, and capital markets services. The platform turns capital markets conferences into a cohesive intelligence layer — helping decision-makers plan coverage, identify early market signals, understand where attention is building, and make better decisions around relationships, capital access, and investment strategy.
           </p>
           <div style={{ display: "grid", gap: "10px", justifyItems: "start" }}>
-            <a
-              href="#request-access"
-              style={{
-                height: "48px",
-                padding: "0 20px",
-                borderRadius: "12px",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#ffffff",
-                textDecoration: "none",
-                fontSize: "14px",
-                fontWeight: 900,
-                background: "linear-gradient(180deg, #2f6df6 0%, #1747aa 100%)",
-                border: "1px solid rgba(147,197,253,0.44)",
-                boxShadow: "0 16px 34px rgba(37,99,235,0.26)",
-              }}
-            >
-              Request Beta Access
-            </a>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+              <a
+                href="#request-access"
+                style={{
+                  height: "48px",
+                  padding: "0 20px",
+                  borderRadius: "12px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#ffffff",
+                  textDecoration: "none",
+                  fontSize: "14px",
+                  fontWeight: 900,
+                  background: "linear-gradient(180deg, #2f6df6 0%, #1747aa 100%)",
+                  border: "1px solid rgba(147,197,253,0.44)",
+                  boxShadow: "0 16px 34px rgba(37,99,235,0.26)",
+                }}
+              >
+                Request Beta Access
+              </a>
+              <button
+                type="button"
+                onClick={() => {
+                  setBetaModalOpen(true);
+                  setBetaState("idle");
+                  setBetaCode("");
+                }}
+                style={{
+                  height: "48px",
+                  padding: "0 20px",
+                  borderRadius: "12px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#ffffff",
+                  fontSize: "14px",
+                  fontWeight: 900,
+                  background: "linear-gradient(180deg, #10b981 0%, #047857 100%)",
+                  border: "1px solid rgba(110,231,183,0.44)",
+                  boxShadow: "0 16px 34px rgba(16,185,129,0.22)",
+                  cursor: "pointer",
+                }}
+              >
+                Access Beta
+              </button>
+            </div>
             <div style={{ color: "#9fb5cf", fontSize: "13px", fontWeight: 750 }}>
               Limited beta access. We&apos;re selectively onboarding early users.
             </div>
@@ -500,6 +548,94 @@ export default function LandingPageClient() {
           <a href="#request-access" style={footerLinkStyle}>Request Beta Access</a>
         </div>
       </footer>
+
+      {betaModalOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Enter beta access code"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 20,
+            display: "grid",
+            placeItems: "center",
+            padding: "20px",
+            background: "rgba(2,8,15,0.72)",
+            backdropFilter: "blur(8px)",
+          }}
+        >
+          <form
+            onSubmit={handleBetaSubmit}
+            style={{
+              width: "min(100%, 380px)",
+              borderRadius: "18px",
+              border: "1px solid rgba(148,163,184,0.24)",
+              background: "linear-gradient(180deg, rgba(8,24,40,0.98), rgba(4,14,26,0.98))",
+              boxShadow: "0 26px 70px rgba(0,0,0,0.42)",
+              padding: "22px",
+              display: "grid",
+              gap: "14px",
+            }}
+          >
+            <label style={{ display: "grid", gap: "8px" }}>
+              <span style={{ color: "#dbeafe", fontSize: "17px", fontWeight: 900 }}>Enter beta access code</span>
+              <input
+                autoFocus
+                type="password"
+                value={betaCode}
+                onChange={(event) => {
+                  setBetaCode(event.target.value);
+                  if (betaState === "error") setBetaState("idle");
+                }}
+                style={fieldStyle}
+              />
+            </label>
+            {betaState === "error" ? <div style={{ color: "#fca5a5", fontSize: "13px", fontWeight: 800 }}>Invalid access code.</div> : null}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setBetaModalOpen(false);
+                  setBetaState("idle");
+                  setBetaCode("");
+                }}
+                style={{
+                  height: "40px",
+                  padding: "0 14px",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(148,163,184,0.24)",
+                  background: "rgba(15,23,42,0.62)",
+                  color: "#cbd5e1",
+                  fontSize: "13px",
+                  fontWeight: 850,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={betaState === "submitting"}
+                style={{
+                  height: "40px",
+                  padding: "0 16px",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(110,231,183,0.44)",
+                  background: "linear-gradient(180deg, #10b981 0%, #047857 100%)",
+                  color: "#ffffff",
+                  fontSize: "13px",
+                  fontWeight: 900,
+                  cursor: betaState === "submitting" ? "wait" : "pointer",
+                  opacity: betaState === "submitting" ? 0.74 : 1,
+                }}
+              >
+                {betaState === "submitting" ? "Entering..." : "Enter"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </main>
   );
 }
