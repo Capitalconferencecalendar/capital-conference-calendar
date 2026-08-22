@@ -15,7 +15,7 @@ export default function FilterMatchingControl({
   compact = false,
   minimal = false,
 }: FilterMatchingControlProps) {
-  const height = minimal ? "24px" : compact ? "30px" : "34px";
+  const height = minimal ? "26px" : compact ? "30px" : "34px";
 
   return (
     <div
@@ -69,7 +69,7 @@ export default function FilterMatchingControl({
               onClick={() => onChange(mode)}
               style={{
                 height: "100%",
-                border: minimal ? (active ? "1px solid rgba(255,255,255,0.38)" : "1px solid rgba(255,255,255,0.12)") : 0,
+                border: minimal ? (active ? "1.5px solid rgba(255,255,255,0.4)" : "1.5px solid rgba(255,255,255,0.14)") : 0,
                 borderRadius: minimal ? "6px" : "999px",
                 padding: minimal ? "0 8px" : compact ? "0 9px" : "0 11px",
                 background: minimal ? (active ? "rgba(255,255,255,0.1)" : "rgba(8,26,46,0.24)") : active ? "linear-gradient(180deg, #2877ef, #1f5fd4)" : "transparent",
