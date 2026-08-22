@@ -1838,7 +1838,6 @@ export default function EventsClient({
     addChips("marketFocus");
     addChips("issuerParticipation");
     addChips("organizer");
-    if (filterMode === "or") chips.push({ key: "filterMode", label: "Match: Any", clear: () => setFilterMode("and") });
     if (filters.dateRange !== "all") chips.push({ key: "dateRange", label: `Date: ${filters.dateRange.replace("next", "Next ").toUpperCase()}`, clear: () => setFilters((p) => ({ ...p, dateRange: "all" })) });
     if (fromDate || toDate) {
       const fromLabel = fromDate ? formatMonthDay(fromDate) : "Start";
@@ -4042,7 +4041,11 @@ useEffect(() => {
             ))}
           </div>
 
-          <div style={{ marginTop: "6px", padding: "0" }}>
+          <div style={{ marginTop: "7px", marginBottom: "14px" }}>
+            <FilterMatchingControl value={filterMode} onChange={updateFilterMode} minimal />
+          </div>
+
+          <div style={{ marginTop: "0", padding: "0" }}>
             <div style={{ color: "#f8fbff", fontWeight: 800, fontSize: "14px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>Quick Feeds</div>
             <div style={{ display: "grid", gap: "4px" }}>
               {[
@@ -5634,7 +5637,6 @@ useEffect(() => {
           >
             <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "10px", minWidth: 0 }}>
               <div style={{ color: "#dbeafe", fontWeight: 700 }}>{selectedEvents.length ? `${selectedEvents.length} selected` : `Showing ${events.length} of ${discoveryHeaderMetrics.recordCount} conferences`}</div>
-              <FilterMatchingControl value={filterMode} onChange={updateFilterMode} compact />
             </div>
             <div style={{ display: "none", gap: "6px" }}>
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
