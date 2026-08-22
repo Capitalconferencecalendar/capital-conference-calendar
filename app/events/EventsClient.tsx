@@ -6271,7 +6271,7 @@ useEffect(() => {
                           </div>
                         </div>
                         <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))", gap: "6px" }}>
-                          {heroMetric("Conference Universe", landscape.totalEvents)}
+                          {heroMetric("Upcoming Conference Index", landscape.totalEvents)}
                           {heroMetric("Issuer Access", access.issuerAccessCount)}
                           {heroMetric("Structured Access", access.structuredAccessCount)}
                           {heroMetric("Deal-Making", access.dealMakingCount)}

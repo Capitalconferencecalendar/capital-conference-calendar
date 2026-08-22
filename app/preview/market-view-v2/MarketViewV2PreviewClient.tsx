@@ -24,7 +24,7 @@ const quickFeeds = [
 ];
 
 const readoutStats = [
-  { label: "Conference Universe", value: "860", note: "tracked forward events" },
+  { label: "Upcoming Conference Index", value: "860", note: "Approved future events" },
   { label: "Current Period", value: "Late Summer 2026", note: "planning period" },
   { label: "Peak Week", value: "Sep 14-Sep 20", note: "highest visible density" },
   { label: "Top Sector", value: "Healthcare", note: "issuer-access weighted" },

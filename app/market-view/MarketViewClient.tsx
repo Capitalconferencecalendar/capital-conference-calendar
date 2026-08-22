@@ -506,7 +506,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const topMetro = displayAnalytics.cityCounts?.[0];
   const topFocus = displayAnalytics.focusCounts?.[0];
   const liveKpis = [
-    ["Conference Universe", formatNumber(displayAggregates.events), viewScope === "filtered" ? "Current view" : "Approved events"],
+    ["Upcoming Conference Index", formatNumber(displayAggregates.events), "Approved future events"],
     ["Issuer Access", formatNumber(displayAggregates.issuerAccess), "Classified signals"],
     ["Investor-Heavy", formatNumber(displayAggregates.investorHeavy), "Audience signal"],
     ["Peak Week", displayAggregates.highestActivityWeek?.label || "—", displayAggregates.highestActivityWeek ? `${displayAggregates.highestActivityWeek.count} events` : "No dated events"],
