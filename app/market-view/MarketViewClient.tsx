@@ -5,18 +5,6 @@ import type { CSSProperties, ReactNode } from "react";
 import SharedFilterRail from "../components/platform/SharedFilterRail";
 import FilterMatchingControl, { type FilterMatchMode } from "../components/platform/FilterMatchingControl";
 
-const metroStorageKey = "marketViewV3.primaryMetro";
-
-const filterRows = ["Date & Timing", "Location", "Market Segments", "Participation", "Organizers"];
-const quickFeeds = [
-  ["Investor Conferences", "115", "#3b82f6", "investor"],
-  ["Healthcare", "0", "#14b8a6", "health"],
-  ["Private Markets", "154", "#7c3aed", "private"],
-  ["Canada Events", "33", "#dc2626", "canada"],
-  ["Next 30 Days", "37", "#2563eb", "next30"],
-  ["Hot Weeks", "22", "#f97316", "next60"],
-];
-
 const quickActions = ["Clear", "Share Selected", "Save Market View", "Save Selected"];
 
 type FilterOptions = {
@@ -50,7 +38,14 @@ type AggregateStats = {
 
 type MarketAnalytics = {
   cityCounts: [string, number][];
+  organizerCounts: [string, number][];
+  themeCounts: [string, number][];
   focusCounts: [string, number][];
+  categoryCounts: [string, number][];
+  formatCounts: [string, number][];
+  sectorCounts: [string, number][];
+  eventCharacterCounts: [string, number][];
+  issuerParticipationCounts: [string, number][];
   weekCounts: { weekStart: string; count: number }[];
   weekInsights: Record<string, {
     topAudience: string;
@@ -73,6 +68,8 @@ type MarketViewPageData = {
   allAggregates: AggregateStats;
   marketAnalytics: MarketAnalytics;
   allMarketAnalytics: MarketAnalytics;
+  marketViewIntelligence?: any;
+  allMarketViewIntelligence?: any;
 };
 
 type FiltersState = {
@@ -122,24 +119,6 @@ const forecastModes: Record<ForecastMode, { label: string; title: string; descri
   },
 };
 
-const hotWeeks = [
-  {
-    week: "Sep 28-Oct 4, 2025",
-    events: "143 events",
-    theme: "Healthcare",
-    focus: "Institutional Investors",
-    signal: "18 issuer-access signals",
-    summary: "High investor overlap and sector breadth across major metros.",
-    detail: "Concentrated investor attendance across Healthcare, Tech, and Industrials with multiple flagship events drawing senior allocators and corporate access teams.",
-    eventsIncluded: "J.P. Morgan Healthcare Conference · LSEG Tech Summit · BofA Industrials Conference · Needham Growth Conference",
-    supportingContext: "Issuer access and investor concentration are the lead signals. Meeting-day context is secondary.",
-  },
-  { week: "Oct 12-Oct 18, 2025", events: "89 events", theme: "Financial Services", focus: "Private Markets", signal: "12 investor-relevant signals", summary: "Capital formation and fund strategy activity rises together.", detail: "Private-markets and financial-services programming compresses into a tighter forward window with investor relevance and banker-facing signal overlap.", eventsIncluded: "Private Markets Forum · Capital Formation Summit · Financial Services Investor Day", supportingContext: "Capital formation and investor concentration are the lead signals. Travel timing is not the primary readout." },
-  { week: "Nov 9-Nov 15, 2025", events: "76 events", theme: "Technology", focus: "Growth Equity", signal: "10 issuer-access signals", summary: "Public-company and private-growth signals overlap.", detail: "Technology, growth equity, and public-company programming align in a visible forward window with stronger sector-intelligence and issuer-access signals.", eventsIncluded: "Growth Equity Summit · Software Investor Forum · Public Company Tech Forum", supportingContext: "Sector breadth and issuer access are the lead signals. Meeting-day context is secondary." },
-  { week: "Oct 26-Nov 1, 2025", events: "68 events", theme: "Real Estate", focus: "Sponsor Visibility", signal: "9 deal/BD signals", summary: "Real estate and infrastructure forums compress into one window.", detail: "Real estate, infrastructure, and sponsor-visible events appear in the same market window, creating a stronger BD and banker-relevance signal.", eventsIncluded: "Real Estate Capital Forum · Infrastructure Finance Summit · Sponsor Visibility Forum", supportingContext: "Sponsor visibility and relationship density are the lead signals. Travel planning is supporting context only." },
-  { week: "Nov 16-Nov 22, 2025", events: "61 events", theme: "Energy", focus: "Industrials", signal: "8 banker-relevant signals", summary: "Energy transition and industrial access signals cluster late in the month.", detail: "Energy transition and industrials programming builds late-month market attention with banker relevance and sector-intelligence overlap.", eventsIncluded: "Energy Transition Forum · Industrials Investor Summit · Infrastructure Access Day", supportingContext: "Banker relevance and sector intelligence are the lead signals. Meeting-day context is secondary." },
-];
-
 type HotWeek = {
   weekStart: string;
   weekEnd: string;
@@ -177,49 +156,6 @@ function formatWeekLabel(weekStart: string, weekEnd: string) {
   const endDay = end.getUTCDate();
   return startMonth === endMonth ? `${startMonth} ${startDay}-${endDay}` : `${startMonth} ${startDay}-${endMonth} ${endDay}`;
 }
-
-const clusters = [
-  {
-    metro: "New York, NY",
-    events: "97 events",
-    type: "Healthcare issuer-access cluster",
-    window: "Sep 28-Oct 4, 2025",
-    signals: "Healthcare · Institutional Investors · Issuer Access",
-    summary: "Multiple healthcare and investor-access events align across the metro.",
-    detail: "Events occur in the same metro and week and share Healthcare, Institutional Investor, and Issuer Access signals.",
-    cities: "New York · Jersey City · Stamford",
-    eventsIncluded: "J.P. Morgan Healthcare Conference · Barclays Healthcare · TD Cowen Healthcare Innovation Summit",
-    supportingContext: "Potential private-meeting days may exist between related events, but meeting-day context is secondary to the cluster signal.",
-  },
-  { metro: "Boston, MA", events: "22 events", type: "Innovation Cluster", window: "Oct 12-Oct 18", signals: "Biotech · Growth Companies · Investor-Heavy", summary: "Biotech and growth-company forums align with investor-heavy programming.", detail: "Biotech, growth-company, and investor-heavy programming align around the Boston/Cambridge market, creating a stronger sector-intelligence cluster than simple event count.", cities: "Boston · Cambridge", eventsIncluded: "Biotech Growth Forum · Healthcare Innovation Summit · Growth Company Investor Day", supportingContext: "Investor concentration and sector intelligence are the lead signals. Meeting-day context is secondary." },
-  { metro: "San Francisco, CA", events: "19 events", type: "Tech & AI Cluster", window: "Oct 13-Oct 17", signals: "AI / Software · Sponsor Visibility · Investor Relevance", summary: "Software, AI, and growth equity activity concentrates.", detail: "Software, AI, and growth-equity events share timing and market focus across the Bay Area, increasing investor relevance and sponsor visibility.", cities: "San Francisco · Palo Alto · San Jose", eventsIncluded: "AI Software Summit · Growth Equity Forum · Technology Investor Conference", supportingContext: "Investor relevance and sponsor visibility are the lead signals. Travel timing is supporting context only." },
-  { metro: "Chicago, IL", events: "15 events", type: "Industrials Cluster", window: "Oct 26-Nov 1", signals: "Industrials · Infrastructure · Banker Relevance", summary: "Industrial and infrastructure meetings compress into one market window.", detail: "Industrial and infrastructure programming shares timing, category, and banker relevance, creating a clearer capital-markets cluster.", cities: "Chicago · Rosemont", eventsIncluded: "Industrials Investor Summit · Infrastructure Finance Forum · Manufacturing Outlook Conference", supportingContext: "Banker relevance and market coverage are the lead signals. Meeting-day context is secondary." },
-  { metro: "Dallas-Fort Worth", events: "12 events", type: "Deal / BD Cluster", window: "Nov 16-Nov 20", signals: "Private Markets · Sponsor Visibility · BD Coverage", summary: "Sponsor, advisor, and private-markets activity shows a shared commercial reason to watch.", detail: "Private-markets and sponsor-visible programming shares timing and audience signals across Dallas-Fort Worth, producing a stronger BD opportunity cluster.", cities: "Dallas · Fort Worth · Plano", eventsIncluded: "Private Markets Forum · Sponsor BD Summit · Advisor Coverage Day", supportingContext: "Sponsor visibility and BD opportunity are the lead signals. Meeting-day context is secondary." },
-];
-
-const sectors = [["Healthcare", 42], ["Financial Services", 31], ["Technology", 28], ["Real Estate", 23], ["Energy Transition", 18]];
-const focusMix = [["Institutional Investors", 40], ["Public Company CEOs", 20], ["Private Equity", 12], ["Credit / Fixed Income", 8]];
-const characterMix = [["Meeting-Driven", 42], ["Presentation-Heavy", 24], ["Deal / Partnering", 15], ["Networking", 11]];
-const accessMix = [["Issuer Access", 55], ["Investor Relevance", 48], ["Structured Access", 22], ["Sponsor / BD", 18]];
-
-const organizers = [
-  ["1", "Organizer Alpha", "18", "12", "Healthcare", "New York Metro", "Healthcare Investor Forum"],
-  ["2", "Organizer Beta", "14", "9", "Financial Services", "Boston / Cambridge", "Institutional Investor Conference"],
-  ["3", "Organizer Gamma", "12", "7", "Real Estate", "Dallas-Fort Worth", "Capital Markets Summit"],
-  ["4", "Organizer Delta", "9", "6", "Private Markets", "Miami / South Florida", "Private Markets Forum"],
-];
-
-const metros = [
-  ["New York Metro", "170 events", "Healthcare", "6 clusters"],
-  ["Boston / Cambridge", "48 events", "Healthcare/Biotech", "3 clusters"],
-  ["Bay Area", "52 events", "Technology/Growth", "4 clusters"],
-];
-
-const metroOptions = ["New York Metro", "Boston / Cambridge", "Bay Area", "Los Angeles / Orange County", "Dallas-Fort Worth", "Miami / South Florida", "Washington DC Metro", "Chicago Metro"];
-const metroSchedules: Record<string, Record<string, string[]>> = {
-  "New York Metro": { Today: ["Institutional Investor Conference"], "This Week": ["Healthcare Investor Forum"], "Next Two Weeks": ["Capital Markets Summit"] },
-  "Boston / Cambridge": { Today: [], "This Week": ["Healthcare Investor Forum"], "Next Two Weeks": ["Institutional Investor Conference"] },
-};
 
 function Bar({ label, value, tone = "blue" }: { label: string; value: number; tone?: "blue" | "amber" | "indigo" }) {
   return (
@@ -318,6 +254,16 @@ function formatNumber(value: number | undefined) {
   return new Intl.NumberFormat("en-US").format(value || 0);
 }
 
+function pctRows(rows: [string, number][] | undefined, limit = 5) {
+  const source = (rows || []).filter(([label, value]) => Boolean(label) && value > 0).slice(0, limit);
+  const max = Math.max(...source.map(([, value]) => value), 1);
+  return source.map(([label, value]) => ({ label, count: value, pct: Math.max(4, Math.round((value / max) * 100)) }));
+}
+
+function EmptyState({ children }: { children: ReactNode }) {
+  return <div className="v3-muted-row" style={{ borderBottom: 0 }}>{children}</div>;
+}
+
 function isDefaultFilters(filters: FiltersState) {
   return (
     filters.dateRange === "all" &&
@@ -401,7 +347,6 @@ function CalendarBrandGlyph({ brand }: { brand: "google" | "apple" | "outlook" }
 }
 
 export default function MarketViewClient({ initialPage }: { initialPage: MarketViewPageData }) {
-  const [primaryMetro, setPrimaryMetro] = useState("");
   const [filters, setFilters] = useState<FiltersState>(DEFAULT_FILTERS);
   const [filterMode, setFilterMode] = useState<FilterMatchMode>("and");
   const [marketPage, setMarketPage] = useState<MarketViewPageData>(initialPage);
@@ -419,15 +364,6 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const [selectedClusterIndex, setSelectedClusterIndex] = useState(0);
   const [hotWeekEvents, setHotWeekEvents] = useState<HotWeekEvent[]>([]);
   const [isLoadingHotWeekEvents, setIsLoadingHotWeekEvents] = useState(false);
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(metroStorageKey);
-      if (saved) setPrimaryMetro(saved);
-    } catch {
-      // Browser storage may be unavailable.
-    }
-  }, []);
 
   useEffect(() => {
     try {
@@ -473,23 +409,6 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
     };
   }, [filterMode, filters, initialPage]);
 
-  const metroSchedule = useMemo(() => metroSchedules[primaryMetro] || {
-    Today: [],
-    "This Week": primaryMetro ? ["Healthcare Investor Forum"] : [],
-    "Next Two Weeks": primaryMetro ? ["Private Markets Forum"] : [],
-  }, [primaryMetro]);
-
-  const updateMetro = (value: string) => {
-    setPrimaryMetro(value);
-    try {
-      if (value) localStorage.setItem(metroStorageKey, value);
-      else localStorage.removeItem(metroStorageKey);
-    } catch {
-      // Browser storage may be unavailable.
-    }
-  };
-
-  const activeCluster = clusters[selectedClusterIndex] ?? clusters[0];
   const isHotSignal = signalTab === "hotWeeks";
   const activeForecastMode = forecastModes[signalTab];
   const filterOptions = marketPage.filterOptions || initialPage.filterOptions;
@@ -497,6 +416,20 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const displayPage = viewScope === "filtered" ? marketPage : initialPage;
   const displayAggregates = displayPage.aggregates;
   const displayAnalytics = displayPage.marketAnalytics;
+  const displayIntelligence = displayPage.marketViewIntelligence || initialPage.marketViewIntelligence || {};
+  const liveClusters = ((displayIntelligence.clusterAlerts?.top || []) as any[]).slice(0, 5).map((row) => ({
+    metro: row.metroMarket || row.anchorCity || "Unspecified metro",
+    events: `${row.eventCount || row.events?.length || 0} event${(row.eventCount || row.events?.length || 0) === 1 ? "" : "s"}`,
+    type: row.clusterType || "Conference activity cluster",
+    window: row.dateWindow || "",
+    signals: (row.sharedSignals || []).join(" · "),
+    summary: row.planningRationale || `${row.eventCount || row.events?.length || 0} approved events share timing and location signals.`,
+    detail: row.planningRationale || "This cluster is derived from approved events with overlapping metro, timing, sector, focus, and access signals.",
+    cities: (row.citiesIncluded || [row.anchorCity]).filter(Boolean).join(" · "),
+    eventsIncluded: (row.events || []).map((event: any) => event.title).filter(Boolean).join(" · "),
+    supportingContext: row.travelPracticality || row.planningHorizon || "Derived from approved event records.",
+  }));
+  const activeCluster = liveClusters[selectedClusterIndex] ?? liveClusters[0];
   const liveHotWeeks = useMemo<HotWeek[]>(() => {
     return (displayAnalytics.weekCounts || [])
       .filter((row) => row.count > 0)
@@ -526,6 +459,10 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   useEffect(() => {
     if (selectedHotWeekIndex >= liveHotWeeks.length) setSelectedHotWeekIndex(0);
   }, [liveHotWeeks.length, selectedHotWeekIndex]);
+
+  useEffect(() => {
+    if (selectedClusterIndex >= liveClusters.length) setSelectedClusterIndex(0);
+  }, [liveClusters.length, selectedClusterIndex]);
 
   useEffect(() => {
     if (!activeHotWeek) {
@@ -568,6 +505,25 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
     ["Top Metro", topMetro?.[0] || "—", topMetro ? `${topMetro[1]} events` : "No metro signal"],
     ["Top Focus", topFocus?.[0] || displayAggregates.leadingSector?.label || "—", topFocus ? `${topFocus[1]} events` : "No focus signal"],
   ];
+  const sectorRows = pctRows(displayAnalytics.sectorCounts || displayAnalytics.themeCounts, 5);
+  const focusRows = pctRows(displayAnalytics.focusCounts, 5);
+  const characterRows = pctRows(displayAnalytics.eventCharacterCounts, 5);
+  const accessRows = pctRows(displayAnalytics.issuerParticipationCounts, 5);
+  const mom = displayIntelligence.monthOverMonth || {};
+  const notableSignals = [
+    mom.readout,
+    mom.forwardPipeline?.interpretation,
+    mom.signalMixShift?.issuerAccess?.interpretation,
+  ].filter(Boolean).slice(0, 3);
+  const sectorMomentum = (mom.sectorMomentum || []).filter((row: any) => row.currentCount > 0).slice(0, 5);
+  const metroMomentum = (mom.metroMomentum || []).filter((row: any) => row.currentCount > 0).slice(0, 5);
+  const organizerMovement = (mom.organizerMomentum || []).filter((row: any) => row.currentCount > 0).slice(0, 5);
+  const organizerRows = (displayIntelligence.organizerLeagueTables?.overallVolume || []).slice(0, 6);
+  const metroRows = (displayIntelligence.geographyClusters?.topCitiesByTotalEvents || []).slice(0, 6);
+  const localSelection = filters.cities[0] || filters.state[0] || filters.region[0] || "";
+  const localRows = localSelection
+    ? metroRows.filter((row: any) => [row.city, row.state].filter(Boolean).join(", ") === localSelection || row.state === localSelection || filters.region.includes(localSelection)).slice(0, 3)
+    : [];
   const quickFeedRows = [
     ["Investor Conferences", String(displayAggregates.quickFeeds.investorConferences), "#3b82f6", "investor", () => setFilters({ ...DEFAULT_FILTERS, conferenceType: filterOptions.conferenceTypes.filter((value) => /investor/i.test(value)).slice(0, 1) })],
     ["Healthcare", String(displayAggregates.quickFeeds.healthcareConferences), "#14b8a6", "health", () => setFilters({ ...DEFAULT_FILTERS, sectorThemes: filterOptions.themes.filter((value) => /health/i.test(value)).slice(0, 1) })],
@@ -830,7 +786,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                       </span>
                     </button>
                   ))
-                  : clusters.map((row, index) => (
+                  : liveClusters.length ? liveClusters.map((row, index) => (
                     <button type="button" className={`v3-signal-item ${index === selectedClusterIndex ? "is-active" : ""}`} key={row.metro} onClick={() => setSelectedClusterIndex(index)}>
                       <span className="v3-rank">{index + 1}</span>
                       <span>
@@ -839,16 +795,16 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                         <span className="v3-signal-reason">{row.summary}</span>
                       </span>
                     </button>
-                  ))}
+                  )) : <div className="v3-row">Not enough overlapping approved events to calculate comparable conference clusters yet.</div>}
               </div>
 
               <div className="v3-signal-detail">
                 <div>
                   <h3>{isHotSignal ? "Why this week matters" : "Why this cluster matters"}</h3>
                 </div>
-                <p className="v3-detail-summary">{isHotSignal ? activeHotWeek?.detail || "No dated events are available for this week." : activeCluster.detail}</p>
+                <p className="v3-detail-summary">{isHotSignal ? activeHotWeek?.detail || "No dated events are available for this week." : activeCluster?.detail || "Not enough overlapping approved events to calculate comparable conference clusters yet."}</p>
 
-                {!isHotSignal ? (
+                {!isHotSignal && activeCluster ? (
                   <div>
                     <div className="v3-detail-label">Cities Included</div>
                     <p>{activeCluster.cities ?? activeCluster.metro}</p>
@@ -865,9 +821,9 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                           <span>{event.startDate}{event.city ? ` · ${event.city}${event.state ? `, ${event.state}` : ""}` : ""}</span>
                         </div>
                       )) : <div>No events are available for this week.</div>
-                    ) : (
-                      (activeCluster.eventsIncluded ?? "").split(" · ").filter(Boolean).map((event) => <div key={event}>{event}</div>)
-                    )}
+                    ) : activeCluster ? (
+                      (activeCluster.eventsIncluded ?? "").split(" · ").filter(Boolean).map((event: string) => <div key={event}>{event}</div>)
+                    ) : <div>Not enough overlapping approved events to calculate comparable conference clusters yet.</div>}
                   </div>
                   {isHotSignal && activeHotWeek ? (
                     <a className="v3-link" href={`/discovery?startDate=${activeHotWeek.weekStart}&endDate=${activeHotWeek.weekEnd}`}>
@@ -876,63 +832,93 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                   ) : null}
                 </div>
 
-                {!isHotSignal ? (
+                {!isHotSignal && activeCluster ? (
                   <>
                     <div>
                       <div className="v3-detail-label">Shared signals</div>
-                      <div className="v3-feature-list">{(activeCluster.signals ?? "").split(" · ").filter(Boolean).map((signal) => <div key={signal}>{signal}</div>)}</div>
+                      <div className="v3-feature-list">{(activeCluster.signals ?? "").split(" · ").filter(Boolean).map((signal: string) => <div key={signal}>{signal}</div>)}</div>
                     </div>
                   </>
                 ) : (
                   <div className="v3-metric-row">
                     {[
-                      ["Investor Overlap", "78%"],
-                      ["Issuer Access", "High"],
-                      ["Sector Breadth", "Wide"],
-                      ["Relationship Density", "Very High"],
+                      ["Events", String(activeHotWeek?.count || 0)],
+                      ["Focus", activeHotWeek?.focus || "Not classified"],
+                      ["Access Signal", activeHotWeek?.signal || "Not classified"],
+                      ["Top City", displayAnalytics.weekInsights?.[activeHotWeek?.weekStart || ""]?.topCity || "Not available"],
                     ].map(([label, value]) => <div className="v3-metric-cell" key={label}><span>{label}</span><strong>{value}</strong></div>)}
                   </div>
                 )}
 
                 <div>
                   <div className="v3-detail-label">Supporting Context</div>
-                  <p>{isHotSignal ? activeHotWeek?.supportingContext || "This view is based on the current Market View filters." : activeCluster.supportingContext}</p>
+                  <p>{isHotSignal ? activeHotWeek?.supportingContext || "This view is based on the current Market View filters." : activeCluster?.supportingContext || "Derived only when approved events share enough cluster signals."}</p>
                 </div>
 
-                {!isHotSignal ? <OpenLink>View all clusters →</OpenLink> : null}
+                {!isHotSignal && activeCluster ? <OpenLink>View all clusters →</OpenLink> : null}
               </div>
             </div>
           </section>
 
           <section className="v3-support">
-            <div className="v3-support-card"><h3>Planning Windows</h3><div className="v3-muted-row">White Space / Lower Conflict: Nov 2-Nov 6</div><div className="v3-muted-row">Meeting-day note: Boston / Cambridge, Sep 22</div><div className="v3-muted-row">Timing note: use only when it changes interpretation</div></div>
-            <div className="v3-support-card"><h3>Momentum</h3><p>Tracked September activity is higher than August, with healthcare and institutional-investor focus gaining share in the forward calendar.</p><div className="v3-muted-row">Healthcare +7</div><div className="v3-muted-row">Institutional Investors +5</div></div>
-            <div className="v3-support-card"><h3>Dealmaking Context</h3><div className="v3-muted-row">Relationship-density signal: Moderate</div><div className="v3-muted-row">Sponsor / BD opportunity: Strong</div><div className="v3-muted-row">Advisor / banker relevance: Moderate</div></div>
+            <div className="v3-support-card">
+              <div className="v3-eyebrow">Notable Signals</div>
+              <h3>Current Readouts</h3>
+              {notableSignals.length ? notableSignals.map((signal: string) => <div className="v3-muted-row" key={signal}>{signal}</div>) : <EmptyState>Not enough approved event data to calculate notable movement yet.</EmptyState>}
+            </div>
+            <div className="v3-support-card">
+              <div className="v3-eyebrow">Signal Changes</div>
+              <h3>Database Movement</h3>
+              <EmptyState>Created and Last Modified are required to calculate newly added and recently updated records.</EmptyState>
+            </div>
+            <div className="v3-support-card">
+              <div className="v3-eyebrow">Access Signal Mix</div>
+              <h3>Classified Access</h3>
+              {accessRows.length ? accessRows.slice(0, 4).map((row) => <div className="v3-muted-row" key={row.label}>{row.label}: {row.count} approved events</div>) : <EmptyState>Issuer Participation is required to calculate access signal mix.</EmptyState>}
+            </div>
           </section>
 
           <section className="v3-panel">
             <div style={{ display: "grid", gap: 6, marginBottom: 14 }}><div className="v3-eyebrow">Data / Analytics</div><h2>Signal Breakdowns</h2></div>
             <div className="v3-analytics">
-              <div className="v3-data-card"><h3>Sector Breakdown</h3>{sectors.map(([label, value]) => <Bar key={label} label={String(label)} value={Number(value)} />)}</div>
-              <div className="v3-data-card"><h3>Market Focus Mix</h3>{focusMix.map(([label, value]) => <Bar key={label} label={String(label)} value={Number(value)} />)}</div>
-              <div className="v3-data-card"><h3>Event Character Mix</h3>{characterMix.map(([label, value]) => <Bar key={label} label={String(label)} value={Number(value)} tone="indigo" />)}</div>
-              <div className="v3-data-card"><h3>Access / Audience Signal Mix</h3>{accessMix.map(([label, value]) => <Bar key={label} label={String(label)} value={Number(value)} />)}</div>
+              <div className="v3-data-card"><h3>Sector Breakdown</h3>{sectorRows.length ? sectorRows.map((row) => <Bar key={row.label} label={row.label} value={row.pct} />) : <EmptyState>Sector / Themes or Public Company Sector is required to calculate this signal.</EmptyState>}</div>
+              <div className="v3-data-card"><h3>Market Focus Mix</h3>{focusRows.length ? focusRows.map((row) => <Bar key={row.label} label={row.label} value={row.pct} />) : <EmptyState>Market Focus is required to calculate this signal.</EmptyState>}</div>
+              <div className="v3-data-card"><h3>Event Character Mix</h3>{characterRows.length ? characterRows.map((row) => <Bar key={row.label} label={row.label} value={row.pct} tone="indigo" />) : <EmptyState>Event Character is required to calculate this signal.</EmptyState>}</div>
+              <div className="v3-data-card"><h3>Access / Audience Signal Mix</h3>{accessRows.length ? accessRows.map((row) => <Bar key={row.label} label={row.label} value={row.pct} />) : <EmptyState>Issuer Participation is required to calculate this signal.</EmptyState>}</div>
+            </div>
+          </section>
+
+          <section className="v3-support">
+            <div className="v3-support-card">
+              <div className="v3-eyebrow">Sector Momentum</div>
+              <h3>Change in Tracked Conference Activity</h3>
+              {sectorMomentum.length ? sectorMomentum.map((row: any) => <div className="v3-muted-row" key={row.sector}>{row.sector}: {row.currentCount} current vs {row.priorCount} prior ({row.change >= 0 ? "+" : ""}{row.change})</div>) : <EmptyState>Not enough prior-period data to calculate sector momentum yet.</EmptyState>}
+            </div>
+            <div className="v3-support-card">
+              <div className="v3-eyebrow">Metro Momentum</div>
+              <h3>Metro Movement</h3>
+              {metroMomentum.length ? metroMomentum.map((row: any) => <div className="v3-muted-row" key={row.metroMarket}>{row.metroMarket}: {row.currentCount} current vs {row.priorCount} prior · {row.topSector || "No sector signal"}</div>) : <EmptyState>Not enough prior-period city data to calculate metro momentum yet.</EmptyState>}
+            </div>
+            <div className="v3-support-card">
+              <div className="v3-eyebrow">Organizer Movement</div>
+              <h3>Organizer Activity</h3>
+              {organizerMovement.length ? organizerMovement.map((row: any) => <div className="v3-muted-row" key={row.organizer}>{row.organizer}: {row.currentCount} current vs {row.priorCount} prior · {row.topSector || "No sector signal"}</div>) : <EmptyState>Not enough prior-period organizer data to calculate organizer movement yet.</EmptyState>}
             </div>
           </section>
 
           <section className="v3-panel">
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "end", marginBottom: 14, flexWrap: "wrap" }}><div><div className="v3-eyebrow">Organizer League Table</div><h2>Organizer Supply</h2></div><div className="v3-tabs">{["Overall Supply", "Issuer Access", "Investor Relevant", "Structured Access", "Deal / BD"].map((tab) => <span key={tab}>{tab}</span>)}</div></div>
-            <table><thead><tr>{["Rank", "Organizer", "Events", "Access Signals", "Top Sector", "Top Metro", "Next Event", "Open"].map((h) => <th key={h}>{h}</th>)}</tr></thead><tbody>{organizers.map((row) => <tr key={row[1]}>{[...row, "Open"].map((cell) => <td key={cell}>{cell}</td>)}</tr>)}</tbody></table>
+            {organizerRows.length ? <table><thead><tr>{["Rank", "Organizer", "Events", "Access Signals", "Top Metro", "Next Event"].map((h) => <th key={h}>{h}</th>)}</tr></thead><tbody>{organizerRows.map((row: any) => <tr key={row.organizer}><td>{row.rank}</td><td>{row.organizer}</td><td>{row.totalEvents}</td><td>{row.issuerAccessEvents}</td><td>{row.nextEventCity || "N/A"}</td><td>{row.nextEventTitle || "N/A"}</td></tr>)}</tbody></table> : <EmptyState>Organizer is required to calculate organizer supply.</EmptyState>}
           </section>
 
           <section className="v3-panel">
             <div style={{ display: "grid", gap: 6, marginBottom: 14 }}><div className="v3-eyebrow">Geography / Metro</div><h2>Metro Analytics</h2></div>
-            <div className="v3-metro-grid">{metros.map(([metro, events, sector, count]) => <div className="v3-metro-card" key={metro}><h3>{metro}</h3><strong>{events}</strong><span>{sector}</span><span>{count}</span></div>)}</div>
+            {metroRows.length ? <div className="v3-metro-grid">{metroRows.map((row: any) => <div className="v3-metro-card" key={`${row.city}-${row.state}`}><h3>{[row.city, row.state].filter(Boolean).join(", ")}</h3><strong>{row.totalEvents} events</strong><span>{row.topSector || "No sector signal"}</span><span>{row.topMarketFocus || "No focus signal"}</span></div>)}</div> : <EmptyState>City, state, and region are required to calculate metro analytics.</EmptyState>}
           </section>
 
           <section className="v3-panel v3-watch">
-            <div style={{ display: "grid", gap: 8 }}><div className="v3-eyebrow">Metro Watch</div><h2>Primary Work City</h2><p>Near-term placeholder activity around the selected metro.</p><select value={primaryMetro} onChange={(event) => updateMetro(event.target.value)}><option value="">Choose a metro</option>{metroOptions.map((metro) => <option key={metro} value={metro}>{metro}</option>)}</select></div>
-            <div className="v3-analytics" style={{ gridTemplateColumns: "repeat(3,minmax(0,1fr))" }}>{primaryMetro ? Object.entries(metroSchedule).map(([group, items]) => <div className="v3-data-card" key={group}><h3>{group}</h3>{items.length ? items.map((item) => <div className="v3-muted-row" key={item}>{item}</div>) : <div className="v3-muted-row">No near-term placeholder activity.</div>}</div>) : <div className="v3-data-card" style={{ gridColumn: "1 / -1" }}>Choose a city to view Today, This Week, and Next Two Weeks.</div>}</div>
+            <div style={{ display: "grid", gap: 8 }}><div className="v3-eyebrow">Local Market View</div><h2>Region / Metro Signals</h2><p>Uses selected region, state, or metro filters from approved event records.</p></div>
+            <div className="v3-analytics" style={{ gridTemplateColumns: "repeat(3,minmax(0,1fr))" }}>{localSelection ? (localRows.length ? localRows.map((row: any) => <div className="v3-data-card" key={`${row.city}-${row.state}`}><h3>{[row.city, row.state].filter(Boolean).join(", ")}</h3><div className="v3-muted-row">{row.totalEvents} approved events</div><div className="v3-muted-row">{row.issuerAccessEvents} issuer-access signals</div><div className="v3-muted-row">{row.nextEvent?.title || "No upcoming event title available"}</div></div>) : <div className="v3-data-card" style={{ gridColumn: "1 / -1" }}>No approved events match the selected local market view.</div>) : <div className="v3-data-card" style={{ gridColumn: "1 / -1" }}>Select a region, state, or metro to view local conference signals.</div>}</div>
           </section>
         </main>
 
