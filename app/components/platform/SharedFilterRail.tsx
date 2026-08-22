@@ -164,7 +164,6 @@ export default function SharedFilterRail({
           <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#9ec2e8" }}><ClearIcon /></span>
           Clear Filters
         </button>
-        {filterMatchingControl ? <div style={{ marginTop: "7px" }}>{filterMatchingControl}</div> : null}
       </div>
 
       <div style={{ display: "grid", gap: "6px", minWidth: 0 }}>
@@ -208,6 +207,8 @@ export default function SharedFilterRail({
           </div>
         ))}
       </div>
+
+      {filterMatchingControl ? <div style={{ marginTop: "8px", marginBottom: "14px" }}>{filterMatchingControl}</div> : null}
 
       <div style={{ marginTop: "6px", padding: "0" }}>
         <div style={{ color: "#f8fbff", fontWeight: 800, fontSize: "14px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>Quick Feeds</div>

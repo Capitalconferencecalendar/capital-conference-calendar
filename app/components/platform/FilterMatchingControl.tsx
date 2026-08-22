@@ -15,7 +15,7 @@ export default function FilterMatchingControl({
   compact = false,
   minimal = false,
 }: FilterMatchingControlProps) {
-  const height = minimal ? "18px" : compact ? "30px" : "34px";
+  const height = minimal ? "24px" : compact ? "30px" : "34px";
 
   return (
     <div
@@ -71,12 +71,12 @@ export default function FilterMatchingControl({
                 height: "100%",
                 border: minimal ? (active ? "1px solid rgba(255,255,255,0.38)" : "1px solid rgba(255,255,255,0.12)") : 0,
                 borderRadius: minimal ? "6px" : "999px",
-                padding: minimal ? "0 5px" : compact ? "0 9px" : "0 11px",
+                padding: minimal ? "0 8px" : compact ? "0 9px" : "0 11px",
                 background: minimal ? (active ? "rgba(255,255,255,0.1)" : "rgba(8,26,46,0.24)") : active ? "linear-gradient(180deg, #2877ef, #1f5fd4)" : "transparent",
                 boxShadow: minimal ? (active ? "0 0 8px rgba(255,255,255,0.18), inset 0 1px 0 rgba(255,255,255,0.08)" : "inset 0 1px 0 rgba(255,255,255,0.02)") : active ? "0 0 0 1px rgba(147,197,253,0.28), 0 4px 10px rgba(37,99,235,0.22)" : "none",
                 color: active ? "#ffffff" : minimal ? "#9eb4cf" : "#a9c0db",
                 cursor: "pointer",
-                fontSize: minimal ? "9px" : compact ? "10px" : "11px",
+                fontSize: minimal ? "10px" : compact ? "10px" : "11px",
                 fontWeight: minimal ? 800 : 850,
                 lineHeight: 1,
                 whiteSpace: "nowrap",
