@@ -417,17 +417,25 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const displayAggregates = displayPage.aggregates;
   const displayAnalytics = displayPage.marketAnalytics;
   const displayIntelligence = displayPage.marketViewIntelligence || initialPage.marketViewIntelligence || {};
+  const internalIntelligence = displayIntelligence.internalIntelligence || {};
+  const intelligenceReadByTitle = new Map(
+    ((internalIntelligence.eventReads || []) as any[]).map((read) => [read.title, read])
+  );
+  const marketWindowReadByWeek = new Map(
+    ((internalIntelligence.marketWindowReads || []) as any[]).map((read) => [read.weekStart, read.intelligenceRead])
+  );
   const liveClusters = ((displayIntelligence.clusterAlerts?.top || []) as any[]).slice(0, 5).map((row) => ({
+    comparableRead: (row.events || []).map((event: any) => intelligenceReadByTitle.get(event.title)).find(Boolean),
     metro: row.metroMarket || row.anchorCity || "Unspecified metro",
     events: `${row.eventCount || row.events?.length || 0} event${(row.eventCount || row.events?.length || 0) === 1 ? "" : "s"}`,
     type: row.clusterType || "Conference activity cluster",
     window: row.dateWindow || "",
     signals: (row.sharedSignals || []).join(" · "),
-    summary: row.planningRationale || `${row.eventCount || row.events?.length || 0} approved events share timing and location signals.`,
-    detail: row.planningRationale || "This cluster is derived from approved events with overlapping metro, timing, sector, focus, and access signals.",
+    summary: (row.events || []).map((event: any) => intelligenceReadByTitle.get(event.title)?.comparableRationale).find(Boolean) || row.planningRationale || `${row.eventCount || row.events?.length || 0} approved events share timing and location signals.`,
+    detail: (row.events || []).map((event: any) => intelligenceReadByTitle.get(event.title)?.whyItMatters).find(Boolean) || row.planningRationale || "This cluster is derived from approved events with overlapping metro, timing, sector, focus, and access signals.",
     cities: (row.citiesIncluded || [row.anchorCity]).filter(Boolean).join(" · "),
     eventsIncluded: (row.events || []).map((event: any) => event.title).filter(Boolean).join(" · "),
-    supportingContext: row.travelPracticality || row.planningHorizon || "Derived from approved event records.",
+    supportingContext: (row.events || []).map((event: any) => intelligenceReadByTitle.get(event.title)?.intelligenceRead).find(Boolean) || row.travelPracticality || row.planningHorizon || "Derived from approved event records.",
   }));
   const activeCluster = liveClusters[selectedClusterIndex] ?? liveClusters[0];
   const liveHotWeeks = useMemo<HotWeek[]>(() => {
@@ -450,10 +458,10 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
           signal: insight?.topIssuerParticipation || "Active conference week",
           summary: insight?.actionLine || `${row.count} conference${row.count === 1 ? "" : "s"} are scheduled this week.`,
           detail: `${row.count} conference${row.count === 1 ? " is" : "s are"} scheduled during this week, with activity led by ${topCity}.`,
-          supportingContext: insight?.topFocus ? `Top market focus: ${insight.topFocus}.` : "This view is based on the current Market View filters.",
+          supportingContext: marketWindowReadByWeek.get(row.weekStart) || (insight?.topFocus ? `Top market focus: ${insight.topFocus}.` : "This view is based on the current Market View filters."),
         };
       });
-  }, [displayAnalytics]);
+  }, [displayAnalytics, internalIntelligence.marketWindowReads]);
   const activeHotWeek = liveHotWeeks[selectedHotWeekIndex] ?? liveHotWeeks[0];
 
   useEffect(() => {
@@ -514,7 +522,10 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
     mom.readout,
     mom.forwardPipeline?.interpretation,
     mom.signalMixShift?.issuerAccess?.interpretation,
+    ...((internalIntelligence.notableSignals || []) as string[]),
   ].filter(Boolean).slice(0, 3);
+  const signalChanges = internalIntelligence.signalChanges;
+  const accessRead = internalIntelligence.accessRead as string | null | undefined;
   const sectorMomentum = (mom.sectorMomentum || []).filter((row: any) => row.currentCount > 0).slice(0, 5);
   const metroMomentum = (mom.metroMomentum || []).filter((row: any) => row.currentCount > 0).slice(0, 5);
   const organizerMovement = (mom.organizerMomentum || []).filter((row: any) => row.currentCount > 0).slice(0, 5);
@@ -851,7 +862,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                 )}
 
                 <div>
-                  <div className="v3-detail-label">Supporting Context</div>
+                  <div className="v3-detail-label">{isHotSignal ? "Supporting Context" : "Comparable rationale"}</div>
                   <p>{isHotSignal ? activeHotWeek?.supportingContext || "This view is based on the current Market View filters." : activeCluster?.supportingContext || "Derived only when approved events share enough cluster signals."}</p>
                 </div>
 
@@ -869,12 +880,17 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
             <div className="v3-support-card">
               <div className="v3-eyebrow">Signal Changes</div>
               <h3>Database Movement</h3>
-              <EmptyState>Created and Last Modified are required to calculate newly added and recently updated records.</EmptyState>
+              {signalChanges ? <>
+                <div className="v3-muted-row">{signalChanges.addedInLast30Days} added in the last 30 days</div>
+                <div className="v3-muted-row">{signalChanges.updatedInLast30Days} updated in the last 30 days</div>
+                {signalChanges.latestActivityDate ? <div className="v3-muted-row">Latest database movement: {signalChanges.latestActivityDate}</div> : null}
+              </> : <EmptyState>No Created or Last Modified values are available for this view yet.</EmptyState>}
             </div>
             <div className="v3-support-card">
               <div className="v3-eyebrow">Access Signal Mix</div>
               <h3>Classified Access</h3>
               {accessRows.length ? accessRows.slice(0, 4).map((row) => <div className="v3-muted-row" key={row.label}>{row.label}: {row.count} approved events</div>) : <EmptyState>Issuer Participation is required to calculate access signal mix.</EmptyState>}
+              {accessRead ? <p style={{ marginTop: 8 }}>{accessRead}</p> : null}
             </div>
           </section>
 

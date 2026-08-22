@@ -1,5 +1,6 @@
 import "server-only";
 import { buildMarketViewIntelligence, type MarketViewIntelligence } from "./marketViewIntelligence";
+import { buildInternalMarketIntelligence, type InternalMarketIntelligence } from "./internalMarketIntelligence";
 
 export type DiscoveryEvent = {
   id: string;
@@ -29,6 +30,20 @@ export type DiscoveryEvent = {
   dataCompletenessScore?: string;
   websiteApproval?: string;
   verificationStamp?: string;
+};
+
+type InternalDiscoveryEvent = DiscoveryEvent & {
+  classificationEvidence?: string;
+  eventIntelligenceProfile?: string;
+  organizerPositioningSummary?: string;
+  promotionalClaims?: string;
+  notes?: string;
+  createdAt?: string;
+  lastModifiedAt?: string;
+};
+
+type MarketViewIntelligenceWithInternal = MarketViewIntelligence & {
+  internalIntelligence: InternalMarketIntelligence;
 };
 
 export type DiscoveryFilterOptions = {
@@ -152,8 +167,8 @@ export type DiscoveryPage = {
   allAggregates: DiscoveryAggregateStats;
   marketAnalytics: MarketViewAnalytics;
   allMarketAnalytics: MarketViewAnalytics;
-  marketViewIntelligence: MarketViewIntelligence;
-  allMarketViewIntelligence: MarketViewIntelligence;
+  marketViewIntelligence: MarketViewIntelligenceWithInternal;
+  allMarketViewIntelligence: MarketViewIntelligenceWithInternal;
 };
 
 export type DiscoveryQuery = {
@@ -217,7 +232,7 @@ function isWebsiteApproved(fields: Record<string, unknown>) {
     !/(notapproved|unapproved|pending|rejected)/.test(normalized);
 }
 
-function mapRecord(record: AirtableRecord): DiscoveryEvent {
+function mapRecord(record: AirtableRecord): InternalDiscoveryEvent {
   const fields = record.fields || {};
   const startDate = cleanDateOnly(fields["Start Date"]);
   return {
@@ -248,10 +263,17 @@ function mapRecord(record: AirtableRecord): DiscoveryEvent {
     dataCompletenessScore: toText(fields["Data Completeness Score copy"]) || toText(fields["Data Completeness Score"]),
     websiteApproval: toText(fields["Website Approval"]),
     verificationStamp: firstText(fields, ["Latest Verification Date", "Last Verified", "Verification Date", "Verified At", "Reviewed At"]),
+    classificationEvidence: toText(fields["Classification Evidence"]),
+    eventIntelligenceProfile: toText(fields["Event Intelligence Profile"]),
+    organizerPositioningSummary: toText(fields["Organizer Positioning Summary"]),
+    promotionalClaims: toText(fields["Promotional Claims"]),
+    notes: toText(fields["Notes"]),
+    createdAt: firstText(fields, ["Created", "Created Time", "Created At"]),
+    lastModifiedAt: firstText(fields, ["Last Modified", "Last Modified Time", "Modified At"]),
   };
 }
 
-async function fetchApprovedEvents(): Promise<DiscoveryEvent[]> {
+async function fetchApprovedEvents(): Promise<InternalDiscoveryEvent[]> {
   const baseId = process.env.AIRTABLE_BASE_ID;
   const tableName = process.env.AIRTABLE_TABLE_NAME;
   const token = process.env.AIRTABLE_TOKEN;
@@ -715,7 +737,7 @@ function hasSelectedFilterMatches(values: string[], candidates: string[]) {
   return values.length > 0 && values.some((value) => candidates.includes(value));
 }
 
-function filterEvents(events: DiscoveryEvent[], query: DiscoveryQuery) {
+function filterEvents(events: InternalDiscoveryEvent[], query: DiscoveryQuery) {
   const today = new Date();
   const todayTime = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
   const days = query.dateRange === "next30" ? 30 : query.dateRange === "next60" ? 60 : query.dateRange === "next90" ? 90 : 3650;
@@ -801,6 +823,28 @@ function filterEvents(events: DiscoveryEvent[], query: DiscoveryQuery) {
   });
 }
 
+function toPublicEvent(event: InternalDiscoveryEvent): DiscoveryEvent {
+  const {
+    classificationEvidence,
+    eventIntelligenceProfile,
+    organizerPositioningSummary,
+    promotionalClaims,
+    notes,
+    createdAt,
+    lastModifiedAt,
+    ...publicEvent
+  } = event;
+  void [classificationEvidence, eventIntelligenceProfile, organizerPositioningSummary, promotionalClaims, notes, createdAt, lastModifiedAt];
+  return publicEvent;
+}
+
+function buildMarketViewIntelligenceWithInternal(events: InternalDiscoveryEvent[]): MarketViewIntelligenceWithInternal {
+  return {
+    ...buildMarketViewIntelligence(events),
+    internalIntelligence: buildInternalMarketIntelligence(events),
+  };
+}
+
 export async function getDiscoveryPage(query: DiscoveryQuery = {}): Promise<DiscoveryPage> {
   const approvedEvents = await fetchApprovedEvents();
   const filtered = filterEvents(approvedEvents, query);
@@ -808,7 +852,7 @@ export async function getDiscoveryPage(query: DiscoveryQuery = {}): Promise<Disc
   const start = decodeCursor(query.cursor);
   const nextIndex = start + limit;
   return {
-    events: filtered.slice(start, nextIndex),
+    events: filtered.slice(start, nextIndex).map(toPublicEvent),
     total: filtered.length,
     nextCursor: nextIndex < filtered.length ? encodeCursor(nextIndex) : null,
     filterOptions: buildFilterOptions(approvedEvents),
@@ -816,7 +860,7 @@ export async function getDiscoveryPage(query: DiscoveryQuery = {}): Promise<Disc
     allAggregates: aggregate(approvedEvents),
     marketAnalytics: buildMarketViewAnalytics(filtered),
     allMarketAnalytics: buildMarketViewAnalytics(approvedEvents),
-    marketViewIntelligence: buildMarketViewIntelligence(filtered),
-    allMarketViewIntelligence: buildMarketViewIntelligence(approvedEvents),
+    marketViewIntelligence: buildMarketViewIntelligenceWithInternal(filtered),
+    allMarketViewIntelligence: buildMarketViewIntelligenceWithInternal(approvedEvents),
   };
 }
