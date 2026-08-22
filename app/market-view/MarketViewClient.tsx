@@ -494,18 +494,6 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const activeForecastMode = forecastModes[signalTab];
   const filterOptions = marketPage.filterOptions || initialPage.filterOptions;
   const hasActiveFilters = !isDefaultFilters(filters);
-  const selectedFilterCount =
-    (filters.dateRange === "all" ? 0 : 1) +
-    filters.country.length +
-    filters.region.length +
-    filters.state.length +
-    filters.cities.length +
-    filters.sectorThemes.length +
-    filters.publicCompanySectors.length +
-    filters.conferenceType.length +
-    filters.issuerParticipation.length +
-    filters.organizer.length +
-    filters.marketFocus.length;
   const displayPage = viewScope === "filtered" ? marketPage : initialPage;
   const displayAggregates = displayPage.aggregates;
   const displayAnalytics = displayPage.marketAnalytics;
@@ -789,11 +777,6 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
             <div className="v3-view-toggle" aria-label="Market view scope">
               <button type="button" className={viewScope === "full" ? "is-active" : ""} onClick={() => setViewScope("full")}>Full Market View</button>
               <button type="button" className={viewScope === "filtered" ? "is-active" : ""} onClick={() => setViewScope("filtered")}>Current Filter View</button>
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "9px", flexWrap: "wrap", gridColumn: "2 / -1", marginTop: "-3px" }}>
-              <span style={{ color: "#91aac6", fontSize: "10px", fontWeight: 800, whiteSpace: "nowrap" }}>
-                {selectedFilterCount ? `${selectedFilterCount} filter${selectedFilterCount === 1 ? "" : "s"} selected` : "No filters selected"}
-              </span>
             </div>
             <div className="v3-kpi-grid">
               {liveKpis.map(([label, value, note], index) => (
