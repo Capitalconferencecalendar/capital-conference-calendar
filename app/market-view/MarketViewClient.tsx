@@ -768,121 +768,9 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
               onDateRangeChange={(dateRange) => { setViewScope("filtered"); setFilters((current) => ({ ...current, dateRange })); }}
               onToggleFilter={toggleFilterValue}
               onClear={clearFilters}
+              filterMatchingControl={<FilterMatchingControl value={filterMode} onChange={updateFilterMode} minimal />}
               quickFeeds={quickFeedRows.map(([title, count, color, icon, onClick]) => ({ key: title, title, count, color, icon, onClick }))}
             />
-            {false ? <>
-            <div style={{ width: "100%", maxWidth: "100%", overflow: "visible", padding: "10px 0" }}>
-              <div style={{ marginBottom: "10px" }}>
-                <div style={{ fontWeight: 900, color: "#dbeafe", fontSize: "20px", lineHeight: 1.05, marginBottom: "6px", textAlign: "center" }}>Refine Your Market View</div>
-                <div style={{ color: "#93aeca", fontSize: "12px", lineHeight: 1.35, marginBottom: "8px" }}>Filter conferences by date, location, theme, and participation.</div>
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  style={{
-                    height: "36px",
-                    width: "100%",
-                    borderRadius: "10px",
-                    border: "1px solid rgba(120,160,220,0.2)",
-                    background: "rgba(8,26,46,0.42)",
-                    color: "#c9dff7",
-                    cursor: "pointer",
-                    fontSize: "12px",
-                    fontWeight: 800,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "8px",
-                  }}
-                >
-                  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#9ec2e8" }}>
-                    <QuickActionIcon kind="clear" />
-                  </span>
-                  Clear Filters
-                </button>
-              </div>
-
-              <div style={{ display: "grid", gap: "6px", minWidth: 0 }}>
-                {filterRows.map((row, index) => (
-                  <div
-                    key={row}
-                    style={{
-                      border: `1px solid rgba(96,165,250,${0.36 - index * 0.06})`,
-                      borderRadius: "10px",
-                      background: `linear-gradient(180deg, rgba(12,34,60,${0.52 - index * 0.06}), rgba(7,24,44,${0.4 - index * 0.05}))`,
-                      boxShadow: `inset 0 1px 0 rgba(255,255,255,0.04), 0 0 ${14 - index * 2}px rgba(59,130,246,${0.2 - index * 0.03})`,
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setOpenFilters((current) => ({ ...current, [row]: !current[row] }))}
-                      style={{ width: "100%", height: "48px", padding: "0 14px", border: 0, background: "transparent", color: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
-                    >
-                      <span style={{ fontSize: "12px", fontWeight: 800, letterSpacing: "0.07em", display: "inline-flex", alignItems: "center", gap: "9px", color: "#d7e5f5" }}>
-                        <span style={{ width: "16px", height: "16px", color: "#b6c6da", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                          <FilterSectionIcon kind={index === 0 ? "date" : index === 1 ? "location" : index === 2 ? "segments" : index === 3 ? "participation" : "organizers"} />
-                        </span>
-                        {row.toUpperCase()}
-                      </span>
-                      <span style={{ fontSize: "14px", color: "#c7dcf6", fontWeight: 800, letterSpacing: "0.01em", display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                        <span style={{ fontSize: "16px", color: "#dbeafe", lineHeight: 1 }}>{openFilters[row] ? "▾" : "▸"}</span>
-                      </span>
-                    </button>
-                    {openFilters[row] ? (
-                      <div style={{ padding: "0 10px 10px", display: "grid", gap: "7px" }}>
-                        {row === "Date & Timing" ? (
-                          <select value={filters.dateRange} onChange={(event) => { setViewScope("filtered"); setFilters((current) => ({ ...current, dateRange: event.target.value as FiltersState["dateRange"] })); }}>
-                            <option value="all">All Dates</option>
-                            <option value="next30">Next 30 Days</option>
-                            <option value="next60">Next 60 Days</option>
-                            <option value="next90">Next 90 Days</option>
-                          </select>
-                        ) : null}
-                        {row === "Location" ? (
-                          <>
-                            <FilterSelect label="Country" emptyLabel="All Countries" values={filters.country} options={filterOptions.countries} onToggle={(value) => toggleFilterValue("country", value)} />
-                            <FilterSelect label="Region" emptyLabel="All Regions" values={filters.region} options={filterOptions.regions} onToggle={(value) => toggleFilterValue("region", value)} />
-                            <FilterSelect label="State" emptyLabel="All States" values={filters.state} options={filterOptions.states} onToggle={(value) => toggleFilterValue("state", value)} />
-                            <FilterSelect label="City" emptyLabel="All Cities" values={filters.cities} options={filterOptions.cities} onToggle={(value) => toggleFilterValue("cities", value)} />
-                          </>
-                        ) : null}
-                        {row === "Market Segments" ? (
-                          <>
-                            <FilterSelect label="Sector / Theme" emptyLabel="All Sectors / Themes" values={filters.sectorThemes} options={filterOptions.themes} onToggle={(value) => toggleFilterValue("sectorThemes", value)} />
-                            <FilterSelect label="Public Company Sector" emptyLabel="All Public Company Sectors" values={filters.publicCompanySectors} options={filterOptions.publicCompanySectors || []} onToggle={(value) => toggleFilterValue("publicCompanySectors", value)} />
-                            <FilterSelect label="Conference Type" emptyLabel="All Types" values={filters.conferenceType} options={filterOptions.conferenceTypes} onToggle={(value) => toggleFilterValue("conferenceType", value)} />
-                            <FilterSelect label="Market Focus" emptyLabel="All Market Focus" values={filters.marketFocus} options={filterOptions.marketFocuses} onToggle={(value) => toggleFilterValue("marketFocus", value)} />
-                          </>
-                        ) : null}
-                        {row === "Participation" ? (
-                          <FilterSelect label="Issuer Participation" emptyLabel="All Issuer Participation" values={filters.issuerParticipation} options={filterOptions.issuers} onToggle={(value) => toggleFilterValue("issuerParticipation", value)} />
-                        ) : null}
-                        {row === "Organizers" ? (
-                          <FilterSelect label="Organizer" emptyLabel="All Organizers" values={filters.organizer} options={filterOptions.organizers} onToggle={(value) => toggleFilterValue("organizer", value)} />
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ marginTop: "6px", padding: "0" }}>
-                <div style={{ color: "#f8fbff", fontWeight: 800, fontSize: "14px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>Quick Feeds</div>
-                <div style={{ display: "grid", gap: "4px" }}>
-                  {quickFeedRows.map(([label, count, color, icon, action]) => (
-                    <button key={label} type="button" onClick={action} style={{ height: "38px", borderRadius: "8px", border: "1px solid rgba(147,197,253,0.08)", background: "rgba(147,197,253,0.02)", color: "#dbeafe", cursor: "pointer", display: "flex", alignItems: "center", gap: "10px", padding: "0 10px" }}>
-                      <span style={{ width: "20px", height: "20px", display: "inline-flex", alignItems: "center", justifyContent: "center", color, filter: "brightness(1.2)" }}>
-                        <QuickViewGlyph kind={icon as "investor" | "health" | "private" | "canada" | "next30" | "next60"} color={color} />
-                      </span>
-                      <span style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", alignItems: "center", gap: "8px", width: "100%", minWidth: 0 }}>
-                        <span style={{ fontSize: "13px", fontWeight: 700, color: "#dce8f8", lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "left" }}>{label}</span>
-                      </span>
-                      <strong>({count})</strong>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            </> : null}
           </div>
         </aside>
 
@@ -906,7 +794,6 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
               <span style={{ color: "#91aac6", fontSize: "10px", fontWeight: 800, whiteSpace: "nowrap" }}>
                 {selectedFilterCount ? `${selectedFilterCount} filter${selectedFilterCount === 1 ? "" : "s"} selected` : "No filters selected"}
               </span>
-              <FilterMatchingControl value={filterMode} onChange={updateFilterMode} compact />
             </div>
             <div className="v3-kpi-grid">
               {liveKpis.map(([label, value, note], index) => (

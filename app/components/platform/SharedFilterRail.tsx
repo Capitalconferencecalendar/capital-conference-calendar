@@ -52,6 +52,7 @@ type Props = {
   onClear: () => void;
   quickFeeds: SharedQuickFeed[];
   dateRangeExtra?: ReactNode;
+  filterMatchingControl?: ReactNode;
 };
 
 const controlStyle: CSSProperties = {
@@ -144,6 +145,7 @@ export default function SharedFilterRail({
   onClear,
   quickFeeds,
   dateRangeExtra,
+  filterMatchingControl,
 }: Props) {
   const activeCounts: Record<PlatformFilterSection, number> = {
     dateTiming: 0,
@@ -162,6 +164,7 @@ export default function SharedFilterRail({
           <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#9ec2e8" }}><ClearIcon /></span>
           Clear Filters
         </button>
+        {filterMatchingControl ? <div style={{ marginTop: "7px" }}>{filterMatchingControl}</div> : null}
       </div>
 
       <div style={{ display: "grid", gap: "6px", minWidth: 0 }}>
