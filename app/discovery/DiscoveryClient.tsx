@@ -38,8 +38,7 @@ export type WorkspaceEvent = {
 };
 
 type SavedList = { id: string; name: string; eventIds: string[]; createdAt: string };
-type FilterMode = "and" | "or";
-type SavedView = { id: string; name: string; filters: FiltersState; filterMode?: FilterMode; createdAt: string; eventCount?: number };
+type SavedView = { id: string; name: string; filters: FiltersState; filterMode?: FilterMatchMode; createdAt: string; eventCount?: number };
 type RecentActivity = { id: string; type: "event" | "feed" | "view"; label: string; detail?: string; at: string };
 
 type FiltersState = {
@@ -1389,7 +1388,6 @@ export default function EventsClient({
   const [toDate, setToDate] = useState("");
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<"soonest" | "city">("soonest");
-  const [filterMode, setFilterMode] = useState<FilterMode>("and");
   const [urlSeeded, setUrlSeeded] = useState(false);
   const [activeToolbarAction, setActiveToolbarAction] = useState<string>("");
   const [toolbarHelpText, setToolbarHelpText] = useState<string>("");
@@ -1691,13 +1689,11 @@ export default function EventsClient({
     const cityParam = params.get("city") || "";
     const startDateParam = params.get("startDate") || "";
     const endDateParam = params.get("endDate") || "";
-    const filterModeParam = params.get("filterMode");
     if (cityParam || startDateParam || endDateParam) {
       setFilters((prev) => ({ ...prev, cities: cityParam ? [cityParam] : prev.cities }));
       if (startDateParam) setFromDate(startDateParam);
       if (endDateParam) setToDate(endDateParam);
     }
-    if (filterModeParam === "or") setFilterMode("or");
     setUrlSeeded(true);
   }, [urlSeeded]);
 
@@ -1738,7 +1734,6 @@ export default function EventsClient({
     params.set("dateRange", filters.dateRange);
     params.set("filterMode", filterMode);
     params.set("sort", sortMode);
-    params.set("filterMode", filterMode);
     if (searchQuery) params.set("q", searchQuery);
     if (fromDate) params.set("fromDate", fromDate);
     if (toDate) params.set("toDate", toDate);
@@ -4047,42 +4042,7 @@ useEffect(() => {
             ))}
           </div>
 
-          <div
-            role="group"
-            aria-label="Filter match mode"
-            style={{ marginTop: "7px", marginBottom: "14px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px" }}
-          >
-            {[
-              { value: "and" as const, label: "Match All" },
-              { value: "or" as const, label: "Match Any" },
-            ].map((option) => {
-              const active = filterMode === option.value;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setFilterMode(option.value)}
-                  aria-pressed={active}
-                  style={{
-                    height: "18px",
-                    borderRadius: "6px",
-                    border: active ? "1px solid rgba(255,255,255,0.38)" : "1px solid rgba(255,255,255,0.12)",
-                    background: active ? "rgba(255,255,255,0.1)" : "rgba(8,26,46,0.24)",
-                    color: active ? "#f8fbff" : "#9eb4cf",
-                    cursor: "pointer",
-                    fontSize: "9px",
-                    fontWeight: 800,
-                    lineHeight: 1,
-                    boxShadow: active ? "0 0 8px rgba(255,255,255,0.18), inset 0 1px 0 rgba(255,255,255,0.08)" : "inset 0 1px 0 rgba(255,255,255,0.02)",
-                  }}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
-          </div>
-
-          <div style={{ marginTop: "0", padding: "0" }}>
+          <div style={{ marginTop: "6px", padding: "0" }}>
             <div style={{ color: "#f8fbff", fontWeight: 800, fontSize: "14px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>Quick Feeds</div>
             <div style={{ display: "grid", gap: "4px" }}>
               {[
