@@ -208,7 +208,7 @@ export default function SharedFilterRail({
         ))}
       </div>
 
-      {filterMatchingControl ? <div style={{ marginTop: "8px", marginBottom: "14px" }}>{filterMatchingControl}</div> : null}
+      {filterMatchingControl ? <div style={{ marginTop: "10px", marginBottom: "20px", display: "flex", justifyContent: "center", width: "100%" }}>{filterMatchingControl}</div> : null}
 
       <div style={{ marginTop: "6px", padding: "0" }}>
         <div style={{ color: "#f8fbff", fontWeight: 800, fontSize: "14px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>Quick Feeds</div>
