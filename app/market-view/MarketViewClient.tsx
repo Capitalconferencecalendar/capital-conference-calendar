@@ -675,6 +675,17 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
     return { label: monthLabel(row.month), count: row.events.length, change, pct, cities: (Array.from(row.cities.entries()) as Array<[string, number]>).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([city]) => city).filter(Boolean) };
   });
   const monthlyVolumeMax = Math.max(...monthlyVolumeRows.map((row) => row.count), 1);
+  const signalKpis = [
+    ["Last Month", monthlyVolumeRows[0]],
+    ["Current Month", monthlyVolumeRows[1] || monthlyVolumeRows[0]],
+    ["Next Month", monthlyVolumeRows[2]],
+  ] as const;
+  const currentSignalMonth = signalKpis[1][1];
+  const lastSignalMonth = signalKpis[0][1];
+  const signalChange = currentSignalMonth && lastSignalMonth && currentSignalMonth !== lastSignalMonth
+    ? currentSignalMonth.count - lastSignalMonth.count
+    : null;
+  const signalChangePct = signalChange !== null && lastSignalMonth?.count ? Math.round((signalChange / lastSignalMonth.count) * 100) : null;
   const latestMonth = monthlySignals[0];
   const priorMonth = monthlySignals[1];
   const movementRows = (mapName: "sectors" | "characters" | "access") => {
@@ -856,6 +867,11 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-league-grid, .v3-composition-grid, .v3-roadmap-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
         .v3-league-card, .v3-composition-card, .v3-roadmap-card { min-width: 0; border: 1px solid rgba(76,151,232,.28); border-radius: 8px; background: linear-gradient(180deg,rgba(11,32,55,.96),rgba(5,19,35,.94)); box-shadow: 0 0 0 1px rgba(56,189,248,.04), 0 12px 28px rgba(0,0,0,.16), inset 0 1px 0 rgba(186,230,253,.06); }
         .v3-league-card, .v3-composition-card { padding: 12px; display: grid; gap: 8px; }
+        .v3-signal-kpis { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }
+        .v3-signal-kpi { min-width: 0; padding: 10px; border: 1px solid rgba(77,151,232,.3); border-radius: 7px; background: rgba(9,30,53,.88); display: grid; gap: 3px; }
+        .v3-signal-kpi span { color: #87a8c8; font-size: 9px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+        .v3-signal-kpi strong { color: #f2f8ff; font-size: 14px; line-height: 1.15; }
+        .v3-signal-kpi small { color: #a9c7e3; font-size: 10.5px; line-height: 1.25; }
         .v3-league-card h3, .v3-composition-card h3, .v3-roadmap-card h3 { color: #ecf6ff; font-size: 13px; line-height: 1.25; }
         .v3-league-row { display: grid; grid-template-columns: 20px minmax(0,1fr) auto; gap: 7px; align-items: center; padding: 6px 0; border-top: 1px solid rgba(120,168,212,.14); color: #b9cbe0; font-size: 11.5px; }
         .v3-league-row:first-of-type { border-top: 0; }
@@ -890,7 +906,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-info:hover .v3-tooltip, .v3-info:focus .v3-tooltip { opacity: 1; }
         @media (max-width: 1180px) { .v3-page { overflow: auto; } .v3-main { overflow: visible; } .v3-readout, .v3-primary-row, .v3-kpi-strip, .v3-support, .v3-analytics, .v3-watch { grid-template-columns: 1fr; } .v3-signal-forecast { height: auto; } .v3-signal-body { grid-template-columns: 1fr; } .v3-signal-list { max-height: 360px; border-right: 0; border-bottom: 1px solid rgba(125,162,199,.2); } .v3-signal-detail { max-height: none; overflow: visible; } }
         @media (max-width: 1180px) { .v3-league-grid, .v3-composition-grid, .v3-roadmap-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
-        @media (max-width: 760px) { h1 { font-size: 31px; } .v3-metro-grid, .v3-league-grid, .v3-composition-grid, .v3-roadmap-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 760px) { h1 { font-size: 31px; } .v3-metro-grid, .v3-league-grid, .v3-composition-grid, .v3-roadmap-grid { grid-template-columns: 1fr; } .v3-signal-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); } }
       `}</style>
 
       <div className="workspace-shell" style={{ display: "grid", gridTemplateColumns: "minmax(280px, 290px) minmax(0, 1fr) minmax(300px, 320px)", gridTemplateRows: "minmax(0, 1fr)", gap: "18px", alignItems: "stretch", width: "100%", height: "calc(100vh - 126px)", maxWidth: "100%", minWidth: 0, minHeight: 0, overflow: "hidden", justifyContent: "center" }}>
@@ -1091,8 +1107,13 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
 
           <section className="v3-section">
             <div className="v3-section-head"><div className="v3-eyebrow">Database Market Signals</div><h2>Month-over-Month Conference Activity</h2><p>Movement across the upcoming conference index, calculated from event start dates.</p></div>
+            <div className="v3-signal-kpis">
+              {signalKpis.slice(0, 2).map(([label, row]) => row ? <div className="v3-signal-kpi" key={label}><span>{label}</span><strong>{row.label}</strong><small>{row.count} events</small></div> : null)}
+              <div className="v3-signal-kpi"><span>MoM Change</span><strong>{signalChange === null ? "Baseline" : `${signalChange >= 0 ? "+" : ""}${signalChange} events`}</strong><small>{signalChangePct === null ? "No prior-month comparison" : `${signalChangePct >= 0 ? "+" : ""}${signalChangePct}% vs ${lastSignalMonth?.label}`}</small></div>
+              {signalKpis[2][1] ? <div className="v3-signal-kpi"><span>Next Month</span><strong>{signalKpis[2][1].label}</strong><small>{signalKpis[2][1].count} events</small></div> : null}
+            </div>
             <div className="v3-league-grid">
-              <div className="v3-league-card"><h3>Monthly Event Volume</h3>{monthlyVolumeRows.length ? monthlyVolumeRows.map((row) => <div className="v3-league-row" key={row.label}><span className="v3-league-rank">{row.label}</span><span>{row.cities.length ? row.cities.join(", ") : "Upcoming conferences"}</span><span className="v3-league-count">{row.count}</span><div className="v3-league-bar"><span style={{ width: `${Math.max(8, Math.round((row.count / monthlyVolumeMax) * 100))}%` }} /></div><span style={{ gridColumn: "2 / -1", color: "#8fb3df", fontSize: "10px" }}>{row.change === null ? "Baseline month" : `${row.change >= 0 ? "+" : ""}${row.change}${row.pct !== null ? ` · ${row.pct >= 0 ? "+" : ""}${row.pct}% vs prior month` : ""}`}</span></div>) : <EmptyState>Month-over-month movement requires scheduled events in adjacent months.</EmptyState>}</div>
+              <div className="v3-league-card"><h3>Monthly Event Volume</h3>{monthlyVolumeRows.length ? monthlyVolumeRows.slice(0, 3).map((row) => <div className="v3-league-row" key={row.label}><span className="v3-league-rank">{row.label}</span><span>{row.cities.length ? row.cities.join(", ") : "Upcoming conferences"}</span><span className="v3-league-count">{row.count}</span><div className="v3-league-bar"><span style={{ width: `${Math.max(8, Math.round((row.count / monthlyVolumeMax) * 100))}%` }} /></div><span style={{ gridColumn: "2 / -1", color: "#8fb3df", fontSize: "11px" }}>{row.change === null ? "Baseline month" : `${row.change >= 0 ? "+" : ""}${row.change}${row.pct !== null ? ` · ${row.pct >= 0 ? "+" : ""}${row.pct}% vs prior month` : ""}`}</span></div>) : <EmptyState>Month-over-month movement requires scheduled events in adjacent months.</EmptyState>}</div>
               {[["Sector Movement", sectorMovementRows], ["Event Character Movement", characterMovementRows], ["Access Profile Movement", accessMovementRows]].map(([title, rows]) => <div className="v3-league-card" key={title as string}><h3>{title as string}</h3>{(rows as Array<{ label: string; count: number; change: number | null }>).length ? (rows as Array<{ label: string; count: number; change: number | null }>).map((row) => <div className="v3-league-row" key={row.label}><span className="v3-league-rank">{row.change === null ? "-" : row.change >= 0 ? "+" : "-"}</span><span>{row.label}</span><span className="v3-league-count">{row.count}</span><div style={{ gridColumn: "2 / -1", color: "#8fb3df", fontSize: "10px" }}>{row.change === null ? "Baseline month" : `${row.change >= 0 ? "+" : ""}${row.change} vs prior month`}</div></div>) : <EmptyState>Not enough mapped month data is available yet.</EmptyState>}</div>)}
             </div>
           </section>
