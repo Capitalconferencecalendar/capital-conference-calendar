@@ -442,19 +442,24 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const marketWindowReadByWeek = new Map(
     ((internalIntelligence.marketWindowReads || []) as any[]).map((read) => [read.weekStart, read.intelligenceRead])
   );
-  const liveClusters = ((displayIntelligence.clusterAlerts?.top || []) as any[]).slice(0, 5).map((row) => ({
-    comparableRead: (row.events || []).map((event: any) => intelligenceReadByTitle.get(event.title)).find(Boolean),
-    metro: row.metroMarket || row.anchorCity || "Unspecified metro",
-    events: `${row.eventCount || row.events?.length || 0} event${(row.eventCount || row.events?.length || 0) === 1 ? "" : "s"}`,
-    type: clusterLabel(row.clusterType || "Metro Planning Cluster"),
-    window: row.dateWindow || "",
-    signals: (row.sharedSignals || []).join(" · "),
-    summary: (row.events || []).map((event: any) => intelligenceReadByTitle.get(event.title)?.comparableRationale).find(Boolean) || row.planningRationale || `${row.eventCount || row.events?.length || 0} approved events share timing and location signals.`,
-    detail: (row.events || []).map((event: any) => intelligenceReadByTitle.get(event.title)?.whyItMatters).find(Boolean) || row.planningRationale || "This cluster is derived from approved events with overlapping metro, timing, sector, focus, and access signals.",
-    cities: (row.citiesIncluded || [row.anchorCity]).filter(Boolean).join(" · "),
-    eventsIncluded: (row.events || []).map((event: any) => event.title).filter(Boolean).join(" · "),
-    supportingContext: (row.events || []).map((event: any) => intelligenceReadByTitle.get(event.title)?.intelligenceRead).find(Boolean) || row.travelPracticality || row.planningHorizon || "Derived from approved event records.",
-  }));
+  const clusterRows = (displayIntelligence.clusterAlerts?.top || displayIntelligence.clusterWeeks?.top || []) as any[];
+  const liveClusters = clusterRows.slice(0, 5).map((row) => {
+    const eventTitles = (row.events || []).map((event: any) => typeof event === "string" ? event : event?.title).filter(Boolean);
+    const cities = row.citiesIncluded || [row.city && row.state ? `${row.city}, ${row.state}` : row.anchorCity].filter(Boolean);
+    return {
+      comparableRead: eventTitles.map((title: string) => intelligenceReadByTitle.get(title)).find(Boolean),
+      metro: row.metroMarket || row.anchorCity || "Unspecified metro",
+      events: `${row.eventCount || eventTitles.length || 0} event${(row.eventCount || eventTitles.length || 0) === 1 ? "" : "s"}`,
+      type: clusterLabel(row.clusterType || "Metro Planning Cluster"),
+      window: row.dateWindow || "",
+      signals: (row.sharedSignals || []).join(" · "),
+      summary: eventTitles.map((title: string) => intelligenceReadByTitle.get(title)?.comparableRationale).find(Boolean) || row.planningRationale || row.interpretation || `${row.eventCount || eventTitles.length || 0} approved events share timing and location signals.`,
+      detail: eventTitles.map((title: string) => intelligenceReadByTitle.get(title)?.whyItMatters).find(Boolean) || row.planningRationale || row.interpretation || "This cluster is derived from approved events with overlapping metro, timing, sector, focus, and access signals.",
+      cities: cities.join(" · "),
+      eventsIncluded: eventTitles.join(" · "),
+      supportingContext: eventTitles.map((title: string) => intelligenceReadByTitle.get(title)?.intelligenceRead).find(Boolean) || row.travelPracticality || row.travelRelationship || row.planningHorizon || "Derived from approved event records.",
+    };
+  });
   const activeCluster = liveClusters[selectedClusterIndex] ?? liveClusters[0];
   const liveHotWeeks = useMemo<HotWeek[]>(() => {
     return (displayAnalytics.weekCounts || [])
