@@ -182,6 +182,10 @@ function compactForecastText(value: string, maxLength = 132) {
   return `${cleaned.slice(0, maxLength).replace(/\s+\S*$/, "")}...`;
 }
 
+function displayAccessLabel(label: string) {
+  return /no issuer participation/i.test(label) ? "Limited Issuer Access" : label;
+}
+
 function Bar({ label, value, tone = "blue" }: { label: string; value: number; tone?: "blue" | "amber" | "indigo" }) {
   return (
     <div className="v3-bar-row">
@@ -616,6 +620,30 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const focusRows = pctRows(displayAnalytics.focusCounts, 5);
   const characterRows = pctRows(displayAnalytics.eventCharacterCounts, 5);
   const accessRows = pctRows(displayAnalytics.issuerParticipationCounts, 5);
+  const metroLeaderboard = (displayAnalytics.cityCounts || []).slice(0, 5).map(([label, count]) => ({ label, count }));
+  const organizerLeaderboard = (displayAnalytics.organizerCounts || []).slice(0, 5).map(([label, count]) => ({ label, count }));
+  const focusLeaderboard = focusRows.filter((row) => !/institutional investors/i.test(row.label));
+  const visibleFocusRows = focusLeaderboard.length ? focusLeaderboard : focusRows;
+  const metroMaxCount = Math.max(...metroLeaderboard.map((row) => row.count), 1);
+  const regionalRows = metroLeaderboard.map((row) => ({
+    ...row,
+    pct: Math.max(4, Math.round((row.count / metroMaxCount) * 100)),
+  }));
+  const compositionCards = [
+    { title: "Event Character Mix", rows: characterRows, tone: "indigo" as const },
+    { title: "Access / Participation Mix", rows: accessRows.map((row) => ({ ...row, label: displayAccessLabel(row.label) })), tone: "blue" as const },
+    { title: "Public Company Sector Mix", rows: sectorRows, tone: "blue" as const },
+    { title: "Market Focus Mix", rows: visibleFocusRows, tone: "indigo" as const },
+    { title: "Regional Mix", rows: regionalRows, tone: "blue" as const },
+  ];
+  const roadmapCards = [
+    ["Comparable Conference Sets", "Identify events with overlapping sector exposure, audience profile, issuer access, market focus, and event character.", "Coming Soon"],
+    ["Sector Momentum", "Track public company sectors and capital markets themes gaining conference density across upcoming planning windows.", "In Data Expansion"],
+    ["Access Signal Scoring", "Separate issuer-access, investor-heavy, presentation-driven, meeting-oriented, and content-led events with more precise scoring.", "In Classification Buildout"],
+    ["Organizer Intelligence", "Compare organizer activity, coverage patterns, event positioning, and concentration across the conference landscape.", "Coming Soon"],
+    ["Market Windows", "Detect periods where sector, access, investor, and event-character signals concentrate across approved future events.", "In Data Expansion"],
+    ["Conference Relevance Scoring", "Explain why a conference may matter using sector exposure, audience profile, issuer participation, and comparable events.", "In Classification Buildout"],
+  ] as const;
   const mom = displayIntelligence.monthOverMonth || {};
   const notableSignals = [
     mom.readout,
@@ -779,6 +807,23 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-muted-row { padding: 7px 0; border-bottom: 1px solid rgba(121,158,197,.16); font-size: 12px; color: #b5c8dc; }
         .v3-analytics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 14px; }
         .v3-data-card { background: linear-gradient(180deg,rgba(9,27,45,.94),rgba(6,19,34,.94)); border: 1px solid rgba(121,158,197,.22); border-radius: 10px; padding: 13px; display: grid; gap: 10px; }
+        .v3-section { margin-top: 22px; display: grid; gap: 12px; }
+        .v3-section-head { display: grid; gap: 5px; }
+        .v3-section-head h2 { color: #f5f9ff; font-size: 17px; letter-spacing: .08em; text-transform: uppercase; }
+        .v3-section-head p { color: #9eb2c8; font-size: 12px; line-height: 1.45; max-width: 780px; }
+        .v3-league-grid, .v3-composition-grid, .v3-roadmap-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+        .v3-league-card, .v3-composition-card, .v3-roadmap-card { min-width: 0; border: 1px solid rgba(76,151,232,.28); border-radius: 8px; background: linear-gradient(180deg,rgba(11,32,55,.96),rgba(5,19,35,.94)); box-shadow: 0 0 0 1px rgba(56,189,248,.04), 0 12px 28px rgba(0,0,0,.16), inset 0 1px 0 rgba(186,230,253,.06); }
+        .v3-league-card, .v3-composition-card { padding: 12px; display: grid; gap: 8px; }
+        .v3-league-card h3, .v3-composition-card h3, .v3-roadmap-card h3 { color: #ecf6ff; font-size: 13px; line-height: 1.25; }
+        .v3-league-row { display: grid; grid-template-columns: 20px minmax(0,1fr) auto; gap: 7px; align-items: center; padding: 6px 0; border-top: 1px solid rgba(120,168,212,.14); color: #b9cbe0; font-size: 11.5px; }
+        .v3-league-row:first-of-type { border-top: 0; }
+        .v3-league-row span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .v3-league-rank { color: #76b8fb; font-size: 10px; font-weight: 900; }
+        .v3-league-count { color: #e4f1ff; font-weight: 900; }
+        .v3-composition-card .v3-bar-row { grid-template-columns: minmax(74px,.8fr) minmax(0,1fr) 30px; font-size: 10.5px; }
+        .v3-roadmap-card { padding: 13px; display: grid; gap: 8px; border-color: rgba(109,146,190,.23); }
+        .v3-roadmap-card p { color: #a9bdd0; font-size: 11px; line-height: 1.45; }
+        .v3-status { width: fit-content; color: #a8d5ff; background: rgba(37,99,235,.16); border: 1px solid rgba(96,165,250,.3); border-radius: 999px; padding: 3px 7px; font-size: 9px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
         .v3-bar-row { display: grid; grid-template-columns: minmax(110px,.85fr) minmax(0,1fr) 38px; gap: 10px; align-items: center; font-size: 12px; color: #c0d1e4; }
         .v3-bar-track { height: 8px; border-radius: 999px; background: rgba(14,39,63,.9); overflow: hidden; }
         .v3-bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg,#2563eb,#0ea5e9); }
@@ -798,7 +843,8 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-tooltip { position: absolute; z-index: 10; right: 0; bottom: calc(100% + 8px); width: 260px; border-radius: 10px; background: #102136; color: #fff; padding: 10px; font-size: 12px; line-height: 1.35; box-shadow: 0 16px 32px rgba(0,0,0,.25); opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
         .v3-info:hover .v3-tooltip, .v3-info:focus .v3-tooltip { opacity: 1; }
         @media (max-width: 1180px) { .v3-page { overflow: auto; } .v3-main { overflow: visible; } .v3-readout, .v3-primary-row, .v3-kpi-strip, .v3-support, .v3-analytics, .v3-watch { grid-template-columns: 1fr; } .v3-signal-forecast { height: auto; } .v3-signal-body { grid-template-columns: 1fr; } .v3-signal-list { max-height: 360px; border-right: 0; border-bottom: 1px solid rgba(125,162,199,.2); } .v3-signal-detail { max-height: none; overflow: visible; } }
-        @media (max-width: 760px) { h1 { font-size: 31px; } .v3-metro-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 1180px) { .v3-league-grid, .v3-composition-grid, .v3-roadmap-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+        @media (max-width: 760px) { h1 { font-size: 31px; } .v3-metro-grid, .v3-league-grid, .v3-composition-grid, .v3-roadmap-grid { grid-template-columns: 1fr; } }
       `}</style>
 
       <div className="workspace-shell" style={{ display: "grid", gridTemplateColumns: "minmax(280px, 290px) minmax(0, 1fr) minmax(300px, 320px)", gridTemplateRows: "minmax(0, 1fr)", gap: "18px", alignItems: "stretch", width: "100%", height: "calc(100vh - 126px)", maxWidth: "100%", minWidth: 0, minHeight: 0, overflow: "hidden", justifyContent: "center" }}>
@@ -1061,6 +1107,34 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
           <section className="v3-panel v3-watch">
             <div style={{ display: "grid", gap: 8 }}><div className="v3-eyebrow">Local Market View</div><h2>Region / Metro Signals</h2><p>Uses selected region, state, or metro filters from approved event records.</p></div>
             <div className="v3-analytics" style={{ gridTemplateColumns: "repeat(3,minmax(0,1fr))" }}>{localSelection ? (localRows.length ? localRows.map((row: any) => <div className="v3-data-card" key={`${row.city}-${row.state}`}><h3>{[row.city, row.state].filter(Boolean).join(", ")}</h3><div className="v3-muted-row">{row.totalEvents} approved events</div><div className="v3-muted-row">{row.issuerAccessEvents} issuer-access signals</div><div className="v3-muted-row">{row.nextEvent?.title || "No upcoming event title available"}</div></div>) : <div className="v3-data-card" style={{ gridColumn: "1 / -1" }}>No approved events match the selected local market view.</div>) : <div className="v3-data-card" style={{ gridColumn: "1 / -1" }}>Select a region, state, or metro to view local conference signals.</div>}</div>
+          </section>
+
+          <section className="v3-section">
+            <div className="v3-section-head"><div className="v3-eyebrow">Approved Future Events</div><h2>Market Leaderboards</h2><p>A ranked view of approved future conference activity across location, organizers, sectors, and participation signals.</p></div>
+            <div className="v3-league-grid">
+              {[
+                ["Top Metros", metroLeaderboard],
+                ["Top Organizers", organizerLeaderboard],
+                ["Top Event Characters", characterRows],
+                ["Top Public Company Sectors", sectorRows],
+                ["Top Market Focus Areas", visibleFocusRows],
+                ["Top Access / Participation Profiles", accessRows.map((row) => ({ ...row, label: displayAccessLabel(row.label) }))],
+              ].map(([title, rows]) => <div className="v3-league-card" key={title as string}><h3>{title as string}</h3>{(rows as Array<{ label: string; count: number }>).length ? (rows as Array<{ label: string; count: number }>).slice(0, 5).map((row, index) => <div className="v3-league-row" key={row.label}><span className="v3-league-rank">{index + 1}</span><span>{row.label}</span><span className="v3-league-count">{row.count}</span></div>) : <EmptyState>Not enough mapped data is available yet.</EmptyState>}</div>)}
+            </div>
+          </section>
+
+          <section className="v3-section">
+            <div className="v3-section-head"><div className="v3-eyebrow">Current Index Shape</div><h2>Market Composition</h2><p>How the approved future conference index is currently distributed by character, access, sector, market focus, and location.</p></div>
+            <div className="v3-composition-grid">
+              {compositionCards.map((card) => <div className="v3-composition-card" key={card.title}><h3>{card.title}</h3>{card.rows.length ? card.rows.slice(0, 5).map((row) => <Bar key={row.label} label={row.label} value={row.pct} tone={card.tone} />) : <EmptyState>Not enough mapped data is available yet.</EmptyState>}</div>)}
+            </div>
+          </section>
+
+          <section className="v3-section">
+            <div className="v3-section-head"><div className="v3-eyebrow">Roadmap</div><h2>Intelligence Layer Coming Soon</h2><p>We are expanding the classification layer behind Market View to support deeper comparisons, sector movement, access signals, and conference relevance scoring.</p></div>
+            <div className="v3-roadmap-grid">
+              {roadmapCards.map(([title, description, status]) => <div className="v3-roadmap-card" key={title}><span className="v3-status">{status}</span><h3>{title}</h3><p>{description}</p></div>)}
+            </div>
           </section>
         </main>
 
