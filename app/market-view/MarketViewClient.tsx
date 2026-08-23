@@ -301,9 +301,11 @@ function ClusterEmptyState({ filtered }: { filtered: boolean }) {
 
 function clusterLabel(clusterType: string) {
   if (clusterType === "Metro Density Cluster") return "Metro Planning Cluster";
+  if (clusterType === "Regional Surge") return "Metro Planning Cluster";
   if (clusterType === "Access Cluster") return "Issuer Access Cluster";
   if (clusterType === "Investor Cluster") return "Investor Relevance Cluster";
   if (clusterType === "Deal Cluster") return "Deal-Making Cluster";
+  if (clusterType.endsWith(" Event Character Cluster")) return `${clusterType.replace(" Event Character Cluster", "")} Cluster`;
   return clusterType;
 }
 
@@ -473,25 +475,43 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
     const eventTitles = clusterEvents.map((event: ForecastEvent) => event.title);
     const eventDates = clusterEvents.map((event: ForecastEvent) => event.startDate).filter(Boolean).sort();
     const cities = row.citiesIncluded || [row.city && row.state ? `${row.city}, ${row.state}` : row.anchorCity].filter(Boolean);
+    const eventCount = row.eventCount || eventTitles.length || 0;
+    const eventCharacter = row.topEventCharacter || "Not classified";
+    const sector = row.dominantSector || "Not classified";
+    const differentiatedSignals = [eventCharacter, sector, ...(row.sharedSignals || [])]
+      .filter((signal) => signal && signal !== "Not classified" && !/regional surge|generalist|institutional investors/i.test(signal));
+    const keySignals = Array.from(new Set(differentiatedSignals));
+    const geography = cities.length > 1 ? `across ${cities.slice(0, 3).join(", ")}` : `in ${row.metroMarket || row.anchorCity || "the selected metro"}`;
+    const details = [
+      `${eventCount} approved future event${eventCount === 1 ? " is" : "s are"} grouped ${geography} during the same date window.`,
+      eventCharacter !== "Not classified" || sector !== "Not classified"
+        ? `The shared activity is led by ${[eventCharacter !== "Not classified" ? eventCharacter : "", sector !== "Not classified" ? sector : ""].filter(Boolean).join(" and ")}.`
+        : "The events share metro and date proximity within the current view.",
+    ].join(" ");
+    const comparableRationale = [
+      "Shared metro and overlapping timing",
+      eventCharacter !== "Not classified" ? `${eventCharacter.toLowerCase()} character` : "",
+      sector !== "Not classified" ? `${sector.toLowerCase()} exposure` : "",
+    ].filter(Boolean).join(", ") + ".";
     return {
       comparableRead: eventTitles.map((title: string) => intelligenceReadByTitle.get(title)).find(Boolean),
       metro: row.metroMarket || row.anchorCity || "Unspecified metro",
-      events: `${row.eventCount || eventTitles.length || 0} event${(row.eventCount || eventTitles.length || 0) === 1 ? "" : "s"}`,
+      events: `${eventCount} event${eventCount === 1 ? "" : "s"}`,
       cityCount: row.cityCount || cities.length,
       type: clusterLabel(row.clusterType || "Metro Planning Cluster"),
       window: row.dateWindow || "",
       startDate: row.startDate || eventDates[0] || "",
       endDate: row.endDate || eventDates[eventDates.length - 1] || "",
-      eventCharacter: row.topEventCharacter || "Not classified",
-      relativeLabel: row.relativeLabel || "",
-      signals: (row.sharedSignals || []).join(" · "),
-      sector: row.dominantSector || "Not classified",
+      eventCharacter,
+      keySignals,
+      signals: keySignals.join(" · "),
+      sector,
       focus: row.dominantMarketFocus || "Not classified",
-      summary: eventTitles.map((title: string) => intelligenceReadByTitle.get(title)?.comparableRationale).find(Boolean) || row.planningRationale || row.interpretation || `${row.eventCount || eventTitles.length || 0} approved events share timing and location signals.`,
-      detail: eventTitles.map((title: string) => intelligenceReadByTitle.get(title)?.whyItMatters).find(Boolean) || row.planningRationale || row.interpretation || "This cluster is derived from approved events with overlapping metro, timing, sector, focus, and access signals.",
+      summary: comparableRationale,
+      detail: details,
       cities: cities.join(" · "),
       eventDetails: clusterEvents as ForecastEvent[],
-      supportingContext: eventTitles.map((title: string) => intelligenceReadByTitle.get(title)?.intelligenceRead).find(Boolean) || row.travelPracticality || row.travelRelationship || row.planningHorizon || "Derived from approved event records.",
+      supportingContext: comparableRationale,
     };
   });
   const activeCluster = liveClusters[selectedClusterIndex] ?? liveClusters[0];
@@ -708,25 +728,25 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-signal-reason { display: -webkit-box; margin-top: 4px; overflow: hidden; color: #aebfd2; font-size: 11.5px; line-height: 1.28; -webkit-box-orient: vertical; -webkit-line-clamp: 1; }
         .v3-signal-detail { min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 17px 16px 18px; display: grid; align-content: start; gap: 13px; background: radial-gradient(circle at 92% 12%,rgba(56,189,248,.12),transparent 26%), rgba(4,14,26,.36); }
         .v3-signal-detail h3 { font-size: 13px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; color: #a9c1d8; }
-        .v3-detail-summary { display: -webkit-box; overflow: hidden; color: #d9e8f7; font-size: 13.5px; line-height: 1.55; font-weight: 650; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+        .v3-detail-summary { color: #d9e8f7; font-size: 13.5px; line-height: 1.55; font-weight: 650; overflow-wrap: anywhere; }
         .v3-detail-supporting { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
         .v3-feature-list { display: grid; gap: 7px; color: #c7d6e7; font-size: 12px; line-height: 1.35; }
-        .v3-feature-list div { display: flex; gap: 8px; }
-        .v3-feature-list div > span { display: block; color: #94aeca; font-size: 11px; }
-        .v3-feature-list div > strong { display: block; color: #e6f0fb; }
-        .v3-feature-list div:before { content: ""; width: 5px; height: 5px; margin-top: 6px; border-radius: 999px; background: #38bdf8; flex: 0 0 auto; }
+        .v3-feature-list div { display: grid; grid-template-columns: 5px minmax(0,1fr); column-gap: 8px; row-gap: 2px; }
+        .v3-feature-list div > span { grid-column: 2; display: block; color: #94aeca; font-size: 11px; overflow-wrap: anywhere; }
+        .v3-feature-list div > strong { grid-column: 2; display: block; color: #e6f0fb; overflow-wrap: anywhere; }
+        .v3-feature-list div:before { content: ""; grid-row: 1 / span 2; width: 5px; height: 5px; margin-top: 6px; border-radius: 999px; background: #38bdf8; }
         .hot .v3-feature-list div:before { background: #f59e0b; }
         .cluster .v3-feature-list div:before { background: #ef4444; }
         .v3-detail-label { color: #7dd3fc; font-size: 9.5px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
         .hot .v3-detail-label { color: #fbbf24; }
         .cluster .v3-detail-label { color: #fca5a5; }
-        .v3-metric-row { display: grid; grid-template-columns: repeat(auto-fit,minmax(128px,1fr)); border: 1px solid rgba(125,162,199,.18); border-radius: 9px; overflow: hidden; }
+        .v3-metric-row { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); border: 1px solid rgba(125,162,199,.18); border-radius: 9px; overflow: hidden; }
         .v3-metric-cell { min-width: 0; padding: 8px 9px; display: grid; gap: 3px; background: rgba(7,23,39,.55); border-left: 1px solid rgba(125,162,199,.16); border-top: 1px solid rgba(125,162,199,.16); }
-        .v3-metric-cell:nth-child(-n + 4) { border-top: 0; }
+        .v3-metric-cell:nth-child(-n + 2) { border-top: 0; }
+        .v3-metric-cell:nth-child(2n + 1) { border-left: 0; }
         .v3-metric-cell:first-child { border-left: 0; }
         .v3-metric-cell span { color: #91a8bf; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
         .v3-metric-cell strong { min-width: 0; overflow-wrap: anywhere; color: #f8fbff; font-size: 12px; line-height: 1.3; }
-        @media (max-width: 760px) { .v3-metric-row { grid-template-columns: repeat(2,minmax(0,1fr)); } .v3-metric-cell:nth-child(-n + 4) { border-top: 1px solid rgba(125,162,199,.16); } .v3-metric-cell:nth-child(-n + 2) { border-top: 0; } .v3-metric-cell:nth-child(2n + 1) { border-left: 0; } }
         .v3-primary-stack { display: grid; gap: 9px; }
         .v3-product { overflow: hidden; padding: 0; border-radius: 8px; }
         .v3-product.hot { border-color: rgba(245,158,11,.48); box-shadow: 0 0 0 1px rgba(245,158,11,.12), 0 18px 42px rgba(0,0,0,.24); }
@@ -884,7 +904,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                         <span className="v3-rank">{index + 1}</span>
                         <span>
                           <strong>{row.metro}{row.window ? ` - ${row.window}` : ""}</strong>
-                          <span className="v3-signal-meta"><span>{row.events}</span><span>{row.cityCount} cities</span><span>{row.eventCharacter}</span>{row.sector !== "Not classified" ? <span>{row.sector}</span> : null}{row.relativeLabel ? <span>{row.relativeLabel}</span> : null}</span>
+                          <span className="v3-signal-meta"><span>{row.events}</span><span>{row.cityCount} cities</span><span>{row.eventCharacter}</span>{row.sector !== "Not classified" ? <span>{row.sector}</span> : null}</span>
                         <span className="v3-signal-reason">{compactForecastText(row.summary)}</span>
                       </span>
                     </button>
@@ -943,7 +963,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                   <div>
                     <div className="v3-detail-label">Key signals</div>
                     {(() => {
-                      const signals = (activeCluster.signals ?? "").split(" · ").filter(Boolean);
+                      const signals = activeCluster.keySignals || (activeCluster.signals ?? "").split(" · ").filter(Boolean);
                       return <div className="v3-chipline">{signals.slice(0, 3).map((signal: string) => <span key={signal}>{signal}</span>)}{signals.length > 3 ? <span>+{signals.length - 3} more</span> : null}</div>;
                     })()}
                   </div>
@@ -958,7 +978,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                       ["Sector", activeHotWeek?.publicCompanySector || "Not classified"],
                     ]
                     : [
-                      ["Events", activeCluster?.events || "0 events"],
+                      ["Events", String((activeCluster?.events || "0").match(/\d+/)?.[0] || 0)],
                       ["Cities", String(activeCluster?.cityCount || 0)],
                       ["Character", activeCluster?.eventCharacter || "Not classified"],
                       ["Sector", activeCluster?.sector || "Not classified"],
