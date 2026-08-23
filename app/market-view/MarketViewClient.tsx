@@ -114,7 +114,7 @@ const forecastModes: Record<ForecastMode, { label: string; title: string; descri
   clusters: {
     label: "Cluster Forecast",
     title: "Market Signal Forecast: Cluster Forecast",
-    description: "Metro, timing, sector, focus, and access signals that suggest concentrated conference activity, not just raw city volume.",
+    description: "Metro-based planning windows where approved future events overlap by timing, sector, access, or audience signal.",
     icon: "◎",
   },
 };
@@ -262,6 +262,24 @@ function pctRows(rows: [string, number][] | undefined, limit = 5) {
 
 function EmptyState({ children }: { children: ReactNode }) {
   return <div className="v3-muted-row" style={{ borderBottom: 0 }}>{children}</div>;
+}
+
+function ClusterEmptyState({ filtered }: { filtered: boolean }) {
+  return (
+    <div className="v3-row" style={{ display: "grid", gap: 6 }}>
+      <strong>No qualifying metro planning clusters detected in the current view.</strong>
+      <span style={{ color: "#9fb4ca", fontSize: "11px", lineHeight: 1.4 }}>A qualifying cluster requires approved future events in the same metro within an 8-day planning window, with either 3+ distinct events or 2+ events sharing sector, access, investor, or market-focus signals.</span>
+      {filtered ? <span style={{ color: "#8fbfff", fontSize: "11px", lineHeight: 1.4 }}>Try Full Market View or broaden filters to see more cluster signals.</span> : null}
+    </div>
+  );
+}
+
+function clusterLabel(clusterType: string) {
+  if (clusterType === "Metro Density Cluster") return "Metro Planning Cluster";
+  if (clusterType === "Access Cluster") return "Issuer Access Cluster";
+  if (clusterType === "Investor Cluster") return "Investor Relevance Cluster";
+  if (clusterType === "Deal Cluster") return "Deal-Making Cluster";
+  return clusterType;
 }
 
 function isDefaultFilters(filters: FiltersState) {
@@ -428,7 +446,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
     comparableRead: (row.events || []).map((event: any) => intelligenceReadByTitle.get(event.title)).find(Boolean),
     metro: row.metroMarket || row.anchorCity || "Unspecified metro",
     events: `${row.eventCount || row.events?.length || 0} event${(row.eventCount || row.events?.length || 0) === 1 ? "" : "s"}`,
-    type: row.clusterType || "Conference activity cluster",
+    type: clusterLabel(row.clusterType || "Metro Planning Cluster"),
     window: row.dateWindow || "",
     signals: (row.sharedSignals || []).join(" · "),
     summary: (row.events || []).map((event: any) => intelligenceReadByTitle.get(event.title)?.comparableRationale).find(Boolean) || row.planningRationale || `${row.eventCount || row.events?.length || 0} approved events share timing and location signals.`,
@@ -806,14 +824,14 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                         <span className="v3-signal-reason">{row.summary}</span>
                       </span>
                     </button>
-                  )) : <div className="v3-row">Not enough overlapping approved events to calculate comparable conference clusters yet.</div>}
+                  )) : <ClusterEmptyState filtered={viewScope === "filtered" && hasActiveFilters} />}
               </div>
 
               <div className="v3-signal-detail">
                 <div>
                   <h3>{isHotSignal ? "Why this week matters" : "Why this cluster matters"}</h3>
                 </div>
-                <p className="v3-detail-summary">{isHotSignal ? activeHotWeek?.detail || "No dated events are available for this week." : activeCluster?.detail || "Not enough overlapping approved events to calculate comparable conference clusters yet."}</p>
+                <p className="v3-detail-summary">{isHotSignal ? activeHotWeek?.detail || "No dated events are available for this week." : activeCluster?.detail || "No qualifying metro planning clusters detected in the current view."}</p>
 
                 {!isHotSignal && activeCluster ? (
                   <div>
@@ -834,7 +852,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                       )) : <div>No events are available for this week.</div>
                     ) : activeCluster ? (
                       (activeCluster.eventsIncluded ?? "").split(" · ").filter(Boolean).map((event: string) => <div key={event}>{event}</div>)
-                    ) : <div>Not enough overlapping approved events to calculate comparable conference clusters yet.</div>}
+                    ) : <ClusterEmptyState filtered={viewScope === "filtered" && hasActiveFilters} />}
                   </div>
                   {isHotSignal && activeHotWeek ? (
                     <a className="v3-link" href={`/discovery?startDate=${activeHotWeek.weekStart}&endDate=${activeHotWeek.weekEnd}`}>
@@ -865,6 +883,8 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                   <div className="v3-detail-label">{isHotSignal ? "Supporting Context" : "Comparable rationale"}</div>
                   <p>{isHotSignal ? activeHotWeek?.supportingContext || "This view is based on the current Market View filters." : activeCluster?.supportingContext || "Derived only when approved events share enough cluster signals."}</p>
                 </div>
+
+                {!isHotSignal ? <p style={{ color: "#8fa8c3", fontSize: "10px", lineHeight: 1.4 }}>Cluster priority reflects event density, shared signals, access relevance, investor relevance, and timing proximity. It is a planning-priority signal, not a quality ranking.</p> : null}
 
                 {!isHotSignal && activeCluster ? <OpenLink>View all clusters →</OpenLink> : null}
               </div>
