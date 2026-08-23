@@ -37,6 +37,7 @@ type AggregateStats = {
 };
 
 type MarketAnalytics = {
+  monthCounts?: { month: string; count: number }[];
   cityCounts: [string, number][];
   organizerCounts: [string, number][];
   themeCounts: [string, number][];
@@ -684,8 +685,8 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
     const month = calendarMonthKey(offset);
     const source = monthlySignals.find((row) => row.month === month);
     const prior = monthlySignals.find((row) => row.month === calendarMonthKey(offset - 1));
-    const count = source?.events.length || 0;
-    const priorCount = prior?.events.length || 0;
+    const count = displayAnalytics.monthCounts?.find((row) => row.month === month)?.count ?? source?.events.length ?? 0;
+    const priorCount = displayAnalytics.monthCounts?.find((row) => row.month === calendarMonthKey(offset - 1))?.count ?? prior?.events.length ?? 0;
     const change = offset === -1 ? null : count - priorCount;
     const pct = offset === -1 || !priorCount ? null : Math.round((change! / priorCount) * 100);
     const cities = source ? (Array.from(source.cities.entries()) as Array<[string, number]>).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([city]) => city).filter(Boolean) : [];
