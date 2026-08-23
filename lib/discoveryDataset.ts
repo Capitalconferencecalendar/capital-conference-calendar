@@ -95,6 +95,7 @@ type MarketWindow = {
   bestWeekCity: { city: string };
   bestWeekCities: string[];
 };
+type MonthMovementRow = { label: string; count: number; change: number | null; pct: number | null };
 
 export type MarketViewAnalytics = {
   total: number;
@@ -111,6 +112,12 @@ export type MarketViewAnalytics = {
   verificationStatusCounts: RankedCount[];
   weekCounts: MarketWeek[];
   monthCounts: { month: string; count: number }[];
+  monthMovement: {
+    months: { month: string; count: number; change: number | null; pct: number | null }[];
+    sectorMovers: MonthMovementRow[];
+    characterMovers: MonthMovementRow[];
+    accessMovers: MonthMovementRow[];
+  };
   statesCount: number;
   citiesCount: number;
   organizersCount: number;
@@ -363,6 +370,83 @@ function weekStart(value: string) {
   return date.toISOString().slice(0, 10);
 }
 
+function monthKeyForOffset(offset: number) {
+  const date = new Date();
+  date.setUTCDate(1);
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCMonth(date.getUTCMonth() + offset);
+  return date.toISOString().slice(0, 7);
+}
+
+function buildMonthMovement(events: DiscoveryEvent[]) {
+  const add = (map: Map<string, number>, value: string) => {
+    splitCsv(value || "").forEach((item) => map.set(item, (map.get(item) || 0) + 1));
+  };
+  const buckets = new Map<string, {
+    count: number;
+    sectors: Map<string, number>;
+    characters: Map<string, number>;
+    access: Map<string, number>;
+  }>();
+
+  events.forEach((event) => {
+    const month = event.startDate.slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(month)) return;
+    const bucket = buckets.get(month) || {
+      count: 0,
+      sectors: new Map<string, number>(),
+      characters: new Map<string, number>(),
+      access: new Map<string, number>(),
+    };
+    bucket.count += 1;
+    const sectorValue = splitCsv(event.publicCompanySector || "").length
+      ? event.publicCompanySector || ""
+      : event.sectorThemes || "";
+    add(bucket.sectors, sectorValue);
+    add(bucket.characters, event.eventCharacter || "");
+    add(bucket.access, event.issuerParticipation || "");
+    buckets.set(month, bucket);
+  });
+
+  const monthKeys = [-1, 0, 1, 2].map(monthKeyForOffset);
+  const months = monthKeys.map((month, index) => {
+    const count = buckets.get(month)?.count || 0;
+    const priorCount = index === 0 ? null : buckets.get(monthKeys[index - 1])?.count || 0;
+    const change = priorCount === null ? null : count - priorCount;
+    const pct = change === null || !priorCount ? null : Math.round((change / priorCount) * 100);
+    return { month, count, change, pct };
+  });
+
+  const current = buckets.get(monthKeyForOffset(0));
+  const prior = buckets.get(monthKeyForOffset(-1));
+  const movers = (key: "sectors" | "characters" | "access"): MonthMovementRow[] => {
+    const labels = new Set<string>([
+      ...Array.from(current?.[key].keys() || []),
+      ...Array.from(prior?.[key].keys() || []),
+    ]);
+    return Array.from(labels)
+      .map((label) => {
+        const count = current?.[key].get(label) || 0;
+        const priorCount = prior?.[key].get(label) || 0;
+        const change = count - priorCount;
+        return { label, count, change, pct: priorCount ? Math.round((change / priorCount) * 100) : null };
+      })
+      .filter((row) => row.count > 0 || row.change !== 0)
+      .sort((a, b) => Math.abs(b.change || 0) - Math.abs(a.change || 0) || b.count - a.count || a.label.localeCompare(b.label))
+      .slice(0, 6);
+  };
+
+  return {
+    months,
+    sectorMovers: movers("sectors"),
+    characterMovers: movers("characters"),
+    accessMovers: movers("access").map((row) => ({
+      ...row,
+      label: /no issuer participation/i.test(row.label) ? "Limited Issuer Access" : row.label,
+    })),
+  };
+}
+
 function eventText(event: DiscoveryEvent) {
   return [event.issuerParticipation, event.primaryCategory, event.marketFocus, event.sectorThemes, event.publicCompanySector, event.additionalPublicCompanySectors, event.eventCharacter]
     .filter(Boolean)
@@ -563,8 +647,9 @@ function buildMarketViewAnalytics(events: DiscoveryEvent[]): MarketViewAnalytics
     id: event.id, title: event.title, startDate: event.startDate, endDate: event.endDate, city: event.city, state: event.state,
     organizer: event.organizer, issuerParticipation: event.issuerParticipation, audience: event.audience, eventCharacter: event.eventCharacter || "", sectorThemes: event.sectorThemes, marketFocus: event.marketFocus,
   }));
+  const monthMovement = buildMonthMovement(events);
   return {
-    total: events.length, cityCounts, organizerCounts, themeCounts, focusCounts, categoryCounts, formatCounts, sectorCounts, audienceCounts, eventCharacterCounts, issuerParticipationCounts, verificationStatusCounts, weekCounts, monthCounts,
+    total: events.length, cityCounts, organizerCounts, themeCounts, focusCounts, categoryCounts, formatCounts, sectorCounts, audienceCounts, eventCharacterCounts, issuerParticipationCounts, verificationStatusCounts, weekCounts, monthCounts, monthMovement,
     statesCount: new Set(events.map((event) => event.state).filter(Boolean)).size,
     citiesCount: new Set(events.map(cityValue).filter(Boolean)).size,
     organizersCount: new Set(events.map((event) => event.organizer).filter(Boolean)).size,
