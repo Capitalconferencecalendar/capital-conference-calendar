@@ -56,6 +56,8 @@ type TopDealAccessEvent = {
 
 export type WeeklyIntensityRow = WeekRange & {
   totalEvents: number;
+  cityCount: number;
+  topCities: string[];
   issuerAccessEvents: number;
   investorHeavyEvents: number;
   structuredAccessEvents: number;
@@ -65,6 +67,10 @@ export type WeeklyIntensityRow = WeekRange & {
   averageDealAccessScore: number;
   topMarketFocus: string;
   topSector: string;
+  topEventCharacter: string;
+  topEventCharacterShare: number;
+  topPublicCompanySector: string;
+  topPublicCompanySectorShare: number;
   topOrganizer: string;
   topCity: string;
   seasonLanguage: string;
@@ -199,9 +205,11 @@ export type MarketViewIntelligence = {
       clusterType: string;
       dateWindow: string;
       eventCount: number;
+      cityCount: number;
       events: string[];
       dominantMarketFocus: string;
       dominantSector: string;
+      topEventCharacter: string;
       sharedSignals: string[];
       issuerAccessCount: number;
       investorHeavyCount: number;
@@ -209,6 +217,8 @@ export type MarketViewIntelligence = {
       dealMakingCount: number;
       clusterScore: number;
       specificityScore: number;
+      relativeMetroDensity: number;
+      relativeLabel: string;
       planningHorizon: string;
       daysFromNow: number;
       planningAdjustedScore: number;
@@ -726,9 +736,14 @@ function buildWeeklyIntensity(events: ScoredEvent[]): WeeklyIntensityRow[] {
   const rows = Array.from(byWeek.entries()).map(([week, items]) => {
     const range = getWeekRange(week);
     const totalEvents = items.length;
+    const cities = countBy(items.map(cityLabel));
+    const eventCharacters = countBy(items.flatMap((event) => splitValues(event.eventCharacter)));
+    const publicCompanySectors = countBy(items.flatMap(getAllSectors));
     const row = {
       ...range,
       totalEvents,
+      cityCount: cities.length,
+      topCities: cities.slice(0, 3).map((entry) => entry.label),
       issuerAccessEvents: items.filter(isIssuerAccessEvent).length,
       investorHeavyEvents: items.filter(isInvestorHeavyEvent).length,
       structuredAccessEvents: items.filter(isStructuredAccessEvent).length,
@@ -738,6 +753,10 @@ function buildWeeklyIntensity(events: ScoredEvent[]): WeeklyIntensityRow[] {
       averageDealAccessScore: avg(items.map((event) => event.dealAccessScore)),
       topMarketFocus: topLabel(items.flatMap(getMarketFocusValues)),
       topSector: topLabel(items.map(getPrimarySector)),
+      topEventCharacter: eventCharacters[0]?.label || "",
+      topEventCharacterShare: totalEvents ? eventCharacters[0]?.count / totalEvents || 0 : 0,
+      topPublicCompanySector: publicCompanySectors[0]?.label || "",
+      topPublicCompanySectorShare: totalEvents ? publicCompanySectors[0]?.count / totalEvents || 0 : 0,
       topOrganizer: topLabel(items.map((event) => text(event.organizer))),
       topCity: topLabel(items.map(cityLabel)),
       seasonLanguage: seasonLanguageForWeek(week, totalEvents, median),
@@ -756,18 +775,21 @@ function buildWeeklyIntensity(events: ScoredEvent[]): WeeklyIntensityRow[] {
     structuredAccessEvents: Math.max(...rows.map((row) => row.structuredAccessEvents), 1),
     dealMakingEvents: Math.max(...rows.map((row) => row.dealMakingEvents), 1),
     averageDealAccessScore: Math.max(...rows.map((row) => row.averageDealAccessScore), 1),
+    topEventCharacterShare: Math.max(...rows.map((row) => row.topEventCharacterShare), 1),
+    topPublicCompanySectorShare: Math.max(...rows.map((row) => row.topPublicCompanySectorShare), 1),
   };
 
   return rows
     .map((row) => ({
       ...row,
       intensityScore: Math.round(
-        ((row.totalEvents / max.totalEvents) * 25) +
+        ((row.totalEvents / max.totalEvents) * 34) +
           ((row.issuerAccessEvents / max.issuerAccessEvents) * 20) +
-          ((row.investorHeavyEvents / max.investorHeavyEvents) * 15) +
-          ((row.structuredAccessEvents / max.structuredAccessEvents) * 20) +
-          ((row.dealMakingEvents / max.dealMakingEvents) * 10) +
-          ((row.averageDealAccessScore / max.averageDealAccessScore) * 10)
+          ((row.investorHeavyEvents / max.investorHeavyEvents) * 8) +
+          ((row.structuredAccessEvents / max.structuredAccessEvents) * 10) +
+          ((row.dealMakingEvents / max.dealMakingEvents) * 6) +
+          ((row.topEventCharacterShare / max.topEventCharacterShare) * 12) +
+          ((row.topPublicCompanySectorShare / max.topPublicCompanySectorShare) * 10)
       ),
     }))
     .sort((a, b) => a.weekStart.localeCompare(b.weekStart));
@@ -873,6 +895,10 @@ function buildWindows(events: ScoredEvent[], weekly: WeeklyIntensityRow[], predi
 
 function clusterSignals(items: ScoredEvent[]): string[] {
   const signals: string[] = [];
+  const topEventCharacter = countBy(items.flatMap((event) => splitValues(event.eventCharacter)))[0];
+  const topPublicCompanySector = countBy(items.flatMap(getAllSectors))[0];
+  if (topEventCharacter && topEventCharacter.count >= 2) signals.push(topEventCharacter.label);
+  if (topPublicCompanySector && topPublicCompanySector.count >= 2) signals.push(topPublicCompanySector.label);
   if (items.filter(isIssuerAccessEvent).length >= 2) signals.push("Issuer access");
   if (items.filter(isInvestorHeavyEvent).length >= 2) signals.push("Investor-heavy");
   if (items.filter(isStructuredAccessEvent).length >= 2) signals.push("Structured access");
@@ -890,7 +916,7 @@ function buildClusterWeeks(events: ScoredEvent[], asOfDate: string) {
   });
   const clusters: MarketViewIntelligence["clusterWeeks"]["top"] = [];
   const signatures = new Set<string>();
-  const pushCluster = (clusterType: string, seed: ScoredEvent, start: string, end: string, windowItems: ScoredEvent[], specificityBase: number) => {
+  const pushCluster = (clusterType: string, seed: ScoredEvent, start: string, end: string, windowItems: ScoredEvent[], specificityBase: number, metroBaseline: number) => {
     const names = unique(windowItems.map((item) => text(item.title))).filter(Boolean);
     if (names.length < 2) return;
     const metro = metroInfo(seed);
@@ -903,14 +929,17 @@ function buildClusterWeeks(events: ScoredEvent[], asOfDate: string) {
     const dealMakingCount = windowItems.filter(isDealMakingEvent).length;
     const dominantMarketFocus = topLabel(windowItems.flatMap(getMarketFocusValues));
     const dominantSector = topLabel(windowItems.map(getPrimarySector));
+    const topEventCharacter = topLabel(windowItems.flatMap((item) => splitValues(item.eventCharacter)));
     const sharedSignals = clusterSignals(windowItems);
     const horizon = planningHorizonForDate(start, asOfDate);
     const uniqueCities = unique(windowItems.map(cityLabel)).length;
+    const relativeMetroDensity = Number((names.length / Math.max(1, metroBaseline)).toFixed(1));
+    const relativeLabel = relativeMetroDensity >= 2.5 && names.length >= 3 ? "Regional Surge" : "";
     const cityRole = uniqueCities > 1 ? "Metro Mix" : metro.cityRole;
     const travelRelationship = uniqueCities > 1 && metro.metroMarket !== topCity ? "Same-trip practical" : metro.travelRelationship;
-    const specificityScore = Math.min(40, specificityBase + (dominantSector ? 5 : 0) + (dominantMarketFocus ? 5 : 0) + (sharedSignals.length * 4));
+    const specificityScore = Math.min(40, specificityBase + (dominantSector ? 5 : 0) + (topEventCharacter ? 5 : 0) + (dominantMarketFocus ? 3 : 0) + (sharedSignals.length * 4));
     const clusterScore = Math.min(100, Math.round((names.length * 7) + (issuerAccessCount * 7) + (investorHeavyCount * 5) + (structuredAccessCount * 9) + (dealMakingCount * 8) + specificityScore));
-    const planningAdjustedScore = Math.round((clusterScore * horizon.weight) + specificityScore + (horizon.planningHorizon === "Planning window" ? 12 : 0));
+    const planningAdjustedScore = Math.round((clusterScore * horizon.weight) + specificityScore + Math.min(35, relativeMetroDensity * 10) + (horizon.planningHorizon === "Planning window" ? 12 : 0));
     const signature = [clusterType, metro.metroMarket, start, end, names.slice().sort().join("|")].join("::");
     if (signatures.has(signature)) return;
     signatures.add(signature);
@@ -924,9 +953,11 @@ function buildClusterWeeks(events: ScoredEvent[], asOfDate: string) {
       clusterType,
       dateWindow: `${formatMonthDay(start)}-${formatMonthDay(end)}`,
       eventCount: names.length,
+      cityCount: uniqueCities,
       events: names,
       dominantMarketFocus,
       dominantSector,
+      topEventCharacter,
       sharedSignals,
       issuerAccessCount,
       investorHeavyCount,
@@ -934,21 +965,26 @@ function buildClusterWeeks(events: ScoredEvent[], asOfDate: string) {
       dealMakingCount,
       clusterScore,
       specificityScore,
+      relativeMetroDensity,
+      relativeLabel,
       planningHorizon: horizon.planningHorizon,
       daysFromNow: horizon.daysFromNow,
       planningAdjustedScore,
-      interpretation: `${metro.metroMarket} has a ${clusterType.toLowerCase()} across ${names.length} events in the ${horizon.planningHorizon.toLowerCase()} horizon${uniqueCities > 1 ? `, spanning ${cityCounts.slice(0, 3).map((row) => row.label).join(", ")}` : ""}. ${dominantSector || dominantMarketFocus ? `The shared reason to attend is ${[dominantSector, dominantMarketFocus].filter(Boolean).join(" / ")}. ` : ""}${sharedSignals.length ? `Signals include ${sharedSignals.join(", ")}. ` : ""}${travelRelationship}.`,
+      interpretation: `${metro.metroMarket} has a ${clusterType.toLowerCase()} across ${names.length} events in the ${horizon.planningHorizon.toLowerCase()} horizon${uniqueCities > 1 ? `, spanning ${cityCounts.slice(0, 3).map((row) => row.label).join(", ")}` : ""}. ${relativeLabel ? `${relativeLabel} relative to this metro's normal calendar density. ` : ""}${dominantSector || topEventCharacter ? `The shared concentration is ${[topEventCharacter, dominantSector].filter(Boolean).join(" / ")}. ` : ""}${sharedSignals.length ? `Access signals include ${sharedSignals.join(", ")}. ` : ""}${travelRelationship}.`,
     });
   };
 
   byMetro.forEach((items) => {
     const sorted = items.slice().sort(eventSort);
+    const metroWeekCount = new Set(sorted.map((item) => getWeekKey(text(item.startDate))).filter(Boolean)).size;
+    const metroBaseline = sorted.length / Math.max(1, metroWeekCount);
     sorted.forEach((event) => {
       const start = text(event.startDate);
       const end = addDays(start, 8);
       const windowItems = sorted.filter((candidate) => text(candidate.startDate) >= start && text(candidate.startDate) <= end);
       if (unique(windowItems.map((item) => text(item.title))).length >= 3) {
-        pushCluster("Metro Density Cluster", event, start, end, windowItems, 8);
+        const relativeDensity = unique(windowItems.map((item) => text(item.title))).length / Math.max(1, metroBaseline);
+        pushCluster(relativeDensity >= 2.5 ? "Regional Surge" : "Metro Density Cluster", event, start, end, windowItems, 8, metroBaseline);
       }
       const typedGroups: Array<{ type: string; items: ScoredEvent[]; specificity: number }> = [];
       countBy(windowItems.map(getPrimarySector)).filter((row) => row.count >= 2).forEach((row) => {
@@ -963,13 +999,22 @@ function buildClusterWeeks(events: ScoredEvent[], asOfDate: string) {
       if (unique(investorItems.map((item) => text(item.title))).length >= 2) typedGroups.push({ type: "Investor Cluster", items: investorItems, specificity: 18 });
       const dealItems = windowItems.filter(isDealMakingEvent);
       if (unique(dealItems.map((item) => text(item.title))).length >= 2) typedGroups.push({ type: "Deal Cluster", items: dealItems, specificity: 22 });
-      typedGroups.forEach((group) => pushCluster(group.type, event, start, end, group.items, group.specificity));
+      countBy(windowItems.flatMap((item) => splitValues(item.eventCharacter))).filter((row) => row.count >= 2).forEach((row) => {
+        typedGroups.push({ type: `${row.label} Event Character Cluster`, items: windowItems.filter((item) => splitValues(item.eventCharacter).includes(row.label)), specificity: 20 });
+      });
+      typedGroups.forEach((group) => pushCluster(group.type, event, start, end, group.items, group.specificity, metroBaseline));
     });
   });
+  const ranked = clusters
+    .sort((a, b) => b.planningAdjustedScore - a.planningAdjustedScore || b.relativeMetroDensity - a.relativeMetroDensity || b.specificityScore - a.specificityScore || b.eventCount - a.eventCount);
+  const metroCounts = new Map<string, number>();
   return {
-    top: clusters
-      .sort((a, b) => b.planningAdjustedScore - a.planningAdjustedScore || b.specificityScore - a.specificityScore || b.eventCount - a.eventCount)
-      .slice(0, 14),
+    top: ranked.filter((cluster) => {
+      const count = metroCounts.get(cluster.metroMarket) || 0;
+      if (count >= 2) return false;
+      metroCounts.set(cluster.metroMarket, count + 1);
+      return true;
+    }).slice(0, 14),
   };
 }
 
@@ -1231,6 +1276,8 @@ function completeCalendarWeeks(weekly: WeeklyIntensityRow[]): WeeklyIntensityRow
       rows.push({
         ...range,
         totalEvents: 0,
+        cityCount: 0,
+        topCities: [],
         issuerAccessEvents: 0,
         investorHeavyEvents: 0,
         structuredAccessEvents: 0,
@@ -1240,6 +1287,10 @@ function completeCalendarWeeks(weekly: WeeklyIntensityRow[]): WeeklyIntensityRow
         averageDealAccessScore: 0,
         topMarketFocus: "",
         topSector: "",
+        topEventCharacter: "",
+        topEventCharacterShare: 0,
+        topPublicCompanySector: "",
+        topPublicCompanySectorShare: 0,
         topOrganizer: "",
         topCity: "",
         seasonLanguage: seasonLanguageForWeek(cursor, 0, 1),

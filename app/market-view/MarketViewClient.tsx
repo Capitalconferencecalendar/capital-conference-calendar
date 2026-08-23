@@ -124,6 +124,10 @@ type HotWeek = {
   weekEnd: string;
   label: string;
   count: number;
+  cityCount: number;
+  topCities: string[];
+  eventCharacter: string;
+  publicCompanySector: string;
   focus: string;
   signal: string;
   summary: string;
@@ -456,8 +460,11 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
       comparableRead: eventTitles.map((title: string) => intelligenceReadByTitle.get(title)).find(Boolean),
       metro: row.metroMarket || row.anchorCity || "Unspecified metro",
       events: `${row.eventCount || eventTitles.length || 0} event${(row.eventCount || eventTitles.length || 0) === 1 ? "" : "s"}`,
+      cityCount: row.cityCount || cities.length,
       type: clusterLabel(row.clusterType || "Metro Planning Cluster"),
       window: row.dateWindow || "",
+      eventCharacter: row.topEventCharacter || "Not classified",
+      relativeLabel: row.relativeLabel || "",
       signals: (row.sharedSignals || []).join(" · "),
       sector: row.dominantSector || "Not classified",
       focus: row.dominantMarketFocus || "Not classified",
@@ -470,6 +477,24 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   });
   const activeCluster = liveClusters[selectedClusterIndex] ?? liveClusters[0];
   const liveHotWeeks = useMemo<HotWeek[]>(() => {
+    const rankedWeeks = (displayIntelligence.hotWeeks?.top || []) as any[];
+    if (rankedWeeks.length) {
+      return rankedWeeks.slice(0, 5).map((row) => ({
+        weekStart: row.weekStart,
+        weekEnd: row.weekEnd,
+        label: formatWeekLabel(row.weekStart, row.weekEnd),
+        count: row.totalEvents || 0,
+        cityCount: row.cityCount || 0,
+        topCities: row.topCities || [row.topCity].filter(Boolean),
+        eventCharacter: row.topEventCharacter || "Not classified",
+        publicCompanySector: row.topPublicCompanySector || row.topSector || "Not classified",
+        focus: row.topEventCharacter || "Classified activity",
+        signal: row.topPublicCompanySector || row.topSector || "Classified activity",
+        summary: `Top cities: ${(row.topCities || [row.topCity].filter(Boolean)).slice(0, 3).join(", ") || "not available"}.`,
+        detail: row.planningInterpretation || `${row.totalEvents || 0} approved events are concentrated in this planning week.`,
+        supportingContext: row.topMarketFocus ? `Market focus context: ${row.topMarketFocus}.` : "This week is ranked by event volume and differentiated access, character, and sector signals.",
+      }));
+    }
     return (displayAnalytics.weekCounts || [])
       .filter((row) => row.count > 0)
       .slice()
@@ -485,6 +510,10 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
           weekEnd,
           label: formatWeekLabel(row.weekStart, weekEnd),
           count: row.count,
+          cityCount: insight?.topCities?.length || (topCity === "the current view" ? 0 : 1),
+          topCities: insight?.topCities || (topCity === "the current view" ? [] : [topCity]),
+          eventCharacter: insight?.topIssuerParticipation || "Not classified",
+          publicCompanySector: insight?.topFocus || "Not classified",
           focus,
           signal: insight?.topIssuerParticipation || "Active conference week",
           summary: insight?.actionLine || `${row.count} conference${row.count === 1 ? "" : "s"} are scheduled this week.`,
@@ -492,7 +521,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
           supportingContext: marketWindowReadByWeek.get(row.weekStart) || (insight?.topFocus ? `Top market focus: ${insight.topFocus}.` : "This view is based on the current Market View filters."),
         };
       });
-  }, [displayAnalytics, internalIntelligence.marketWindowReads]);
+  }, [displayAnalytics, displayIntelligence.hotWeeks, internalIntelligence.marketWindowReads]);
   const activeHotWeek = liveHotWeeks[selectedHotWeekIndex] ?? liveHotWeeks[0];
 
   useEffect(() => {
@@ -824,7 +853,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                         <span className="v3-rank">{index + 1}</span>
                         <span>
                           <strong>{row.label}</strong>
-                        <span className="v3-signal-meta"><span>{row.count} event{row.count === 1 ? "" : "s"}</span><span className={index === selectedHotWeekIndex ? "v3-hot-tag" : ""}>{index === 0 ? "HOT" : row.focus}</span></span>
+                        <span className="v3-signal-meta"><span>{row.count} event{row.count === 1 ? "" : "s"}</span><span>{row.cityCount} cities</span><span className={index === selectedHotWeekIndex ? "v3-hot-tag" : ""}>{row.eventCharacter}</span></span>
                         <span className="v3-signal-reason">{compactForecastText(row.summary)}</span>
                       </span>
                     </button>
@@ -834,7 +863,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                         <span className="v3-rank">{index + 1}</span>
                         <span>
                           <strong>{row.metro}</strong>
-                          <span className="v3-signal-meta"><span>{row.events}</span><span>{row.type}</span><span>{row.window}</span></span>
+                          <span className="v3-signal-meta"><span>{row.events}</span><span>{row.cityCount} cities</span><span>{row.eventCharacter}</span><span>{row.window}</span>{row.relativeLabel ? <span>{row.relativeLabel}</span> : null}</span>
                         <span className="v3-signal-reason">{compactForecastText(row.summary)}</span>
                       </span>
                     </button>
@@ -847,7 +876,12 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                 </div>
                 <p className="v3-detail-summary">{isHotSignal ? activeHotWeek?.detail || "No dated events are available for this week." : activeCluster?.detail || "No qualifying metro planning clusters detected in the current view."}</p>
 
-                {!isHotSignal && activeCluster ? (
+                {isHotSignal && activeHotWeek ? (
+                  <div>
+                    <div className="v3-detail-label">Top cities</div>
+                    <p>{activeHotWeek.topCities.slice(0, 3).join(" · ") || "Not available"}{activeHotWeek.cityCount ? ` · ${activeHotWeek.cityCount} cities total` : ""}</p>
+                  </div>
+                ) : !isHotSignal && activeCluster ? (
                   <div>
                     <div className="v3-detail-label">Cities Included</div>
                     <p>{activeCluster.cities ?? activeCluster.metro}</p>
@@ -889,15 +923,15 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                   {(isHotSignal
                     ? [
                       ["Events", String(activeHotWeek?.count || 0)],
-                      ["Focus", activeHotWeek?.focus || "Not classified"],
-                      ["Access Signal", activeHotWeek?.signal || "Not classified"],
-                      ["Top City", displayAnalytics.weekInsights?.[activeHotWeek?.weekStart || ""]?.topCity || "Not available"],
+                      ["Cities", String(activeHotWeek?.cityCount || 0)],
+                      ["Character", activeHotWeek?.eventCharacter || "Not classified"],
+                      ["Sector", activeHotWeek?.publicCompanySector || "Not classified"],
                     ]
                     : [
                       ["Events", activeCluster?.events || "0 events"],
+                      ["Cities", String(activeCluster?.cityCount || 0)],
+                      ["Character", activeCluster?.eventCharacter || "Not classified"],
                       ["Sector", activeCluster?.sector || "Not classified"],
-                      ["Focus", activeCluster?.focus || "Not classified"],
-                      ["Window", activeCluster?.window || "Not available"],
                     ]
                   ).map(([label, value]) => <div className="v3-metric-cell" key={label}><span>{label}</span><strong>{value}</strong></div>)}
                 </div>
