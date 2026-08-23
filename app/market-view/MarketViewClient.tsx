@@ -112,8 +112,8 @@ const forecastModes: Record<ForecastMode, { label: string; title: string; descri
     icon: "◷",
   },
   clusters: {
-    label: "Cluster Forecast",
-    title: "Market Signal Forecast: Cluster Forecast",
+    label: "Event Clusters",
+    title: "Market Signal Forecast: Event Clusters",
     description: "Metro-based planning windows where approved future events overlap by timing, sector, access, or audience signal.",
     icon: "◎",
   },
@@ -142,6 +142,21 @@ type HotWeekEvent = {
   city: string;
   state: string;
 };
+
+type ForecastEvent = HotWeekEvent;
+
+function eventLocation(event: Partial<ForecastEvent>) {
+  return [event.city, event.state].filter(Boolean).join(", ");
+}
+
+function discoveryHref({ fromDate, toDate, cities = [], eventIds = [] }: { fromDate: string; toDate: string; cities?: string[]; eventIds?: string[] }) {
+  const params = new URLSearchParams();
+  if (fromDate) params.set("startDate", fromDate);
+  if (toDate) params.set("endDate", toDate);
+  if (cities.length === 1) params.set("city", cities[0]);
+  eventIds.forEach((eventId) => params.append("eventId", eventId));
+  return `/discovery?${params.toString()}`;
+}
 
 function addDays(date: string, days: number) {
   const value = new Date(`${date}T00:00:00Z`);
@@ -454,7 +469,9 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   );
   const clusterRows = (displayIntelligence.clusterAlerts?.top || displayIntelligence.clusterWeeks?.top || []) as any[];
   const liveClusters = clusterRows.slice(0, 5).map((row) => {
-    const eventTitles = (row.events || []).map((event: any) => typeof event === "string" ? event : event?.title).filter(Boolean);
+    const clusterEvents = (row.eventDetails || row.events || []).map((event: any) => typeof event === "string" ? { title: event } : event).filter((event: ForecastEvent) => event?.title);
+    const eventTitles = clusterEvents.map((event: ForecastEvent) => event.title);
+    const eventDates = clusterEvents.map((event: ForecastEvent) => event.startDate).filter(Boolean).sort();
     const cities = row.citiesIncluded || [row.city && row.state ? `${row.city}, ${row.state}` : row.anchorCity].filter(Boolean);
     return {
       comparableRead: eventTitles.map((title: string) => intelligenceReadByTitle.get(title)).find(Boolean),
@@ -463,6 +480,8 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
       cityCount: row.cityCount || cities.length,
       type: clusterLabel(row.clusterType || "Metro Planning Cluster"),
       window: row.dateWindow || "",
+      startDate: row.startDate || eventDates[0] || "",
+      endDate: row.endDate || eventDates[eventDates.length - 1] || "",
       eventCharacter: row.topEventCharacter || "Not classified",
       relativeLabel: row.relativeLabel || "",
       signals: (row.sharedSignals || []).join(" · "),
@@ -471,7 +490,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
       summary: eventTitles.map((title: string) => intelligenceReadByTitle.get(title)?.comparableRationale).find(Boolean) || row.planningRationale || row.interpretation || `${row.eventCount || eventTitles.length || 0} approved events share timing and location signals.`,
       detail: eventTitles.map((title: string) => intelligenceReadByTitle.get(title)?.whyItMatters).find(Boolean) || row.planningRationale || row.interpretation || "This cluster is derived from approved events with overlapping metro, timing, sector, focus, and access signals.",
       cities: cities.join(" · "),
-      eventsIncluded: eventTitles.join(" · "),
+      eventDetails: clusterEvents as ForecastEvent[],
       supportingContext: eventTitles.map((title: string) => intelligenceReadByTitle.get(title)?.intelligenceRead).find(Boolean) || row.travelPracticality || row.travelRelationship || row.planningHorizon || "Derived from approved event records.",
     };
   });
@@ -701,11 +720,13 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-detail-label { color: #7dd3fc; font-size: 9.5px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
         .hot .v3-detail-label { color: #fbbf24; }
         .cluster .v3-detail-label { color: #fca5a5; }
-        .v3-metric-row { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); border: 1px solid rgba(125,162,199,.18); border-radius: 9px; overflow: hidden; }
-        .v3-metric-cell { padding: 8px 9px; display: grid; gap: 3px; background: rgba(7,23,39,.55); border-left: 1px solid rgba(125,162,199,.16); }
+        .v3-metric-row { display: grid; grid-template-columns: repeat(auto-fit,minmax(128px,1fr)); border: 1px solid rgba(125,162,199,.18); border-radius: 9px; overflow: hidden; }
+        .v3-metric-cell { min-width: 0; padding: 8px 9px; display: grid; gap: 3px; background: rgba(7,23,39,.55); border-left: 1px solid rgba(125,162,199,.16); border-top: 1px solid rgba(125,162,199,.16); }
+        .v3-metric-cell:nth-child(-n + 4) { border-top: 0; }
         .v3-metric-cell:first-child { border-left: 0; }
         .v3-metric-cell span { color: #91a8bf; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
-        .v3-metric-cell strong { color: #f8fbff; font-size: 12px; }
+        .v3-metric-cell strong { min-width: 0; overflow-wrap: anywhere; color: #f8fbff; font-size: 12px; line-height: 1.3; }
+        @media (max-width: 760px) { .v3-metric-row { grid-template-columns: repeat(2,minmax(0,1fr)); } .v3-metric-cell:nth-child(-n + 4) { border-top: 1px solid rgba(125,162,199,.16); } .v3-metric-cell:nth-child(-n + 2) { border-top: 0; } .v3-metric-cell:nth-child(2n + 1) { border-left: 0; } }
         .v3-primary-stack { display: grid; gap: 9px; }
         .v3-product { overflow: hidden; padding: 0; border-radius: 8px; }
         .v3-product.hot { border-color: rgba(245,158,11,.48); box-shadow: 0 0 0 1px rgba(245,158,11,.12), 0 18px 42px rgba(0,0,0,.24); }
@@ -862,8 +883,8 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                     <button type="button" className={`v3-signal-item ${index === selectedClusterIndex ? "is-active" : ""}`} key={row.metro} onClick={() => setSelectedClusterIndex(index)}>
                         <span className="v3-rank">{index + 1}</span>
                         <span>
-                          <strong>{row.metro}</strong>
-                          <span className="v3-signal-meta"><span>{row.events}</span><span>{row.cityCount} cities</span><span>{row.eventCharacter}</span><span>{row.window}</span>{row.relativeLabel ? <span>{row.relativeLabel}</span> : null}</span>
+                          <strong>{row.metro}{row.window ? ` - ${row.window}` : ""}</strong>
+                          <span className="v3-signal-meta"><span>{row.events}</span><span>{row.cityCount} cities</span><span>{row.eventCharacter}</span>{row.sector !== "Not classified" ? <span>{row.sector}</span> : null}{row.relativeLabel ? <span>{row.relativeLabel}</span> : null}</span>
                         <span className="v3-signal-reason">{compactForecastText(row.summary)}</span>
                       </span>
                     </button>
@@ -889,7 +910,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                 ) : null}
 
                 <div>
-                  <div className="v3-detail-label">{isHotSignal ? "Hot Week Events" : "Featured Events"}</div>
+                  <div className="v3-detail-label">{isHotSignal ? "Hot Week Events" : "Clustered Events"}</div>
                   <div className="v3-feature-list">
                     {isHotSignal ? (
                       isLoadingHotWeekEvents ? <div>Loading events…</div> : hotWeekEvents.length ? hotWeekEvents.map((event) => (
@@ -899,12 +920,21 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                         </div>
                       )) : <div>No events are available for this week.</div>
                     ) : activeCluster ? (
-                      (activeCluster.eventsIncluded ?? "").split(" · ").filter(Boolean).slice(0, 5).map((event: string) => <div key={event}>{event}</div>)
+                      activeCluster.eventDetails?.length ? activeCluster.eventDetails.slice(0, 5).map((event: ForecastEvent) => (
+                        <div key={`${event.title}-${event.startDate || ""}`}>
+                          <strong>{event.title}</strong>
+                          {event.startDate || eventLocation(event) ? <span>{[event.startDate, eventLocation(event)].filter(Boolean).join(" · ")}</span> : null}
+                        </div>
+                      )) : <div>No event details are available for this cluster.</div>
                     ) : <ClusterEmptyState filtered={viewScope === "filtered" && hasActiveFilters} />}
                   </div>
                   {isHotSignal && activeHotWeek ? (
-                    <a className="v3-link" href={`/discovery?startDate=${activeHotWeek.weekStart}&endDate=${activeHotWeek.weekEnd}`}>
-                      See all events →
+                    <a className="v3-link" href={discoveryHref({ fromDate: activeHotWeek.weekStart, toDate: activeHotWeek.weekEnd })}>
+                      View all events in hot week →
+                    </a>
+                  ) : !isHotSignal && activeCluster ? (
+                    <a className="v3-link" href={discoveryHref({ fromDate: activeCluster.startDate, toDate: activeCluster.endDate, cities: activeCluster.cityCount === 1 ? (activeCluster.cities ?? "").split(" · ").filter(Boolean) : [], eventIds: activeCluster.eventDetails.map((event: ForecastEvent) => event.id).filter(Boolean) })}>
+                      View all events in cluster →
                     </a>
                   ) : null}
                 </div>
@@ -943,7 +973,6 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
 
                 {!isHotSignal ? <p style={{ color: "#8fa8c3", fontSize: "10px", lineHeight: 1.4 }}>Cluster priority reflects event density, shared signals, access relevance, investor relevance, and timing proximity. It is a planning-priority signal, not a quality ranking.</p> : null}
 
-                {!isHotSignal && activeCluster ? <OpenLink>View all clusters →</OpenLink> : null}
               </div>
             </div>
           </section>

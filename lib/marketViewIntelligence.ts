@@ -204,9 +204,12 @@ export type MarketViewIntelligence = {
       travelRelationship: string;
       clusterType: string;
       dateWindow: string;
+      startDate: string;
+      endDate: string;
       eventCount: number;
       cityCount: number;
       events: string[];
+      eventDetails: Array<{ id: string; title: string; startDate: string; city: string; state: string }>;
       dominantMarketFocus: string;
       dominantSector: string;
       topEventCharacter: string;
@@ -952,9 +955,12 @@ function buildClusterWeeks(events: ScoredEvent[], asOfDate: string) {
       travelRelationship,
       clusterType,
       dateWindow: `${formatMonthDay(start)}-${formatMonthDay(end)}`,
+      startDate: start,
+      endDate: end,
       eventCount: names.length,
       cityCount: uniqueCities,
       events: names,
+      eventDetails: windowItems.map((item) => ({ id: text(item.id), title: text(item.title), startDate: text(item.startDate), city: text(item.city), state: text(item.state) })),
       dominantMarketFocus,
       dominantSector,
       topEventCharacter,

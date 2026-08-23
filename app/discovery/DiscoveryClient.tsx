@@ -1386,6 +1386,7 @@ export default function EventsClient({
   const [activeQuickView, setActiveQuickView] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [urlEventIds, setUrlEventIds] = useState<string[]>([]);
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<"soonest" | "city">("soonest");
   const [urlSeeded, setUrlSeeded] = useState(false);
@@ -1686,13 +1687,15 @@ export default function EventsClient({
   useEffect(() => {
     if (urlSeeded || typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    const cityParam = params.get("city") || "";
+    const cityParams = params.getAll("city");
     const startDateParam = params.get("startDate") || "";
     const endDateParam = params.get("endDate") || "";
-    if (cityParam || startDateParam || endDateParam) {
-      setFilters((prev) => ({ ...prev, cities: cityParam ? [cityParam] : prev.cities }));
+    const eventIds = params.getAll("eventId").filter(Boolean);
+    if (cityParams.length || startDateParam || endDateParam || eventIds.length) {
+      setFilters((prev) => ({ ...prev, cities: cityParams.length ? cityParams : prev.cities }));
       if (startDateParam) setFromDate(startDateParam);
       if (endDateParam) setToDate(endDateParam);
+      if (eventIds.length) setUrlEventIds(eventIds);
     }
     setUrlSeeded(true);
   }, [urlSeeded]);
@@ -1748,8 +1751,9 @@ export default function EventsClient({
     filters.organizer.forEach((value) => params.append("organizer", value));
     filters.marketFocus.forEach((value) => params.append("marketFocus", value));
     activeSavedList?.eventIds.forEach((value) => params.append("eventId", value));
+    urlEventIds.forEach((value) => params.append("eventId", value));
     return params;
-  }, [activeSavedList?.eventIds, filterMode, filters, fromDate, searchQuery, sortMode, toDate]);
+  }, [activeSavedList?.eventIds, filterMode, filters, fromDate, searchQuery, sortMode, toDate, urlEventIds]);
 
   const loadDiscoveryPage = useCallback(async (cursor?: string | null, append = false) => {
     const params = new URLSearchParams(discoveryRequest);
