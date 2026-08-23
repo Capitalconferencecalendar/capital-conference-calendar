@@ -157,6 +157,12 @@ function formatWeekLabel(weekStart: string, weekEnd: string) {
   return startMonth === endMonth ? `${startMonth} ${startDay}-${endDay}` : `${startMonth} ${startDay}-${endMonth} ${endDay}`;
 }
 
+function compactForecastText(value: string, maxLength = 132) {
+  const cleaned = value.replace(/\s+/g, " ").trim();
+  if (cleaned.length <= maxLength) return cleaned;
+  return `${cleaned.slice(0, maxLength).replace(/\s+\S*$/, "")}...`;
+}
+
 function Bar({ label, value, tone = "blue" }: { label: string; value: number; tone?: "blue" | "amber" | "indigo" }) {
   return (
     <div className="v3-bar-row">
@@ -453,6 +459,8 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
       type: clusterLabel(row.clusterType || "Metro Planning Cluster"),
       window: row.dateWindow || "",
       signals: (row.sharedSignals || []).join(" · "),
+      sector: row.dominantSector || "Not classified",
+      focus: row.dominantMarketFocus || "Not classified",
       summary: eventTitles.map((title: string) => intelligenceReadByTitle.get(title)?.comparableRationale).find(Boolean) || row.planningRationale || row.interpretation || `${row.eventCount || eventTitles.length || 0} approved events share timing and location signals.`,
       detail: eventTitles.map((title: string) => intelligenceReadByTitle.get(title)?.whyItMatters).find(Boolean) || row.planningRationale || row.interpretation || "This cluster is derived from approved events with overlapping metro, timing, sector, focus, and access signals.",
       cities: cities.join(" · "),
@@ -623,7 +631,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-kpi span { color: var(--kpi-accent,#cbd5e1); font-size: 9px; text-transform: uppercase; letter-spacing: .1em; font-weight: 900; }
         .v3-kpi strong { color: #f7fbff; font-size: 14px; line-height: 1.05; }
         .v3-kpi small { color: #7892ad; font-size: 9.5px; line-height: 1.1; }
-        .v3-signal-forecast { position: relative; z-index: 1; overflow: visible; display: block; min-height: 760px; padding: 0; border-radius: 10px; border: 1px solid rgba(121,158,197,.26); background: linear-gradient(180deg,rgba(8,24,40,.98),rgba(5,17,30,.98)); box-shadow: 0 18px 42px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.05); }
+        .v3-signal-forecast { position: relative; z-index: 1; overflow: hidden; display: grid; grid-template-rows: auto minmax(0,1fr); height: 620px; min-height: 0; padding: 0; border-radius: 10px; border: 1px solid rgba(121,158,197,.26); background: linear-gradient(180deg,rgba(8,24,40,.98),rgba(5,17,30,.98)); box-shadow: 0 18px 42px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.05); }
         .v3-signal-forecast.hot { border-color: rgba(245,158,11,.4); box-shadow: 0 0 0 1px rgba(245,158,11,.08), 0 18px 42px rgba(0,0,0,.26); }
         .v3-signal-forecast.cluster { border-color: rgba(248,113,113,.46); box-shadow: 0 0 0 1px rgba(248,113,113,.1), 0 18px 42px rgba(0,0,0,.26); }
         .v3-signal-head { padding: 13px 14px; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 14px; align-items: center; border-bottom: 1px solid rgba(125,162,199,.2); }
@@ -637,22 +645,23 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-signal-tabs button { min-height: 40px; border: 1px solid rgba(125,162,199,.3); border-radius: 10px; padding: 0 16px; background: rgba(9,27,45,.86); color: #d2deea; font-size: 12px; font-weight: 950; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.04); }
         .v3-signal-tabs button.is-active.hot { background: linear-gradient(180deg,rgba(245,158,11,.28),rgba(126,62,8,.34)); color: #fff7ed; border-color: rgba(245,158,11,.58); box-shadow: inset 0 0 0 1px rgba(245,158,11,.22), 0 0 20px rgba(245,158,11,.18); }
         .v3-signal-tabs button.is-active.cluster { background: linear-gradient(180deg,rgba(220,38,38,.3),rgba(127,29,29,.36)); color: #fff1f2; border-color: rgba(248,113,113,.62); box-shadow: inset 0 0 0 1px rgba(248,113,113,.18), 0 0 20px rgba(220,38,38,.2); }
-        .v3-signal-body { display: grid; grid-template-columns: minmax(320px,.92fr) minmax(360px,1.08fr); gap: 0; align-items: stretch; min-height: 640px; background: rgba(3,12,23,.18); }
-        .v3-signal-list { border-right: 1px solid rgba(125,162,199,.2); overflow: visible; }
-        .v3-signal-item { width: 100%; border: 0; border-left: 3px solid transparent; border-bottom: 1px solid rgba(117,153,190,.16); background: transparent; color: #dbeafe; text-align: left; padding: 10px 13px 10px 10px; display: grid; grid-template-columns: 30px minmax(0,1fr); gap: 10px; cursor: pointer; }
+        .v3-signal-body { display: grid; grid-template-columns: minmax(320px,.92fr) minmax(360px,1.08fr); gap: 0; min-height: 0; background: rgba(3,12,23,.18); }
+        .v3-signal-list { min-height: 0; border-right: 1px solid rgba(125,162,199,.2); overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
+        .v3-signal-item { width: 100%; border: 0; border-left: 3px solid transparent; border-bottom: 1px solid rgba(117,153,190,.16); background: transparent; color: #dbeafe; text-align: left; padding: 8px 12px 8px 9px; display: grid; grid-template-columns: 30px minmax(0,1fr); gap: 9px; cursor: pointer; }
         .v3-signal-item.is-active { background: linear-gradient(90deg,rgba(245,158,11,.2),rgba(14,165,233,.07)); border-left-color: #f59e0b; box-shadow: inset 0 0 0 1px rgba(245,158,11,.1); }
         .cluster .v3-signal-item.is-active { background: linear-gradient(90deg,rgba(220,38,38,.22),rgba(248,113,113,.08)); border-left-color: #f87171; box-shadow: inset 0 0 0 1px rgba(248,113,113,.12); }
         .v3-rank { width: 24px; height: 24px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; background: rgba(15,35,56,.9); border: 1px solid rgba(125,162,199,.2); color: #dbeafe; }
         .hot .v3-signal-item.is-active .v3-rank { background: rgba(245,158,11,.22); border-color: rgba(245,158,11,.42); color: #fbbf24; }
         .cluster .v3-signal-item.is-active .v3-rank { background: rgba(220,38,38,.24); border-color: rgba(248,113,113,.44); color: #fecaca; }
-        .v3-signal-item strong { color: #f8fbff; font-size: 14px; line-height: 1.15; }
-        .v3-signal-meta { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 6px; color: #91a8bf; font-size: 10.5px; font-weight: 750; }
+        .v3-signal-item strong { display: block; overflow: hidden; color: #f8fbff; font-size: 14px; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
+        .v3-signal-meta { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 5px; color: #91a8bf; font-size: 10.5px; font-weight: 750; }
         .v3-signal-meta span { border: 1px solid rgba(125,162,199,.18); background: rgba(4,15,27,.48); border-radius: 999px; padding: 2px 6px; }
         .v3-hot-tag { color: #fbbf24 !important; border-color: rgba(245,158,11,.34) !important; background: rgba(245,158,11,.12) !important; }
-        .v3-signal-reason { margin-top: 5px; color: #aebfd2; font-size: 11.5px; line-height: 1.28; }
-        .v3-signal-detail { overflow: visible; padding: 17px 16px 18px; display: grid; align-content: start; gap: 13px; background: radial-gradient(circle at 92% 12%,rgba(56,189,248,.12),transparent 26%), rgba(4,14,26,.36); }
+        .v3-signal-reason { display: -webkit-box; margin-top: 4px; overflow: hidden; color: #aebfd2; font-size: 11.5px; line-height: 1.28; -webkit-box-orient: vertical; -webkit-line-clamp: 1; }
+        .v3-signal-detail { min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 17px 16px 18px; display: grid; align-content: start; gap: 13px; background: radial-gradient(circle at 92% 12%,rgba(56,189,248,.12),transparent 26%), rgba(4,14,26,.36); }
         .v3-signal-detail h3 { font-size: 13px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; color: #a9c1d8; }
-        .v3-detail-summary { color: #d9e8f7; font-size: 13.5px; line-height: 1.55; font-weight: 650; }
+        .v3-detail-summary { display: -webkit-box; overflow: hidden; color: #d9e8f7; font-size: 13.5px; line-height: 1.55; font-weight: 650; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+        .v3-detail-supporting { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
         .v3-feature-list { display: grid; gap: 7px; color: #c7d6e7; font-size: 12px; line-height: 1.35; }
         .v3-feature-list div { display: flex; gap: 8px; }
         .v3-feature-list div > span { display: block; color: #94aeca; font-size: 11px; }
@@ -718,7 +727,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-info { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; border-radius: 999px; background: #f6f8fb; border: 1px solid #cbd8e6; color: #41546d; font-size: 10px; font-weight: 900; cursor: help; }
         .v3-tooltip { position: absolute; z-index: 10; right: 0; bottom: calc(100% + 8px); width: 260px; border-radius: 10px; background: #102136; color: #fff; padding: 10px; font-size: 12px; line-height: 1.35; box-shadow: 0 16px 32px rgba(0,0,0,.25); opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
         .v3-info:hover .v3-tooltip, .v3-info:focus .v3-tooltip { opacity: 1; }
-        @media (max-width: 1180px) { .v3-page { overflow: auto; } .v3-main { overflow: visible; } .v3-readout, .v3-primary-row, .v3-kpi-strip, .v3-support, .v3-analytics, .v3-watch { grid-template-columns: 1fr; } }
+        @media (max-width: 1180px) { .v3-page { overflow: auto; } .v3-main { overflow: visible; } .v3-readout, .v3-primary-row, .v3-kpi-strip, .v3-support, .v3-analytics, .v3-watch { grid-template-columns: 1fr; } .v3-signal-forecast { height: auto; } .v3-signal-body { grid-template-columns: 1fr; } .v3-signal-list { max-height: 360px; border-right: 0; border-bottom: 1px solid rgba(125,162,199,.2); } .v3-signal-detail { max-height: none; overflow: visible; } }
         @media (max-width: 760px) { h1 { font-size: 31px; } .v3-metro-grid { grid-template-columns: 1fr; } }
       `}</style>
 
@@ -812,21 +821,21 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                 {isHotSignal
                   ? liveHotWeeks.map((row, index) => (
                     <button type="button" className={`v3-signal-item ${index === selectedHotWeekIndex ? "is-active" : ""}`} key={row.weekStart} onClick={() => setSelectedHotWeekIndex(index)}>
-                      <span className="v3-rank">{index + 1}</span>
-                      <span>
-                        <strong>{row.label}</strong>
-                        <span className="v3-signal-meta"><span>{row.count} event{row.count === 1 ? "" : "s"}</span><span className={index === selectedHotWeekIndex ? "v3-hot-tag" : ""}>{index === 0 ? "HOT" : row.focus}</span><span>{row.signal}</span></span>
-                        <span className="v3-signal-reason">{row.summary}</span>
+                        <span className="v3-rank">{index + 1}</span>
+                        <span>
+                          <strong>{row.label}</strong>
+                        <span className="v3-signal-meta"><span>{row.count} event{row.count === 1 ? "" : "s"}</span><span className={index === selectedHotWeekIndex ? "v3-hot-tag" : ""}>{index === 0 ? "HOT" : row.focus}</span></span>
+                        <span className="v3-signal-reason">{compactForecastText(row.summary)}</span>
                       </span>
                     </button>
                   ))
                   : liveClusters.length ? liveClusters.map((row, index) => (
                     <button type="button" className={`v3-signal-item ${index === selectedClusterIndex ? "is-active" : ""}`} key={row.metro} onClick={() => setSelectedClusterIndex(index)}>
-                      <span className="v3-rank">{index + 1}</span>
-                      <span>
-                        <strong>{row.metro}</strong>
-                        <span className="v3-signal-meta"><span>{row.events}</span><span>{row.type}</span><span>{row.window}</span></span>
-                        <span className="v3-signal-reason">{row.summary}</span>
+                        <span className="v3-rank">{index + 1}</span>
+                        <span>
+                          <strong>{row.metro}</strong>
+                          <span className="v3-signal-meta"><span>{row.events}</span><span>{row.type}</span><span>{row.window}</span></span>
+                        <span className="v3-signal-reason">{compactForecastText(row.summary)}</span>
                       </span>
                     </button>
                   )) : <ClusterEmptyState filtered={viewScope === "filtered" && hasActiveFilters} />}
@@ -856,7 +865,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                         </div>
                       )) : <div>No events are available for this week.</div>
                     ) : activeCluster ? (
-                      (activeCluster.eventsIncluded ?? "").split(" · ").filter(Boolean).map((event: string) => <div key={event}>{event}</div>)
+                      (activeCluster.eventsIncluded ?? "").split(" · ").filter(Boolean).slice(0, 5).map((event: string) => <div key={event}>{event}</div>)
                     ) : <ClusterEmptyState filtered={viewScope === "filtered" && hasActiveFilters} />}
                   </div>
                   {isHotSignal && activeHotWeek ? (
@@ -867,26 +876,35 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                 </div>
 
                 {!isHotSignal && activeCluster ? (
-                  <>
-                    <div>
-                      <div className="v3-detail-label">Shared signals</div>
-                      <div className="v3-feature-list">{(activeCluster.signals ?? "").split(" · ").filter(Boolean).map((signal: string) => <div key={signal}>{signal}</div>)}</div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="v3-metric-row">
-                    {[
+                  <div>
+                    <div className="v3-detail-label">Key signals</div>
+                    {(() => {
+                      const signals = (activeCluster.signals ?? "").split(" · ").filter(Boolean);
+                      return <div className="v3-chipline">{signals.slice(0, 3).map((signal: string) => <span key={signal}>{signal}</span>)}{signals.length > 3 ? <span>+{signals.length - 3} more</span> : null}</div>;
+                    })()}
+                  </div>
+                ) : null}
+
+                <div className="v3-metric-row">
+                  {(isHotSignal
+                    ? [
                       ["Events", String(activeHotWeek?.count || 0)],
                       ["Focus", activeHotWeek?.focus || "Not classified"],
                       ["Access Signal", activeHotWeek?.signal || "Not classified"],
                       ["Top City", displayAnalytics.weekInsights?.[activeHotWeek?.weekStart || ""]?.topCity || "Not available"],
-                    ].map(([label, value]) => <div className="v3-metric-cell" key={label}><span>{label}</span><strong>{value}</strong></div>)}
-                  </div>
-                )}
+                    ]
+                    : [
+                      ["Events", activeCluster?.events || "0 events"],
+                      ["Sector", activeCluster?.sector || "Not classified"],
+                      ["Focus", activeCluster?.focus || "Not classified"],
+                      ["Window", activeCluster?.window || "Not available"],
+                    ]
+                  ).map(([label, value]) => <div className="v3-metric-cell" key={label}><span>{label}</span><strong>{value}</strong></div>)}
+                </div>
 
                 <div>
                   <div className="v3-detail-label">{isHotSignal ? "Supporting Context" : "Comparable rationale"}</div>
-                  <p>{isHotSignal ? activeHotWeek?.supportingContext || "This view is based on the current Market View filters." : activeCluster?.supportingContext || "Derived only when approved events share enough cluster signals."}</p>
+                  <p className="v3-detail-supporting">{isHotSignal ? activeHotWeek?.supportingContext || "This view is based on the current Market View filters." : activeCluster?.supportingContext || "Derived only when approved events share enough cluster signals."}</p>
                 </div>
 
                 {!isHotSignal ? <p style={{ color: "#8fa8c3", fontSize: "10px", lineHeight: 1.4 }}>Cluster priority reflects event density, shared signals, access relevance, investor relevance, and timing proximity. It is a planning-priority signal, not a quality ranking.</p> : null}
