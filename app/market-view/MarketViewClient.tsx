@@ -114,7 +114,7 @@ const forecastModes: Record<ForecastMode, { label: string; title: string; descri
   clusters: {
     label: "Event Clusters",
     title: "Market Signal Forecast: Event Clusters",
-    description: "Metro-based planning windows where approved future events overlap by timing, sector, access, or audience signal.",
+    description: "Metro-based planning windows where upcoming conferences overlap by timing, sector, access, or audience signal.",
     icon: "◎",
   },
 };
@@ -186,12 +186,12 @@ function displayAccessLabel(label: string) {
   return /no issuer participation/i.test(label) ? "Limited Issuer Access" : label;
 }
 
-function Bar({ label, value, tone = "blue" }: { label: string; value: number; tone?: "blue" | "amber" | "indigo" }) {
+function Bar({ label, value, tone = "blue", count, share }: { label: string; value: number; tone?: "blue" | "amber" | "indigo"; count?: number; share?: number }) {
   return (
     <div className="v3-bar-row">
       <span>{label}</span>
       <div className="v3-bar-track"><div className={`v3-bar-fill ${tone}`} style={{ width: `${value}%` }} /></div>
-      <strong>{value}%</strong>
+      <strong>{count === undefined ? `${value}%` : `${count} events · ${share ?? value}%`}</strong>
     </div>
   );
 }
@@ -297,7 +297,7 @@ function ClusterEmptyState({ filtered }: { filtered: boolean }) {
   return (
     <div className="v3-row" style={{ display: "grid", gap: 6 }}>
       <strong>No qualifying metro planning clusters detected in the current view.</strong>
-      <span style={{ color: "#9fb4ca", fontSize: "11px", lineHeight: 1.4 }}>A qualifying cluster requires approved future events in the same metro within an 8-day planning window, with either 3+ distinct events or 2+ events sharing sector, access, investor, or market-focus signals.</span>
+      <span style={{ color: "#9fb4ca", fontSize: "11px", lineHeight: 1.4 }}>A qualifying cluster requires upcoming conferences in the same metro within an 8-day planning window, with either 3+ distinct events or 2+ events sharing sector, access, investor, or market-focus signals.</span>
       {filtered ? <span style={{ color: "#8fbfff", fontSize: "11px", lineHeight: 1.4 }}>Try Full Market View or broaden filters to see more cluster signals.</span> : null}
     </div>
   );
@@ -487,7 +487,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
     const keySignals = Array.from(new Set(differentiatedSignals));
     const geography = cities.length > 1 ? `across ${cities.slice(0, 3).join(", ")}` : `in ${row.metroMarket || row.anchorCity || "the selected metro"}`;
     const details = [
-      `${eventCount} approved future event${eventCount === 1 ? " is" : "s are"} grouped ${geography} during the same date window.`,
+      `${eventCount} upcoming conference${eventCount === 1 ? " is" : "s are"} grouped ${geography} during the same date window.`,
       eventCharacter !== "Not classified" || sector !== "Not classified"
         ? `The shared activity is led by ${[eventCharacter !== "Not classified" ? eventCharacter : "", sector !== "Not classified" ? sector : ""].filter(Boolean).join(" and ")}.`
         : "The events share metro and date proximity within the current view.",
@@ -534,7 +534,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         focus: row.topEventCharacter || "Classified activity",
         signal: row.topPublicCompanySector || row.topSector || "Classified activity",
         summary: `Top cities: ${(row.topCities || [row.topCity].filter(Boolean)).slice(0, 3).join(", ") || "not available"}.`,
-        detail: row.planningInterpretation || `${row.totalEvents || 0} approved events are concentrated in this planning week.`,
+        detail: row.planningInterpretation || `${row.totalEvents || 0} tracked events are concentrated in this planning week.`,
         supportingContext: row.topMarketFocus ? `Market focus context: ${row.topMarketFocus}.` : "This week is ranked by event volume and differentiated access, character, and sector signals.",
       }));
     }
@@ -609,7 +609,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const topMetro = displayAnalytics.cityCounts?.[0];
   const topFocus = displayAnalytics.focusCounts?.[0];
   const liveKpis = [
-    ["Upcoming Conference Index", formatNumber(displayAggregates.events), "Approved future events"],
+    ["Upcoming Conference Index", formatNumber(displayAggregates.events), "Upcoming conferences"],
     ["Issuer Access", formatNumber(displayAggregates.issuerAccess), "Classified signals"],
     ["Investor-Heavy", formatNumber(displayAggregates.investorHeavy), "Audience signal"],
     ["Peak Week", displayAggregates.highestActivityWeek?.label || "—", displayAggregates.highestActivityWeek ? `${displayAggregates.highestActivityWeek.count} events` : "No dated events"],
@@ -629,19 +629,23 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
     ...row,
     pct: Math.max(4, Math.round((row.count / metroMaxCount) * 100)),
   }));
+  const compositionRows = (rows: Array<{ label: string; count: number; pct: number }>) => rows.map((row) => ({
+    ...row,
+    share: displayAggregates.events ? Math.round((row.count / displayAggregates.events) * 100) : 0,
+  }));
   const compositionCards = [
-    { title: "Event Character Mix", rows: characterRows, tone: "indigo" as const },
-    { title: "Access / Participation Mix", rows: accessRows.map((row) => ({ ...row, label: displayAccessLabel(row.label) })), tone: "blue" as const },
-    { title: "Public Company Sector Mix", rows: sectorRows, tone: "blue" as const },
-    { title: "Market Focus Mix", rows: visibleFocusRows, tone: "indigo" as const },
-    { title: "Regional Mix", rows: regionalRows, tone: "blue" as const },
+    { title: "Event Character Mix", rows: compositionRows(characterRows), tone: "indigo" as const },
+    { title: "Access / Participation Mix", rows: compositionRows(accessRows.map((row) => ({ ...row, label: displayAccessLabel(row.label) }))), tone: "blue" as const },
+    { title: "Public Company Sector Mix", rows: compositionRows(sectorRows), tone: "blue" as const },
+    { title: "Market Focus Mix", rows: compositionRows(visibleFocusRows), tone: "indigo" as const },
+    { title: "Regional Mix", rows: compositionRows(regionalRows), tone: "blue" as const },
   ];
   const roadmapCards = [
     ["Comparable Conference Sets", "Identify events with overlapping sector exposure, audience profile, issuer access, market focus, and event character.", "Coming Soon"],
     ["Sector Momentum", "Track public company sectors and capital markets themes gaining conference density across upcoming planning windows.", "In Data Expansion"],
     ["Access Signal Scoring", "Separate issuer-access, investor-heavy, presentation-driven, meeting-oriented, and content-led events with more precise scoring.", "In Classification Buildout"],
     ["Organizer Intelligence", "Compare organizer activity, coverage patterns, event positioning, and concentration across the conference landscape.", "Coming Soon"],
-    ["Market Windows", "Detect periods where sector, access, investor, and event-character signals concentrate across approved future events.", "In Data Expansion"],
+    ["Market Windows", "Detect periods where sector, access, investor, and event-character signals concentrate across upcoming conferences.", "In Data Expansion"],
     ["Conference Relevance Scoring", "Explain why a conference may matter using sector exposure, audience profile, issuer participation, and comparable events.", "In Classification Buildout"],
   ] as const;
   const mom = displayIntelligence.monthOverMonth || {};
@@ -820,7 +824,11 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-league-row span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .v3-league-rank { color: #76b8fb; font-size: 10px; font-weight: 900; }
         .v3-league-count { color: #e4f1ff; font-weight: 900; }
-        .v3-composition-card .v3-bar-row { grid-template-columns: minmax(74px,.8fr) minmax(0,1fr) 30px; font-size: 10.5px; }
+        .v3-league-bar { grid-column: 2 / -1; height: 2px; border-radius: 999px; overflow: hidden; background: rgba(77,128,178,.16); }
+        .v3-league-bar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#2563eb,#38bdf8); box-shadow: 0 0 8px rgba(56,189,248,.45); }
+        .v3-composition-card .v3-bar-row { grid-template-columns: minmax(74px,.8fr) minmax(0,1fr) minmax(66px,auto); font-size: 10.5px; }
+        .v3-composition-card .v3-bar-row > span { overflow-wrap: anywhere; }
+        .v3-composition-card .v3-bar-row strong { font-size: 9.5px; text-align: right; white-space: nowrap; }
         .v3-roadmap-card { padding: 13px; display: grid; gap: 8px; border-color: rgba(109,146,190,.23); }
         .v3-roadmap-card p { color: #a9bdd0; font-size: 11px; line-height: 1.45; }
         .v3-status { width: fit-content; color: #a8d5ff; background: rgba(37,99,235,.16); border: 1px solid rgba(96,165,250,.3); border-radius: 999px; padding: 3px 7px; font-size: 9px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
@@ -1034,7 +1042,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
 
                 <div>
                   <div className="v3-detail-label">{isHotSignal ? "Supporting Context" : "Comparable rationale"}</div>
-                  <p className="v3-detail-supporting">{isHotSignal ? activeHotWeek?.supportingContext || "This view is based on the current Market View filters." : activeCluster?.supportingContext || "Derived only when approved events share enough cluster signals."}</p>
+                  <p className="v3-detail-supporting">{isHotSignal ? activeHotWeek?.supportingContext || "This view is based on the current Market View filters." : activeCluster?.supportingContext || "Derived when tracked events share enough cluster signals."}</p>
                 </div>
 
                 {!isHotSignal ? <p style={{ color: "#8fa8c3", fontSize: "10px", lineHeight: 1.4 }}>Cluster priority reflects event density, shared signals, access relevance, investor relevance, and timing proximity. It is a planning-priority signal, not a quality ranking.</p> : null}
@@ -1110,7 +1118,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
           </section>
 
           <section className="v3-section">
-            <div className="v3-section-head"><div className="v3-eyebrow">Approved Future Events</div><h2>Market Leaderboards</h2><p>A ranked view of approved future conference activity across location, organizers, sectors, and participation signals.</p></div>
+            <div className="v3-section-head"><div className="v3-eyebrow">Upcoming Conferences</div><h2>Market Leaderboards</h2><p>A ranked view of upcoming conference activity across locations, organizers, sectors, and participation signals.</p></div>
             <div className="v3-league-grid">
               {[
                 ["Top Metros", metroLeaderboard],
@@ -1119,14 +1127,14 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                 ["Top Public Company Sectors", sectorRows],
                 ["Top Market Focus Areas", visibleFocusRows],
                 ["Top Access / Participation Profiles", accessRows.map((row) => ({ ...row, label: displayAccessLabel(row.label) }))],
-              ].map(([title, rows]) => <div className="v3-league-card" key={title as string}><h3>{title as string}</h3>{(rows as Array<{ label: string; count: number }>).length ? (rows as Array<{ label: string; count: number }>).slice(0, 5).map((row, index) => <div className="v3-league-row" key={row.label}><span className="v3-league-rank">{index + 1}</span><span>{row.label}</span><span className="v3-league-count">{row.count}</span></div>) : <EmptyState>Not enough mapped data is available yet.</EmptyState>}</div>)}
+              ].map(([title, rows]) => <div className="v3-league-card" key={title as string}><h3>{title as string}</h3>{(rows as Array<{ label: string; count: number }>).length ? (rows as Array<{ label: string; count: number }>).slice(0, 5).map((row, index, list) => <div className="v3-league-row" key={row.label}><span className="v3-league-rank">{index + 1}</span><span>{row.label}</span><span className="v3-league-count">{row.count}</span><div className="v3-league-bar"><span style={{ width: `${Math.max(8, Math.round((row.count / Math.max(...list.map((item) => item.count), 1)) * 100))}%` }} /></div></div>) : <EmptyState>Not enough mapped data is available yet.</EmptyState>}</div>)}
             </div>
           </section>
 
           <section className="v3-section">
-            <div className="v3-section-head"><div className="v3-eyebrow">Current Index Shape</div><h2>Market Composition</h2><p>How the approved future conference index is currently distributed by character, access, sector, market focus, and location.</p></div>
+            <div className="v3-section-head"><div className="v3-eyebrow">Current Index Shape</div><h2>Market Composition</h2><p>How the upcoming conference index is distributed by character, access, sector, market focus, and location. Percentages may overlap where conferences carry multiple classifications.</p></div>
             <div className="v3-composition-grid">
-              {compositionCards.map((card) => <div className="v3-composition-card" key={card.title}><h3>{card.title}</h3>{card.rows.length ? card.rows.slice(0, 5).map((row) => <Bar key={row.label} label={row.label} value={row.pct} tone={card.tone} />) : <EmptyState>Not enough mapped data is available yet.</EmptyState>}</div>)}
+              {compositionCards.map((card) => <div className="v3-composition-card" key={card.title}><h3>{card.title}</h3>{card.rows.length ? card.rows.slice(0, 5).map((row) => <Bar key={row.label} label={row.label} value={row.pct} count={row.count} share={row.share} tone={card.tone} />) : <EmptyState>Not enough mapped data is available yet.</EmptyState>}</div>)}
             </div>
           </section>
 
