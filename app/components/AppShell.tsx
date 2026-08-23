@@ -6,6 +6,7 @@ type AppShellProps = {
   active?: "dashboard" | "events" | "feeds" | "submit" | "help" | "about" | "legal";
   searchQuery?: string;
   workspaceMode?: "getstarted" | "discovery" | "marketview";
+  fixedDesktopPreview?: boolean;
   children: React.ReactNode;
   rightRail?: React.ReactNode;
   tickerEvents?: Array<{
@@ -21,6 +22,7 @@ export default function AppShell({
   active = "dashboard",
   searchQuery = "",
   workspaceMode,
+  fixedDesktopPreview = false,
   children,
   rightRail,
   tickerEvents,
@@ -47,10 +49,11 @@ export default function AppShell({
         style={{
           maxWidth: "100%",
           margin: "0 auto",
-          padding: isWorkspaceMode ? "10px 14px 14px" : "14px 14px 20px",
+          padding: isWorkspaceMode ? fixedDesktopPreview ? "10px 0 14px" : "10px 14px 14px" : "14px 14px 20px",
           height: isWorkspaceMode ? "calc(100vh - 106px)" : "auto",
           minHeight: 0,
-          overflow: isWorkspaceMode ? "hidden" : "visible",
+          overflowX: isWorkspaceMode && fixedDesktopPreview ? "auto" : isWorkspaceMode ? "hidden" : "visible",
+          overflowY: isWorkspaceMode ? "hidden" : "visible",
         }}
       >
         <div
@@ -64,10 +67,10 @@ export default function AppShell({
             alignItems: "stretch",
             height: isWorkspaceMode ? "100%" : "auto",
             minHeight: 0,
-            overflow: isWorkspaceMode ? "hidden" : "visible",
+            overflow: isWorkspaceMode && !fixedDesktopPreview ? "hidden" : "visible",
           }}
         >
-          <section style={{ minWidth: 0, minHeight: 0, overflow: "hidden", height: isWorkspaceMode ? "100%" : "auto" }}>{children}</section>
+          <section style={{ minWidth: 0, minHeight: 0, overflow: fixedDesktopPreview ? "visible" : "hidden", height: isWorkspaceMode ? "100%" : "auto" }}>{children}</section>
 
           {rightRail ? (
             <aside
