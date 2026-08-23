@@ -54,6 +54,13 @@ type MarketAnalytics = {
     characterMovers: { label: string; count: number; change: number | null; pct: number | null }[];
     accessMovers: { label: string; count: number; change: number | null; pct: number | null }[];
   };
+  leaderboardContext?: Record<string, {
+    leadLabel: string;
+    leadCount: number;
+    leadDetail?: string;
+    rowContext: Record<string, string>;
+    signalRead: string;
+  }>;
   weekInsights: Record<string, {
     topAudience: string;
     topFocus: string;
@@ -672,6 +679,15 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
     { title: "Market Focus Mix", rows: compositionRows(visibleFocusRows), tone: "indigo" as const },
     { title: "Regional Mix", rows: compositionRows(regionalRows), tone: "blue" as const },
   ];
+  const leaderboardContext = displayAnalytics.leaderboardContext || {};
+  const leaderboardCards = [
+    { title: "Top Metros", rows: metroLeaderboard },
+    { title: "Top Organizers", rows: organizerLeaderboard },
+    { title: "Top Event Characters", rows: characterRows },
+    { title: "Top Public Company Sectors", rows: sectorRows },
+    { title: "Top Market Focus Areas", rows: visibleFocusRows },
+    { title: "Top Access / Participation Profiles", rows: accessRows.map((row) => ({ ...row, label: displayAccessLabel(row.label) })) },
+  ];
   const roadmapCards = [
     ["Comparable Conference Sets", "Identify events with overlapping sector exposure, audience profile, issuer access, market focus, and event character.", "Coming Soon"],
     ["Sector Momentum", "Track public company sectors and capital markets themes gaining conference density across upcoming planning windows.", "In Data Expansion"],
@@ -902,13 +918,20 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-mom-row { color: #cbdced; font-size: 11px; padding: 6px 0; border-top: 1px solid rgba(120,168,212,.13); }
         .v3-mom-row span:first-child { overflow-wrap: anywhere; } .v3-mom-row span:not(:first-child) { text-align: right; color: #e7f2ff; font-weight: 800; }
         .v3-league-card h3, .v3-composition-card h3, .v3-roadmap-card h3 { color: #ecf6ff; font-size: 13px; line-height: 1.25; }
+        .v3-league-lead { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; align-items: end; padding: 7px 8px; border: 1px solid rgba(96,165,250,.2); border-radius: 6px; background: rgba(14,43,72,.46); }
+        .v3-league-lead span { color: #82bdf4; font-size: 9px; font-weight: 950; letter-spacing: .12em; text-transform: uppercase; }
+        .v3-league-lead strong { color: #f8fbff; font-size: 12px; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .v3-league-lead small { color: #98aec5; font-size: 10px; text-align: right; }
         .v3-league-row { display: grid; grid-template-columns: 20px minmax(0,1fr) auto; gap: 7px; align-items: center; padding: 6px 0; border-top: 1px solid rgba(120,168,212,.14); color: #b9cbe0; font-size: 11.5px; }
         .v3-league-row:first-of-type { border-top: 0; }
-        .v3-league-row span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .v3-league-main { display: grid; gap: 2px; min-width: 0; }
+        .v3-league-main strong { color: #dcecff; font-size: 11.5px; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .v3-league-main small { color: #88a1bc; font-size: 9.5px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .v3-league-rank { color: #76b8fb; font-size: 10px; font-weight: 900; }
         .v3-league-count { color: #e4f1ff; font-weight: 900; }
         .v3-league-bar { grid-column: 2 / -1; height: 2px; border-radius: 999px; overflow: hidden; background: rgba(77,128,178,.16); }
         .v3-league-bar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#2563eb,#38bdf8); box-shadow: 0 0 8px rgba(56,189,248,.45); }
+        .v3-league-signal { margin-top: 2px; padding-top: 7px; border-top: 1px solid rgba(120,168,212,.13); color: #9db7d1; font-size: 10.5px; line-height: 1.35; }
         .v3-composition-card .v3-bar-row { grid-template-columns: minmax(74px,.8fr) minmax(0,1fr) minmax(66px,auto); font-size: 10.5px; }
         .v3-composition-card .v3-bar-row > span { overflow-wrap: anywhere; }
         .v3-composition-card .v3-bar-row strong { font-size: 9.5px; text-align: right; white-space: nowrap; }
@@ -1242,14 +1265,21 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
           <section className="v3-section">
             <div className="v3-section-head"><div className="v3-eyebrow">Upcoming Conferences</div><h2>Market Leaderboards</h2><p>A ranked view of upcoming conference activity across locations, organizers, sectors, and participation signals.</p></div>
             <div className="v3-league-grid">
-              {[
-                ["Top Metros", metroLeaderboard],
-                ["Top Organizers", organizerLeaderboard],
-                ["Top Event Characters", characterRows],
-                ["Top Public Company Sectors", sectorRows],
-                ["Top Market Focus Areas", visibleFocusRows],
-                ["Top Access / Participation Profiles", accessRows.map((row) => ({ ...row, label: displayAccessLabel(row.label) }))],
-              ].map(([title, rows]) => <div className="v3-league-card" key={title as string}><h3>{title as string}</h3>{(rows as Array<{ label: string; count: number }>).length ? (rows as Array<{ label: string; count: number }>).slice(0, 5).map((row, index, list) => <div className="v3-league-row" key={row.label}><span className="v3-league-rank">{index + 1}</span><span>{row.label}</span><span className="v3-league-count">{row.count}</span><div className="v3-league-bar"><span style={{ width: `${Math.max(8, Math.round((row.count / Math.max(...list.map((item) => item.count), 1)) * 100))}%` }} /></div></div>) : <EmptyState>Not enough mapped data is available yet.</EmptyState>}</div>)}
+              {leaderboardCards.map((card) => {
+                const context = leaderboardContext[card.title];
+                const rows = card.rows as Array<{ label: string; count: number }>;
+                return <div className="v3-league-card" key={card.title}>
+                  <h3>{card.title}</h3>
+                  {context?.leadLabel ? <div className="v3-league-lead"><div><span>Leader</span><strong>{context.leadLabel}</strong></div><small>{context.leadCount} conferences{context.leadDetail ? <><br />{context.leadDetail}</> : null}</small></div> : null}
+                  {rows.length ? rows.slice(0, 5).map((row, index, list) => <div className="v3-league-row" key={row.label}>
+                    <span className="v3-league-rank">{index + 1}</span>
+                    <span className="v3-league-main"><strong>{row.label}</strong>{context?.rowContext?.[row.label] ? <small>{context.rowContext[row.label]}</small> : null}</span>
+                    <span className="v3-league-count">{row.count}</span>
+                    <div className="v3-league-bar"><span style={{ width: `${Math.max(8, Math.round((row.count / Math.max(...list.map((item) => item.count), 1)) * 100))}%` }} /></div>
+                  </div>) : <EmptyState>Not enough mapped data is available yet.</EmptyState>}
+                  {context?.signalRead ? <div className="v3-league-signal">{context.signalRead}</div> : null}
+                </div>;
+              })}
             </div>
           </section>
 

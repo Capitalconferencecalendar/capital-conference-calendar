@@ -96,6 +96,13 @@ type MarketWindow = {
   bestWeekCities: string[];
 };
 type MonthMovementRow = { label: string; count: number; change: number | null; pct: number | null };
+type LeaderboardContextCard = {
+  leadLabel: string;
+  leadCount: number;
+  leadDetail?: string;
+  rowContext: Record<string, string>;
+  signalRead: string;
+};
 type RollingWindowRow = {
   key: string;
   label: string;
@@ -128,6 +135,7 @@ export type MarketViewAnalytics = {
     characterMovers: MonthMovementRow[];
     accessMovers: MonthMovementRow[];
   };
+  leaderboardContext?: Record<string, LeaderboardContextCard>;
   statesCount: number;
   citiesCount: number;
   organizersCount: number;
@@ -480,6 +488,157 @@ function buildMonthMovement(events: DiscoveryEvent[]) {
   };
 }
 
+function displayAccessProfile(label: string) {
+  return /no issuer participation/i.test(label) ? "Limited Issuer Access" : label;
+}
+
+function sectorLabels(event: DiscoveryEvent) {
+  const sectors = splitCsv(event.publicCompanySector || "");
+  return sectors.length ? sectors : splitCsv(event.sectorThemes);
+}
+
+function focusLabels(event: DiscoveryEvent) {
+  const focus = splitCsv(event.marketFocus);
+  return focus.length ? focus : splitCsv(event.sectorThemes);
+}
+
+function eventCountLabel(count: number) {
+  return `${count} ${count === 1 ? "conference" : "conferences"}`;
+}
+
+function percent(part: number, total: number) {
+  return total ? Math.round((part / total) * 100) : 0;
+}
+
+function firstUpcomingTitle(events: DiscoveryEvent[]) {
+  const today = dateKeyForOffset(0);
+  return events
+    .filter((event) => event.startDate >= today)
+    .slice()
+    .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.title.localeCompare(b.title))[0]?.title || "";
+}
+
+function buildLeaderboardContext(events: DiscoveryEvent[], counts: {
+  cityCounts: RankedCount[];
+  organizerCounts: RankedCount[];
+  sectorCounts: RankedCount[];
+  focusCounts: RankedCount[];
+  eventCharacterCounts: RankedCount[];
+  issuerParticipationCounts: RankedCount[];
+}): Record<string, LeaderboardContextCard> {
+  const total = events.length;
+  const lead = (rows: RankedCount[]) => rows[0] || ["", 0] as RankedCount;
+  const topRows = (rows: RankedCount[]) => rows.slice(0, 5);
+  const top3Share = (rows: RankedCount[]) => percent(rows.slice(0, 3).reduce((sum, [, count]) => sum + count, 0), total);
+  const top5Count = (rows: RankedCount[]) => rows.slice(0, 5).reduce((sum, [, count]) => sum + count, 0);
+  const rowContext = (rows: RankedCount[], contextFor: (label: string, index: number, count: number) => string) => Object.fromEntries(
+    topRows(rows)
+      .map(([label, count], index) => [label, contextFor(label, index, count)] as const)
+      .filter(([, context]) => Boolean(context))
+  );
+  const byCity = (label: string) => events.filter((event) => cityValue(event) === label);
+  const byOrganizer = (label: string) => events.filter((event) => event.organizer === label);
+  const byCharacter = (label: string) => events.filter((event) => splitCsv(event.eventCharacter || "").includes(label));
+  const bySector = (label: string) => events.filter((event) => sectorLabels(event).includes(label));
+  const byFocus = (label: string) => events.filter((event) => focusLabels(event).includes(label));
+  const byAccess = (label: string) => events.filter((event) => splitCsv(event.issuerParticipation).map(displayAccessProfile).includes(label));
+  const leadSector = (items: DiscoveryEvent[]) => ranked(items.flatMap(sectorLabels))[0]?.[0] || "";
+  const leadCharacter = (items: DiscoveryEvent[]) => ranked(items.flatMap((event) => splitCsv(event.eventCharacter || "")))[0]?.[0] || "";
+  const leadMetro = (items: DiscoveryEvent[]) => ranked(items.map(cityValue))[0]?.[0] || "";
+
+  const metroLead = lead(counts.cityCounts);
+  const metroSecond = counts.cityCounts[1];
+  const organizerLead = lead(counts.organizerCounts);
+  const characterLead = lead(counts.eventCharacterCounts);
+  const sectorLead = lead(counts.sectorCounts);
+  const focusLead = lead(counts.focusCounts);
+  const accessCounts = counts.issuerParticipationCounts.map(([label, count]) => [displayAccessProfile(label), count] as RankedCount);
+  const accessLead = lead(accessCounts);
+  const accessSecond = accessCounts[1];
+
+  return {
+    "Top Metros": {
+      leadLabel: metroLead[0],
+      leadCount: metroLead[1],
+      leadDetail: metroSecond?.[1] ? `No. 2: ${metroSecond[0]} (${eventCountLabel(metroSecond[1])})` : undefined,
+      rowContext: rowContext(counts.cityCounts, (label) => {
+        const items = byCity(label);
+        const sector = leadSector(items);
+        const character = leadCharacter(items);
+        return sector ? `Lead sector: ${sector}` : character ? `Lead character: ${character}` : "";
+      }),
+      signalRead: metroLead[1] && metroSecond?.[1] && metroLead[1] >= metroSecond[1] * 3
+        ? `${metroLead[0]} has more than 3x the conferences of the second-ranked metro.`
+        : `Top 3 metros account for ${top3Share(counts.cityCounts)}% of the current index.`,
+    },
+    "Top Organizers": {
+      leadLabel: organizerLead[0],
+      leadCount: organizerLead[1],
+      leadDetail: `Top 5 account for ${eventCountLabel(top5Count(counts.organizerCounts))}`,
+      rowContext: rowContext(counts.organizerCounts, (label) => {
+        const items = byOrganizer(label);
+        const metro = leadMetro(items);
+        const nextEvent = firstUpcomingTitle(items);
+        return metro ? `Top metro: ${metro}` : nextEvent ? `Next event: ${nextEvent}` : "";
+      }),
+      signalRead: counts.organizerCounts.length > 5
+        ? `Top 5 organizers account for ${eventCountLabel(top5Count(counts.organizerCounts))}.`
+        : `${organizerLead[0] || "The leading organizer"} leads the current organizer table.`,
+    },
+    "Top Event Characters": {
+      leadLabel: characterLead[0],
+      leadCount: characterLead[1],
+      leadDetail: `${percent(characterLead[1], total)}% of the current index`,
+      rowContext: rowContext(counts.eventCharacterCounts, (label, _index, count) => {
+        const sector = leadSector(byCharacter(label));
+        return sector ? `Lead sector: ${sector}` : `Share of index: ${percent(count, total)}%`;
+      }),
+      signalRead: characterLead[0] ? `${characterLead[0]} is the leading event-character signal at ${eventCountLabel(characterLead[1])}.` : "Event-character data is still building across the current index.",
+    },
+    "Top Public Company Sectors": {
+      leadLabel: sectorLead[0],
+      leadCount: sectorLead[1],
+      leadDetail: `${percent(sectorLead[1], total)}% of the current index`,
+      rowContext: rowContext(counts.sectorCounts, (label) => {
+        const items = bySector(label);
+        const metro = leadMetro(items);
+        const character = leadCharacter(items);
+        return metro ? `Top metro: ${metro}` : character ? `Lead character: ${character}` : "";
+      }),
+      signalRead: counts.sectorCounts[1]
+        ? `${sectorLead[0]} leads sector exposure, followed by ${counts.sectorCounts[1][0]}.`
+        : `${sectorLead[0] || "Sector exposure"} leads the current sector table.`,
+    },
+    "Top Market Focus Areas": {
+      leadLabel: focusLead[0],
+      leadCount: focusLead[1],
+      leadDetail: `${percent(focusLead[1], total)}% of the current index`,
+      rowContext: rowContext(counts.focusCounts, (label, index) => {
+        if (index === 0) return "Most common focus signal";
+        const sector = leadSector(byFocus(label));
+        return sector ? `Lead sector: ${sector}` : "";
+      }),
+      signalRead: counts.focusCounts[1]
+        ? `${focusLead[0]} and ${counts.focusCounts[1][0]} are the strongest focus areas in the current index.`
+        : `${focusLead[0] || "Market focus"} leads the current focus table.`,
+    },
+    "Top Access / Participation Profiles": {
+      leadLabel: accessLead[0],
+      leadCount: accessLead[1],
+      leadDetail: accessSecond ? `No. 2: ${accessSecond[0]} (${eventCountLabel(accessSecond[1])})` : undefined,
+      rowContext: rowContext(accessCounts, (label, index) => {
+        if (/limited issuer access/i.test(label)) return "Issuer access not clearly indicated";
+        if (index === 0) return "Most common access profile";
+        const character = leadCharacter(byAccess(label));
+        return character ? `Lead character: ${character}` : `Share of index: ${percent(accessCounts[index]?.[1] || 0, total)}%`;
+      }),
+      signalRead: accessLead[1] && accessSecond?.[1] && Math.abs(accessLead[1] - accessSecond[1]) <= 5
+        ? `The top two access profiles are nearly even in the current index.`
+        : `${accessLead[0] || "The leading access profile"} accounts for ${eventCountLabel(accessLead[1])}.`,
+    },
+  };
+}
+
 function eventText(event: DiscoveryEvent) {
   return [event.issuerParticipation, event.primaryCategory, event.marketFocus, event.sectorThemes, event.publicCompanySector, event.additionalPublicCompanySectors, event.eventCharacter]
     .filter(Boolean)
@@ -559,6 +718,7 @@ function buildMarketViewAnalytics(events: DiscoveryEvent[]): MarketViewAnalytics
   ]).filter((value) => /(institutional investors?|family offices?|private equity|venture capital|retail investors?|public company|issuer|mixed participation|company presentations|1x1|one-on-one|industry networking|public markets|private markets)/i.test(value))));
   const eventCharacterCounts = ranked(events.flatMap((event) => splitCsv(event.eventCharacter || "")));
   const issuerParticipationCounts = ranked(events.flatMap((event) => splitCsv(event.issuerParticipation)));
+  const leaderboardContext = buildLeaderboardContext(events, { cityCounts, organizerCounts, sectorCounts, focusCounts, eventCharacterCounts, issuerParticipationCounts });
   const verificationStatusCounts = ranked(events.map((event) => event.verificationStatus || ""));
   const weeks = new Map<string, number>();
   const months = new Map<string, number>();
@@ -682,7 +842,7 @@ function buildMarketViewAnalytics(events: DiscoveryEvent[]): MarketViewAnalytics
   }));
   const monthMovement = buildMonthMovement(events);
   return {
-    total: events.length, cityCounts, organizerCounts, themeCounts, focusCounts, categoryCounts, formatCounts, sectorCounts, audienceCounts, eventCharacterCounts, issuerParticipationCounts, verificationStatusCounts, weekCounts, monthCounts, monthMovement,
+    total: events.length, cityCounts, organizerCounts, themeCounts, focusCounts, categoryCounts, formatCounts, sectorCounts, audienceCounts, eventCharacterCounts, issuerParticipationCounts, verificationStatusCounts, weekCounts, monthCounts, monthMovement, leaderboardContext,
     statesCount: new Set(events.map((event) => event.state).filter(Boolean)).size,
     citiesCount: new Set(events.map(cityValue).filter(Boolean)).size,
     organizersCount: new Set(events.map((event) => event.organizer).filter(Boolean)).size,
