@@ -202,7 +202,7 @@ function displayAccessLabel(label: string) {
 
 function changeAmountLabel(change: number | null) {
   if (change === null) return null;
-  return `${change > 0 ? "+" : ""}${change} ${Math.abs(change) === 1 ? "conference" : "conferences"}`;
+  return `${change > 0 ? "+" : ""}${change}`;
 }
 
 function windowMovementLabel(window: { key: string; count: number; change: number | null }) {
