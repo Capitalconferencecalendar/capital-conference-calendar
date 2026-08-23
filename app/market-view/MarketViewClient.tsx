@@ -674,20 +674,33 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
     const pct = prior?.events.length ? Math.round((change! / prior.events.length) * 100) : null;
     return { label: monthLabel(row.month), count: row.events.length, change, pct, cities: (Array.from(row.cities.entries()) as Array<[string, number]>).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([city]) => city).filter(Boolean) };
   });
-  const monthlyVolumeMax = Math.max(...monthlyVolumeRows.map((row) => row.count), 1);
-  const signalKpis = [
-    ["Last Month", monthlyVolumeRows[0]],
-    ["Current Month", monthlyVolumeRows[1] || monthlyVolumeRows[0]],
-    ["Next Month", monthlyVolumeRows[2]],
-  ] as const;
+  const calendarMonthKey = (offset: number) => {
+    const date = new Date();
+    date.setDate(1);
+    date.setMonth(date.getMonth() + offset);
+    return date.toISOString().slice(0, 7);
+  };
+  const calendarSignalRows = [-1, 0, 1].map((offset) => {
+    const month = calendarMonthKey(offset);
+    const source = monthlySignals.find((row) => row.month === month);
+    const prior = monthlySignals.find((row) => row.month === calendarMonthKey(offset - 1));
+    const count = source?.events.length || 0;
+    const priorCount = prior?.events.length || 0;
+    const change = offset === -1 ? null : count - priorCount;
+    const pct = offset === -1 || !priorCount ? null : Math.round((change! / priorCount) * 100);
+    const cities = source ? (Array.from(source.cities.entries()) as Array<[string, number]>).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([city]) => city).filter(Boolean) : [];
+    return { label: monthLabel(month), count, change, pct, cities };
+  });
+  const monthlyVolumeMax = Math.max(...calendarSignalRows.map((row) => row.count), 1);
+  const signalKpis = [["Last Month", calendarSignalRows[0]], ["Current Month", calendarSignalRows[1]], ["Next Month", calendarSignalRows[2]]] as const;
   const currentSignalMonth = signalKpis[1][1];
   const lastSignalMonth = signalKpis[0][1];
   const signalChange = currentSignalMonth && lastSignalMonth && currentSignalMonth !== lastSignalMonth
     ? currentSignalMonth.count - lastSignalMonth.count
     : null;
   const signalChangePct = signalChange !== null && lastSignalMonth?.count ? Math.round((signalChange / lastSignalMonth.count) * 100) : null;
-  const latestMonth = monthlySignals[0];
-  const priorMonth = monthlySignals[1];
+  const latestMonth = monthlySignals.find((row) => row.month === calendarMonthKey(0));
+  const priorMonth = monthlySignals.find((row) => row.month === calendarMonthKey(-1));
   const movementRows = (mapName: "sectors" | "characters" | "access") => {
     if (!latestMonth) return [];
     const current = latestMonth[mapName] as Map<string, number>;
@@ -872,6 +885,14 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-signal-kpi span { color: #87a8c8; font-size: 9px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
         .v3-signal-kpi strong { color: #f2f8ff; font-size: 14px; line-height: 1.15; }
         .v3-signal-kpi small { color: #a9c7e3; font-size: 10.5px; line-height: 1.25; }
+        .v3-mom-panel { padding: 14px; border: 1px solid rgba(76,151,232,.34); border-radius: 8px; background: linear-gradient(180deg,rgba(8,29,51,.97),rgba(4,17,31,.96)); box-shadow: 0 0 24px rgba(37,99,235,.08); display: grid; gap: 13px; }
+        .v3-mom-body { display: grid; grid-template-columns: minmax(240px,.4fr) minmax(0,.6fr); gap: 12px; }
+        .v3-mom-table { padding: 11px; border: 1px solid rgba(104,157,212,.18); border-radius: 6px; background: rgba(11,32,55,.5); display: grid; gap: 5px; }
+        .v3-mom-table h3 { color: #e9f4ff; font-size: 12px; }
+        .v3-mom-header, .v3-mom-row { display: grid; grid-template-columns: minmax(0,1fr) 46px 38px; gap: 8px; align-items: center; }
+        .v3-mom-header { color: #7fa2c3; font-size: 9px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; padding: 3px 0; }
+        .v3-mom-row { color: #cbdced; font-size: 11px; padding: 6px 0; border-top: 1px solid rgba(120,168,212,.13); }
+        .v3-mom-row span:first-child { overflow-wrap: anywhere; } .v3-mom-row span:not(:first-child) { text-align: right; color: #e7f2ff; font-weight: 800; }
         .v3-league-card h3, .v3-composition-card h3, .v3-roadmap-card h3 { color: #ecf6ff; font-size: 13px; line-height: 1.25; }
         .v3-league-row { display: grid; grid-template-columns: 20px minmax(0,1fr) auto; gap: 7px; align-items: center; padding: 6px 0; border-top: 1px solid rgba(120,168,212,.14); color: #b9cbe0; font-size: 11.5px; }
         .v3-league-row:first-of-type { border-top: 0; }
@@ -906,6 +927,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-info:hover .v3-tooltip, .v3-info:focus .v3-tooltip { opacity: 1; }
         @media (max-width: 1180px) { .v3-page { overflow: auto; } .v3-main { overflow: visible; } .v3-readout, .v3-primary-row, .v3-kpi-strip, .v3-support, .v3-analytics, .v3-watch { grid-template-columns: 1fr; } .v3-signal-forecast { height: auto; } .v3-signal-body { grid-template-columns: 1fr; } .v3-signal-list { max-height: 360px; border-right: 0; border-bottom: 1px solid rgba(125,162,199,.2); } .v3-signal-detail { max-height: none; overflow: visible; } }
         @media (max-width: 1180px) { .v3-league-grid, .v3-composition-grid, .v3-roadmap-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+        @media (max-width: 900px) { .v3-mom-body { grid-template-columns: 1fr; } }
         @media (max-width: 760px) { h1 { font-size: 31px; } .v3-metro-grid, .v3-league-grid, .v3-composition-grid, .v3-roadmap-grid { grid-template-columns: 1fr; } .v3-signal-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); } }
       `}</style>
 
