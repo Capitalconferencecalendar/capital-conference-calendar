@@ -219,6 +219,15 @@ function moverMovementLabel(row: { count: number; change: number | null }) {
   return row.count > 0 ? "New" : "No baseline";
 }
 
+function leaderboardInsightPrefix(title: string) {
+  if (title === "Top Metros") return "Anchor market";
+  if (title === "Top Organizers") return "Lead organizer";
+  if (title === "Top Event Characters") return "Leading character";
+  if (title === "Top Public Company Sectors") return "Leading sector";
+  if (title === "Top Market Focus Areas") return "Leading focus";
+  return "Leading profile";
+}
+
 function movementTone(change: number | null) {
   if ((change || 0) > 0) return "hot";
   if ((change || 0) < 0) return "cold";
@@ -918,10 +927,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-mom-row { color: #cbdced; font-size: 11px; padding: 6px 0; border-top: 1px solid rgba(120,168,212,.13); }
         .v3-mom-row span:first-child { overflow-wrap: anywhere; } .v3-mom-row span:not(:first-child) { text-align: right; color: #e7f2ff; font-weight: 800; }
         .v3-league-card h3, .v3-composition-card h3, .v3-roadmap-card h3 { color: #ecf6ff; font-size: 13px; line-height: 1.25; }
-        .v3-league-lead { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; align-items: end; padding: 7px 8px; border: 1px solid rgba(96,165,250,.2); border-radius: 6px; background: rgba(14,43,72,.46); }
-        .v3-league-lead span { color: #82bdf4; font-size: 9px; font-weight: 950; letter-spacing: .12em; text-transform: uppercase; }
-        .v3-league-lead strong { color: #f8fbff; font-size: 12px; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .v3-league-lead small { color: #98aec5; font-size: 10px; text-align: right; }
+        .v3-league-insight { margin-top: -3px; color: #8db4d8; font-size: 10px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .v3-league-row { display: grid; grid-template-columns: 20px minmax(0,1fr) auto; gap: 7px; align-items: center; padding: 6px 0; border-top: 1px solid rgba(120,168,212,.14); color: #b9cbe0; font-size: 11.5px; }
         .v3-league-row:first-of-type { border-top: 0; }
         .v3-league-main { display: grid; gap: 2px; min-width: 0; }
@@ -1268,9 +1274,10 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
               {leaderboardCards.map((card) => {
                 const context = leaderboardContext[card.title];
                 const rows = card.rows as Array<{ label: string; count: number }>;
+                const insight = context?.leadLabel ? `${leaderboardInsightPrefix(card.title)}: ${context.leadLabel}` : "";
                 return <div className="v3-league-card" key={card.title}>
                   <h3>{card.title}</h3>
-                  {context?.leadLabel ? <div className="v3-league-lead"><div><span>Leader</span><strong>{context.leadLabel}</strong></div><small>{context.leadCount} conferences{context.leadDetail ? <><br />{context.leadDetail}</> : null}</small></div> : null}
+                  {insight ? <div className="v3-league-insight">{insight}</div> : null}
                   {rows.length ? rows.slice(0, 5).map((row, index, list) => <div className="v3-league-row" key={row.label}>
                     <span className="v3-league-rank">{index + 1}</span>
                     <span className="v3-league-main"><strong>{row.label}</strong>{context?.rowContext?.[row.label] ? <small>{context.rowContext[row.label]}</small> : null}</span>
