@@ -96,6 +96,16 @@ type MarketWindow = {
   bestWeekCities: string[];
 };
 type MonthMovementRow = { label: string; count: number; change: number | null; pct: number | null };
+type RollingWindowRow = {
+  key: string;
+  label: string;
+  startDate: string;
+  endDate: string;
+  rangeLabel: string;
+  count: number;
+  change: number | null;
+  pct: number | null;
+};
 
 export type MarketViewAnalytics = {
   total: number;
@@ -113,7 +123,7 @@ export type MarketViewAnalytics = {
   weekCounts: MarketWeek[];
   monthCounts: { month: string; count: number }[];
   monthMovement: {
-    months: { month: string; count: number; change: number | null; pct: number | null }[];
+    windows: RollingWindowRow[];
     sectorMovers: MonthMovementRow[];
     characterMovers: MonthMovementRow[];
     accessMovers: MonthMovementRow[];
@@ -370,18 +380,35 @@ function weekStart(value: string) {
   return date.toISOString().slice(0, 10);
 }
 
-function monthKeyForOffset(offset: number) {
+function dateKeyForOffset(offset: number) {
   const date = new Date();
-  date.setUTCDate(1);
   date.setUTCHours(0, 0, 0, 0);
-  date.setUTCMonth(date.getUTCMonth() + offset);
-  return date.toISOString().slice(0, 7);
+  date.setUTCDate(date.getUTCDate() + offset);
+  return date.toISOString().slice(0, 10);
+}
+
+function formatRangeLabel(startDate: string, endDate: string) {
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return `${startDate}–${endDate}`;
+  const monthFormatter = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" });
+  const startMonth = monthFormatter.format(start);
+  const endMonth = monthFormatter.format(end);
+  const startDay = start.getUTCDate();
+  const endDay = end.getUTCDate();
+  return startMonth === endMonth ? `${startMonth} ${startDay}–${endDay}` : `${startMonth} ${startDay}–${endMonth} ${endDay}`;
 }
 
 function buildMonthMovement(events: DiscoveryEvent[]) {
   const add = (map: Map<string, number>, value: string) => {
     splitCsv(value || "").forEach((item) => map.set(item, (map.get(item) || 0) + 1));
   };
+  const windows = [
+    { key: "prior", label: "Prior 30D", startDate: dateKeyForOffset(-30), endDate: dateKeyForOffset(-1) },
+    { key: "current", label: "Current 30D", startDate: dateKeyForOffset(0), endDate: dateKeyForOffset(29) },
+    { key: "next", label: "Next 30D", startDate: dateKeyForOffset(30), endDate: dateKeyForOffset(59) },
+    { key: "following", label: "Following 30D", startDate: dateKeyForOffset(60), endDate: dateKeyForOffset(89) },
+  ];
   const buckets = new Map<string, {
     count: number;
     sectors: Map<string, number>;
@@ -389,15 +416,22 @@ function buildMonthMovement(events: DiscoveryEvent[]) {
     access: Map<string, number>;
   }>();
 
-  events.forEach((event) => {
-    const month = event.startDate.slice(0, 7);
-    if (!/^\d{4}-\d{2}$/.test(month)) return;
-    const bucket = buckets.get(month) || {
+  windows.forEach((window) => {
+    buckets.set(window.key, {
       count: 0,
       sectors: new Map<string, number>(),
       characters: new Map<string, number>(),
       access: new Map<string, number>(),
-    };
+    });
+  });
+
+  events.forEach((event) => {
+    const startDate = event.startDate.slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) return;
+    const window = windows.find((item) => startDate >= item.startDate && startDate <= item.endDate);
+    if (!window) return;
+    const bucket = buckets.get(window.key);
+    if (!bucket) return;
     bucket.count += 1;
     const sectorValue = splitCsv(event.publicCompanySector || "").length
       ? event.publicCompanySector || ""
@@ -405,20 +439,18 @@ function buildMonthMovement(events: DiscoveryEvent[]) {
     add(bucket.sectors, sectorValue);
     add(bucket.characters, event.eventCharacter || "");
     add(bucket.access, event.issuerParticipation || "");
-    buckets.set(month, bucket);
   });
 
-  const monthKeys = [-1, 0, 1, 2].map(monthKeyForOffset);
-  const months = monthKeys.map((month, index) => {
-    const count = buckets.get(month)?.count || 0;
-    const priorCount = index === 0 ? null : buckets.get(monthKeys[index - 1])?.count || 0;
+  const movementWindows = windows.map((window, index) => {
+    const count = buckets.get(window.key)?.count || 0;
+    const priorCount = index === 0 ? null : buckets.get(windows[index - 1].key)?.count || 0;
     const change = priorCount === null ? null : count - priorCount;
     const pct = change === null || !priorCount ? null : Math.round((change / priorCount) * 100);
-    return { month, count, change, pct };
+    return { ...window, rangeLabel: formatRangeLabel(window.startDate, window.endDate), count, change, pct };
   });
 
-  const current = buckets.get(monthKeyForOffset(0));
-  const prior = buckets.get(monthKeyForOffset(-1));
+  const current = buckets.get("current");
+  const prior = buckets.get("prior");
   const movers = (key: "sectors" | "characters" | "access"): MonthMovementRow[] => {
     const labels = new Set<string>([
       ...Array.from(current?.[key].keys() || []),
@@ -437,7 +469,7 @@ function buildMonthMovement(events: DiscoveryEvent[]) {
   };
 
   return {
-    months,
+    windows: movementWindows,
     sectorMovers: movers("sectors"),
     characterMovers: movers("characters"),
     accessMovers: movers("access").map((row) => ({

@@ -49,7 +49,7 @@ type MarketAnalytics = {
   issuerParticipationCounts: [string, number][];
   weekCounts: { weekStart: string; count: number }[];
   monthMovement?: {
-    months: { month: string; count: number; change: number | null; pct: number | null }[];
+    windows: { key: string; label: string; startDate: string; endDate: string; rangeLabel: string; count: number; change: number | null; pct: number | null }[];
     sectorMovers: { label: string; count: number; change: number | null; pct: number | null }[];
     characterMovers: { label: string; count: number; change: number | null; pct: number | null }[];
     accessMovers: { label: string; count: number; change: number | null; pct: number | null }[];
@@ -198,18 +198,20 @@ function monthLabel(monthKey: string) {
   return Number.isNaN(date.getTime()) ? monthKey : new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" }).format(date);
 }
 
-function movementContext(change: number | null, pct: number | null, comparison = "prior month") {
-  if (change === null) return "No prior-month comparison";
+function movementContext(change: number | null, pct: number | null, comparison = "prior window") {
+  if (change === null) return "No prior-window baseline";
+  if (change > 0 && pct === null) return `New activity versus ${comparison}`;
   if (change > 0) return `Up vs ${comparison}${pct !== null ? ` · +${pct}%` : ""}`;
   if (change < 0) return `Down vs ${comparison}${pct !== null ? ` · ${pct}%` : ""}`;
   return `Flat vs ${comparison}`;
 }
 
 function nextMovementContext(change: number | null, pct: number | null) {
-  if (change === null) return "No current-month comparison";
-  if (change > 0) return `Tracking above current month${pct !== null ? ` · +${pct}%` : ""}`;
-  if (change < 0) return `Tracking below current month${pct !== null ? ` · ${pct}%` : ""}`;
-  return "Flat vs current month";
+  if (change === null) return "No current-window baseline";
+  if (change > 0 && pct === null) return "New activity versus current window";
+  if (change > 0) return `Tracking above current window${pct !== null ? ` · +${pct}%` : ""}`;
+  if (change < 0) return `Tracking below current window${pct !== null ? ` · ${pct}%` : ""}`;
+  return "Flat vs current window";
 }
 
 function deltaLabel(change: number | null) {
@@ -686,53 +688,52 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
     ["Market Windows", "Detect periods where sector, access, investor, and event-character signals concentrate across upcoming conferences.", "In Data Expansion"],
     ["Conference Relevance Scoring", "Explain why a conference may matter using sector exposure, audience profile, issuer participation, and comparable events.", "In Classification Buildout"],
   ] as const;
-  const monthMovement = displayAnalytics.monthMovement || { months: [], sectorMovers: [], characterMovers: [], accessMovers: [] };
-  const tapeMonths = monthMovement.months.slice(0, 4);
-  const lastSignalMonth = tapeMonths[0];
-  const currentSignalMonth = tapeMonths[1];
-  const nextSignalMonth = tapeMonths[2];
-  const forwardSignalMonth = tapeMonths[3];
-  const signalChange = currentSignalMonth?.change ?? null;
-  const signalChangePct = currentSignalMonth?.pct ?? null;
-  const nextSignalChange = nextSignalMonth?.change ?? null;
-  const nextSignalChangePct = nextSignalMonth?.pct ?? null;
-  const monthlyVolumeMax = Math.max(...tapeMonths.map((row) => row.count), 1);
+  const monthMovement = displayAnalytics.monthMovement || { windows: [], sectorMovers: [], characterMovers: [], accessMovers: [] };
+  const movementWindows = monthMovement.windows.slice(0, 4);
+  const priorWindow = movementWindows[0];
+  const currentWindow = movementWindows[1];
+  const nextWindow = movementWindows[2];
+  const signalChange = currentWindow?.change ?? null;
+  const signalChangePct = currentWindow?.pct ?? null;
+  const nextSignalChange = nextWindow?.change ?? null;
+  const nextSignalChangePct = nextWindow?.pct ?? null;
+  const rollingVolumeMax = Math.max(...movementWindows.map((row) => row.count), 1);
   const sectorMovementRows = monthMovement.sectorMovers || [];
   const characterMovementRows = monthMovement.characterMovers || [];
   const accessMovementRows = monthMovement.accessMovers || [];
   const tapeSegments = [
     {
-      label: "Last Month",
-      value: lastSignalMonth ? monthLabel(lastSignalMonth.month) : "—",
-      count: `${formatNumber(lastSignalMonth?.count)} conferences`,
-      context: "Prior month baseline",
+      label: "Prior 30 Days",
+      value: priorWindow?.rangeLabel || "—",
+      count: `${formatNumber(priorWindow?.count)} conferences`,
+      context: "Prior 30-day window",
       tone: "flat",
     },
     {
-      label: "Current Month",
-      value: currentSignalMonth ? monthLabel(currentSignalMonth.month) : "—",
-      count: `${formatNumber(currentSignalMonth?.count)} conferences`,
-      context: movementContext(signalChange, signalChangePct),
+      label: "Current 30 Days",
+      value: currentWindow?.rangeLabel || "—",
+      count: `${formatNumber(currentWindow?.count)} conferences`,
+      context: movementContext(signalChange, signalChangePct, "prior window"),
       tone: movementTone(signalChange),
     },
     {
-      label: "MoM Change",
+      label: "30-Day Change",
       value: signalChange === null ? "—" : `${signalChange >= 0 ? "+" : ""}${formatNumber(signalChange)} conferences`,
-      count: signalChangePct === null ? "No prior-month comparison" : `${signalChangePct >= 0 ? "+" : ""}${signalChangePct}% vs ${lastSignalMonth ? monthLabel(lastSignalMonth.month) : "prior month"}`,
-      context: movementContext(signalChange, signalChangePct),
+      count: signalChangePct === null ? "No prior-window baseline" : `${signalChangePct >= 0 ? "+" : ""}${signalChangePct}% vs prior window`,
+      context: movementContext(signalChange, signalChangePct, "prior window"),
       tone: movementTone(signalChange),
     },
     {
-      label: "Next Month",
-      value: nextSignalMonth ? monthLabel(nextSignalMonth.month) : "—",
-      count: `${formatNumber(nextSignalMonth?.count)} conferences`,
+      label: "Next 30 Days",
+      value: nextWindow?.rangeLabel || "—",
+      count: `${formatNumber(nextWindow?.count)} conferences`,
       context: nextMovementContext(nextSignalChange, nextSignalChangePct),
       tone: movementTone(nextSignalChange),
     },
     {
-      label: "Next Change",
-      value: nextSignalChange === null ? "—" : `${nextSignalChange >= 0 ? "+" : ""}${formatNumber(nextSignalChange)} vs ${currentSignalMonth ? monthLabel(currentSignalMonth.month) : "current month"}`,
-      count: nextSignalChangePct === null ? "No current-month comparison" : `${nextSignalChangePct >= 0 ? "+" : ""}${nextSignalChangePct}%`,
+      label: "Forward Change",
+      value: nextSignalChange === null ? "—" : `${nextSignalChange >= 0 ? "+" : ""}${formatNumber(nextSignalChange)} vs current window`,
+      count: nextSignalChangePct === null ? "No current-window baseline" : `${nextSignalChangePct >= 0 ? "+" : ""}${nextSignalChangePct}% vs current window`,
       context: nextMovementContext(nextSignalChange, nextSignalChangePct),
       tone: movementTone(nextSignalChange),
     },
@@ -916,16 +917,16 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-tape-segment span { color: #78b8ee; font-size: 9px; font-weight: 950; letter-spacing: .14em; text-transform: uppercase; }
         .v3-tape-segment strong { color: #f8fbff; font-size: 15px; line-height: 1.05; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .v3-tape-segment small { color: #8fa8c2; font-size: 10.5px; line-height: 1.25; }
-        .v3-tape-segment.hot strong, .v3-tape-delta.hot { color: #fbbf24; text-shadow: 0 0 14px rgba(245,158,11,.2); }
-        .v3-tape-segment.cold strong, .v3-tape-delta.cold { color: #93c5fd; }
+        .v3-tape-segment.hot strong, .v3-tape-delta.hot { color: #2dd4bf; text-shadow: 0 0 16px rgba(45,212,191,.24); }
+        .v3-tape-segment.cold strong, .v3-tape-delta.cold { color: #a5b4fc; }
         .v3-movement-line { position: relative; min-height: 62px; padding: 12px 16px 7px; border-block: 1px solid rgba(125,211,252,.14); background: linear-gradient(90deg,rgba(2,8,18,.26),rgba(14,35,57,.38),rgba(2,8,18,.26)); }
-        .v3-movement-track { position: absolute; left: 28px; right: 28px; top: 31px; height: 2px; border-radius: 999px; background: linear-gradient(90deg,rgba(96,165,250,.22),rgba(251,191,36,.7),rgba(96,165,250,.26)); box-shadow: 0 0 16px rgba(56,189,248,.18); }
+        .v3-movement-track { position: absolute; left: 28px; right: 28px; top: 31px; height: 2px; border-radius: 999px; background: linear-gradient(90deg,rgba(96,165,250,.22),rgba(45,212,191,.72),rgba(129,140,248,.3)); box-shadow: 0 0 18px rgba(45,212,191,.18); }
         .v3-movement-nodes { position: relative; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; }
         .v3-movement-node { display: grid; justify-items: center; gap: 5px; color: #9eb2c8; font-size: 10px; text-align: center; }
         .v3-movement-dot { width: 11px; height: 11px; border-radius: 999px; background: #60a5fa; box-shadow: 0 0 12px rgba(96,165,250,.55); }
-        .v3-movement-node.current .v3-movement-dot { width: 15px; height: 15px; background: #fbbf24; box-shadow: 0 0 22px rgba(245,158,11,.62); }
-        .v3-movement-node.hot .v3-movement-dot { background: #f59e0b; box-shadow: 0 0 16px rgba(245,158,11,.45); }
-        .v3-movement-node.cold .v3-movement-dot { background: #7dd3fc; box-shadow: 0 0 12px rgba(125,211,252,.32); }
+        .v3-movement-node.current .v3-movement-dot { width: 15px; height: 15px; background: #2dd4bf; box-shadow: 0 0 24px rgba(45,212,191,.62); }
+        .v3-movement-node.hot .v3-movement-dot { background: #22d3ee; box-shadow: 0 0 18px rgba(34,211,238,.45); }
+        .v3-movement-node.cold .v3-movement-dot { background: #818cf8; box-shadow: 0 0 12px rgba(129,140,248,.32); }
         .v3-movement-node strong { color: #f8fbff; font-size: 11px; line-height: 1.1; }
         .v3-mover-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
         .v3-mover-table { min-width: 0; padding: 8px 10px; border-top: 1px solid rgba(76,151,232,.22); background: linear-gradient(180deg,rgba(8,25,43,.72),rgba(4,16,30,.42)); }
@@ -935,8 +936,8 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-mover-row span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .v3-mover-count { color: #f8fbff; font-weight: 850; text-align: right; }
         .v3-mover-delta { font-weight: 900; text-align: right; }
-        .v3-mover-delta.hot { color: #fbbf24; }
-        .v3-mover-delta.cold { color: #93c5fd; }
+        .v3-mover-delta.hot { color: #2dd4bf; }
+        .v3-mover-delta.cold { color: #a5b4fc; }
         .v3-mover-delta.flat { color: #9eb2c8; }
         .v3-league-grid, .v3-composition-grid, .v3-roadmap-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
         .v3-league-card, .v3-composition-card, .v3-roadmap-card { min-width: 0; border: 1px solid rgba(76,151,232,.28); border-radius: 8px; background: linear-gradient(180deg,rgba(11,32,55,.96),rgba(5,19,35,.94)); box-shadow: 0 0 0 1px rgba(56,189,248,.04), 0 12px 28px rgba(0,0,0,.16), inset 0 1px 0 rgba(186,230,253,.06); }
@@ -1189,7 +1190,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
           </section>
 
           <section className="v3-section">
-            <div className="v3-section-head"><div className="v3-eyebrow">Database Market Signals</div><h2>Month-over-Month Conference Activity</h2><p>Movement across the upcoming conference index, calculated from event start dates.</p></div>
+            <div className="v3-section-head"><div className="v3-eyebrow">Database Market Signals</div><h2>30-Day Market Movement</h2><p>Rolling conference activity across prior, current, and forward 30-day windows, calculated from event start dates.</p></div>
             <div className="v3-market-tape">
               <div className="v3-tape-strip">
                 {tapeSegments.map((segment) => (
@@ -1202,15 +1203,16 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                 ))}
               </div>
 
-              <div className="v3-movement-line" aria-label="Hot and cold monthly movement line">
+              <div className="v3-movement-line" aria-label="Hot and cold rolling 30-day movement line">
                 <div className="v3-movement-track" />
                 <div className="v3-movement-nodes">
-                  {tapeMonths.map((month, index) => (
-                    <div className={`v3-movement-node ${index === 1 ? "current" : ""} ${movementTone(month.change)}`} key={month.month}>
-                      <strong>{monthLabel(month.month)}</strong>
-                      <span className="v3-movement-dot" style={{ transform: `scale(${0.82 + (month.count / monthlyVolumeMax) * 0.48})` }} />
-                      <span>{formatNumber(month.count)} conferences</span>
-                      <span className={`v3-tape-delta ${movementTone(month.change)}`}>{month.change === null ? "No prior-month comparison" : `${deltaLabel(month.change)} MoM`}</span>
+                  {movementWindows.map((window, index) => (
+                    <div className={`v3-movement-node ${index === 1 ? "current" : ""} ${movementTone(window.change)}`} key={window.key}>
+                      <strong>{window.label}</strong>
+                      <span>{window.rangeLabel}</span>
+                      <span className="v3-movement-dot" style={{ transform: `scale(${0.82 + (window.count / rollingVolumeMax) * 0.48})` }} />
+                      <span>{formatNumber(window.count)} conferences</span>
+                      <span className={`v3-tape-delta ${movementTone(window.change)}`}>{window.change === null ? "No prior-window baseline" : `${deltaLabel(window.change)} vs previous window`}</span>
                     </div>
                   ))}
                 </div>
