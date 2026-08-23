@@ -193,22 +193,22 @@ function displayAccessLabel(label: string) {
   return /no issuer participation/i.test(label) ? "Limited Issuer Access" : label;
 }
 
-function percentLabel(pct: number | null) {
-  if (pct === null) return null;
-  return `${pct > 0 ? "+" : ""}${pct}%`;
+function changeAmountLabel(change: number | null) {
+  if (change === null) return null;
+  return `${change > 0 ? "+" : ""}${change} ${Math.abs(change) === 1 ? "conference" : "conferences"}`;
 }
 
-function windowMovementLabel(window: { key: string; count: number; pct: number | null }) {
+function windowMovementLabel(window: { key: string; count: number; change: number | null }) {
   if (window.key === "prior") return "Baseline context";
   if (window.key === "current") return "Current window";
-  if (window.key === "next") return percentLabel(window.pct) ? `${percentLabel(window.pct)} vs current window` : window.count > 0 ? "New in next window" : "No current-window baseline";
-  if (window.key === "following") return percentLabel(window.pct) ? `${percentLabel(window.pct)} vs next window` : window.count > 0 ? "New in following window" : "No next-window baseline";
+  if (window.key === "next") return changeAmountLabel(window.change) ? `${changeAmountLabel(window.change)} vs current window` : window.count > 0 ? "New in next window" : "No current-window baseline";
+  if (window.key === "following") return changeAmountLabel(window.change) ? `${changeAmountLabel(window.change)} vs next window` : window.count > 0 ? "New in following window" : "No next-window baseline";
   return "30-day window";
 }
 
-function moverMovementLabel(row: { count: number; pct: number | null }) {
-  const pct = percentLabel(row.pct);
-  if (pct) return pct;
+function moverMovementLabel(row: { count: number; change: number | null }) {
+  const change = changeAmountLabel(row.change);
+  if (change) return change;
   return row.count > 0 ? "New" : "No baseline";
 }
 

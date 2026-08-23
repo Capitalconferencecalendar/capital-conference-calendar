@@ -465,7 +465,7 @@ function buildMonthMovement(events: DiscoveryEvent[]) {
         return { label, count, change, pct: currentCount ? Math.round((change / currentCount) * 100) : null };
       })
       .filter((row) => row.count > 0 || row.change !== 0)
-      .sort((a, b) => Math.abs(b.pct ?? b.change ?? 0) - Math.abs(a.pct ?? a.change ?? 0) || b.count - a.count || a.label.localeCompare(b.label))
+      .sort((a, b) => Math.abs(b.change || 0) - Math.abs(a.change || 0) || b.count - a.count || a.label.localeCompare(b.label))
       .slice(0, 6);
   };
 
