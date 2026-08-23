@@ -186,6 +186,11 @@ function displayAccessLabel(label: string) {
   return /no issuer participation/i.test(label) ? "Limited Issuer Access" : label;
 }
 
+function monthLabel(monthKey: string) {
+  const date = new Date(`${monthKey}-01T00:00:00Z`);
+  return Number.isNaN(date.getTime()) ? monthKey : new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" }).format(date);
+}
+
 function Bar({ label, value, tone = "blue", count, share }: { label: string; value: number; tone?: "blue" | "amber" | "indigo"; count?: number; share?: number }) {
   return (
     <div className="v3-bar-row">
@@ -648,6 +653,39 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
     ["Market Windows", "Detect periods where sector, access, investor, and event-character signals concentrate across upcoming conferences.", "In Data Expansion"],
     ["Conference Relevance Scoring", "Explain why a conference may matter using sector exposure, audience profile, issuer participation, and comparable events.", "In Classification Buildout"],
   ] as const;
+  const visibleEvents = ((displayPage as any).events || []) as any[];
+  const monthlySignals = (Array.from(visibleEvents.reduce((months, event) => {
+    const startDate = String(event.startDate || "");
+    const key = startDate.slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(key)) return months;
+    const existing = months.get(key) || { month: key, events: [], cities: new Map<string, number>(), sectors: new Map<string, number>(), characters: new Map<string, number>(), access: new Map<string, number>() };
+    existing.events.push(event);
+    const add = (map: Map<string, number>, value: string) => value.split(/[,;|]/).map((item) => item.trim()).filter(Boolean).forEach((item) => map.set(item, (map.get(item) || 0) + 1));
+    add(existing.cities, [event.city, event.state].filter(Boolean).join(", "));
+    add(existing.sectors, event.publicCompanySector || event.sectorThemes || "");
+    add(existing.characters, event.eventCharacter || "");
+    add(existing.access, displayAccessLabel(event.issuerParticipation || ""));
+    months.set(key, existing);
+    return months;
+  }, new Map<string, any>()).values()) as any[]).sort((a, b) => a.month.localeCompare(b.month));
+  const monthlyVolumeRows = monthlySignals.slice(0, 6).map((row, index, list) => {
+    const prior = list[index - 1];
+    const change = prior ? row.events.length - prior.events.length : null;
+    const pct = prior?.events.length ? Math.round((change! / prior.events.length) * 100) : null;
+    return { label: monthLabel(row.month), count: row.events.length, change, pct, cities: (Array.from(row.cities.entries()) as Array<[string, number]>).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([city]) => city).filter(Boolean) };
+  });
+  const monthlyVolumeMax = Math.max(...monthlyVolumeRows.map((row) => row.count), 1);
+  const latestMonth = monthlySignals[0];
+  const priorMonth = monthlySignals[1];
+  const movementRows = (mapName: "sectors" | "characters" | "access") => {
+    if (!latestMonth) return [];
+    const current = latestMonth[mapName] as Map<string, number>;
+    const prior = priorMonth?.[mapName] as Map<string, number> | undefined;
+    return Array.from(current.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([label, count]) => ({ label, count, change: prior ? count - (prior.get(label) || 0) : null }));
+  };
+  const sectorMovementRows = movementRows("sectors");
+  const characterMovementRows = movementRows("characters");
+  const accessMovementRows = movementRows("access");
   const mom = displayIntelligence.monthOverMonth || {};
   const notableSignals = [
     mom.readout,
@@ -1051,6 +1089,15 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
             </div>
           </section>
 
+          <section className="v3-section">
+            <div className="v3-section-head"><div className="v3-eyebrow">Database Market Signals</div><h2>Month-over-Month Conference Activity</h2><p>Movement across the upcoming conference index, calculated from event start dates.</p></div>
+            <div className="v3-league-grid">
+              <div className="v3-league-card"><h3>Monthly Event Volume</h3>{monthlyVolumeRows.length ? monthlyVolumeRows.map((row) => <div className="v3-league-row" key={row.label}><span className="v3-league-rank">{row.label}</span><span>{row.cities.length ? row.cities.join(", ") : "Upcoming conferences"}</span><span className="v3-league-count">{row.count}</span><div className="v3-league-bar"><span style={{ width: `${Math.max(8, Math.round((row.count / monthlyVolumeMax) * 100))}%` }} /></div><span style={{ gridColumn: "2 / -1", color: "#8fb3df", fontSize: "10px" }}>{row.change === null ? "Baseline month" : `${row.change >= 0 ? "+" : ""}${row.change}${row.pct !== null ? ` · ${row.pct >= 0 ? "+" : ""}${row.pct}% vs prior month` : ""}`}</span></div>) : <EmptyState>Month-over-month movement requires scheduled events in adjacent months.</EmptyState>}</div>
+              {[["Sector Movement", sectorMovementRows], ["Event Character Movement", characterMovementRows], ["Access Profile Movement", accessMovementRows]].map(([title, rows]) => <div className="v3-league-card" key={title as string}><h3>{title as string}</h3>{(rows as Array<{ label: string; count: number; change: number | null }>).length ? (rows as Array<{ label: string; count: number; change: number | null }>).map((row) => <div className="v3-league-row" key={row.label}><span className="v3-league-rank">{row.change === null ? "-" : row.change >= 0 ? "+" : "-"}</span><span>{row.label}</span><span className="v3-league-count">{row.count}</span><div style={{ gridColumn: "2 / -1", color: "#8fb3df", fontSize: "10px" }}>{row.change === null ? "Baseline month" : `${row.change >= 0 ? "+" : ""}${row.change} vs prior month`}</div></div>) : <EmptyState>Not enough mapped month data is available yet.</EmptyState>}</div>)}
+            </div>
+          </section>
+
+          {false && <>
           <section className="v3-support">
             <div className="v3-support-card">
               <div className="v3-eyebrow">Notable Signals</div>
@@ -1116,6 +1163,8 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
             <div style={{ display: "grid", gap: 8 }}><div className="v3-eyebrow">Local Market View</div><h2>Region / Metro Signals</h2><p>Uses selected region, state, or metro filters from approved event records.</p></div>
             <div className="v3-analytics" style={{ gridTemplateColumns: "repeat(3,minmax(0,1fr))" }}>{localSelection ? (localRows.length ? localRows.map((row: any) => <div className="v3-data-card" key={`${row.city}-${row.state}`}><h3>{[row.city, row.state].filter(Boolean).join(", ")}</h3><div className="v3-muted-row">{row.totalEvents} approved events</div><div className="v3-muted-row">{row.issuerAccessEvents} issuer-access signals</div><div className="v3-muted-row">{row.nextEvent?.title || "No upcoming event title available"}</div></div>) : <div className="v3-data-card" style={{ gridColumn: "1 / -1" }}>No approved events match the selected local market view.</div>) : <div className="v3-data-card" style={{ gridColumn: "1 / -1" }}>Select a region, state, or metro to view local conference signals.</div>}</div>
           </section>
+
+          </>}
 
           <section className="v3-section">
             <div className="v3-section-head"><div className="v3-eyebrow">Upcoming Conferences</div><h2>Market Leaderboards</h2><p>A ranked view of upcoming conference activity across locations, organizers, sectors, and participation signals.</p></div>
