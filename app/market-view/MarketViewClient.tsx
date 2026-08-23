@@ -193,27 +193,6 @@ function displayAccessLabel(label: string) {
   return /no issuer participation/i.test(label) ? "Limited Issuer Access" : label;
 }
 
-function monthLabel(monthKey: string) {
-  const date = new Date(`${monthKey}-01T00:00:00Z`);
-  return Number.isNaN(date.getTime()) ? monthKey : new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" }).format(date);
-}
-
-function movementContext(change: number | null, pct: number | null, comparison = "prior window") {
-  if (change === null) return "No prior-window baseline";
-  if (change > 0 && pct === null) return `New activity versus ${comparison}`;
-  if (change > 0) return `Up vs ${comparison}${pct !== null ? ` · +${pct}%` : ""}`;
-  if (change < 0) return `Down vs ${comparison}${pct !== null ? ` · ${pct}%` : ""}`;
-  return `Flat vs ${comparison}`;
-}
-
-function nextMovementContext(change: number | null, pct: number | null) {
-  if (change === null) return "No current-window baseline";
-  if (change > 0 && pct === null) return "New activity versus current window";
-  if (change > 0) return `Tracking above current window${pct !== null ? ` · +${pct}%` : ""}`;
-  if (change < 0) return `Tracking below current window${pct !== null ? ` · ${pct}%` : ""}`;
-  return "Flat vs current window";
-}
-
 function deltaLabel(change: number | null) {
   if (change === null) return "—";
   if (change > 0) return `+${change}`;
@@ -690,54 +669,10 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   ] as const;
   const monthMovement = displayAnalytics.monthMovement || { windows: [], sectorMovers: [], characterMovers: [], accessMovers: [] };
   const movementWindows = monthMovement.windows.slice(0, 4);
-  const priorWindow = movementWindows[0];
-  const currentWindow = movementWindows[1];
-  const nextWindow = movementWindows[2];
-  const signalChange = currentWindow?.change ?? null;
-  const signalChangePct = currentWindow?.pct ?? null;
-  const nextSignalChange = nextWindow?.change ?? null;
-  const nextSignalChangePct = nextWindow?.pct ?? null;
   const rollingVolumeMax = Math.max(...movementWindows.map((row) => row.count), 1);
   const sectorMovementRows = monthMovement.sectorMovers || [];
   const characterMovementRows = monthMovement.characterMovers || [];
   const accessMovementRows = monthMovement.accessMovers || [];
-  const tapeSegments = [
-    {
-      label: "Prior 30 Days",
-      value: priorWindow?.rangeLabel || "—",
-      count: `${formatNumber(priorWindow?.count)} conferences`,
-      context: "Prior 30-day window",
-      tone: "flat",
-    },
-    {
-      label: "Current 30 Days",
-      value: currentWindow?.rangeLabel || "—",
-      count: `${formatNumber(currentWindow?.count)} conferences`,
-      context: movementContext(signalChange, signalChangePct, "prior window"),
-      tone: movementTone(signalChange),
-    },
-    {
-      label: "30-Day Change",
-      value: signalChange === null ? "—" : `${signalChange >= 0 ? "+" : ""}${formatNumber(signalChange)} conferences`,
-      count: signalChangePct === null ? "No prior-window baseline" : `${signalChangePct >= 0 ? "+" : ""}${signalChangePct}% vs prior window`,
-      context: movementContext(signalChange, signalChangePct, "prior window"),
-      tone: movementTone(signalChange),
-    },
-    {
-      label: "Next 30 Days",
-      value: nextWindow?.rangeLabel || "—",
-      count: `${formatNumber(nextWindow?.count)} conferences`,
-      context: nextMovementContext(nextSignalChange, nextSignalChangePct),
-      tone: movementTone(nextSignalChange),
-    },
-    {
-      label: "Forward Change",
-      value: nextSignalChange === null ? "—" : `${nextSignalChange >= 0 ? "+" : ""}${formatNumber(nextSignalChange)} vs current window`,
-      count: nextSignalChangePct === null ? "No current-window baseline" : `${nextSignalChangePct >= 0 ? "+" : ""}${nextSignalChangePct}% vs current window`,
-      context: nextMovementContext(nextSignalChange, nextSignalChangePct),
-      tone: movementTone(nextSignalChange),
-    },
-  ];
   const moverGroups = [
     ["Sector Movers", sectorMovementRows],
     ["Event Character Movers", characterMovementRows],
@@ -910,24 +845,19 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-section-head { display: grid; gap: 5px; }
         .v3-section-head h2 { color: #f5f9ff; font-size: 17px; letter-spacing: .08em; text-transform: uppercase; }
         .v3-section-head p { color: #9eb2c8; font-size: 12px; line-height: 1.45; max-width: 780px; }
-        .v3-market-tape { display: grid; gap: 10px; padding: 10px 0 0; }
-        .v3-tape-strip { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); overflow: hidden; border: 1px solid rgba(76,151,232,.22); border-radius: 9px; background: linear-gradient(90deg,rgba(4,15,28,.98),rgba(8,27,46,.96),rgba(4,15,28,.98)); box-shadow: inset 0 1px 0 rgba(186,230,253,.05), 0 0 26px rgba(14,165,233,.08); }
-        .v3-tape-segment { min-width: 0; padding: 10px 12px; display: grid; gap: 4px; border-left: 1px solid rgba(125,211,252,.16); }
-        .v3-tape-segment:first-child { border-left: 0; }
-        .v3-tape-segment span { color: #78b8ee; font-size: 9px; font-weight: 950; letter-spacing: .14em; text-transform: uppercase; }
-        .v3-tape-segment strong { color: #f8fbff; font-size: 15px; line-height: 1.05; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .v3-tape-segment small { color: #8fa8c2; font-size: 10.5px; line-height: 1.25; }
-        .v3-tape-segment.hot strong, .v3-tape-delta.hot { color: #2dd4bf; text-shadow: 0 0 16px rgba(45,212,191,.24); }
-        .v3-tape-segment.cold strong, .v3-tape-delta.cold { color: #a5b4fc; }
-        .v3-movement-line { position: relative; min-height: 62px; padding: 12px 16px 7px; border-block: 1px solid rgba(125,211,252,.14); background: linear-gradient(90deg,rgba(2,8,18,.26),rgba(14,35,57,.38),rgba(2,8,18,.26)); }
-        .v3-movement-track { position: absolute; left: 28px; right: 28px; top: 31px; height: 2px; border-radius: 999px; background: linear-gradient(90deg,rgba(96,165,250,.22),rgba(45,212,191,.72),rgba(129,140,248,.3)); box-shadow: 0 0 18px rgba(45,212,191,.18); }
-        .v3-movement-nodes { position: relative; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; }
-        .v3-movement-node { display: grid; justify-items: center; gap: 5px; color: #9eb2c8; font-size: 10px; text-align: center; }
-        .v3-movement-dot { width: 11px; height: 11px; border-radius: 999px; background: #60a5fa; box-shadow: 0 0 12px rgba(96,165,250,.55); }
-        .v3-movement-node.current .v3-movement-dot { width: 15px; height: 15px; background: #2dd4bf; box-shadow: 0 0 24px rgba(45,212,191,.62); }
-        .v3-movement-node.hot .v3-movement-dot { background: #22d3ee; box-shadow: 0 0 18px rgba(34,211,238,.45); }
-        .v3-movement-node.cold .v3-movement-dot { background: #818cf8; box-shadow: 0 0 12px rgba(129,140,248,.32); }
-        .v3-movement-node strong { color: #f8fbff; font-size: 11px; line-height: 1.1; }
+        .v3-market-tape { display: grid; gap: 12px; padding: 10px 0 0; }
+        .v3-tape-delta.hot { color: #2dd4bf; text-shadow: 0 0 16px rgba(45,212,191,.24); }
+        .v3-tape-delta.cold { color: #a5b4fc; }
+        .v3-movement-line { position: relative; min-height: 142px; padding: 16px 18px 14px; border-block: 1px solid rgba(125,211,252,.16); border-radius: 10px; background: radial-gradient(circle at 48% 48%,rgba(45,212,191,.12),transparent 34%), linear-gradient(90deg,rgba(2,8,18,.3),rgba(14,35,57,.5),rgba(2,8,18,.3)); box-shadow: inset 0 1px 0 rgba(186,230,253,.05), 0 0 26px rgba(14,165,233,.08); }
+        .v3-movement-track { position: absolute; left: 54px; right: 54px; top: 67px; height: 5px; border-radius: 999px; background: linear-gradient(90deg,rgba(96,165,250,.28),rgba(45,212,191,.9),rgba(129,140,248,.42)); box-shadow: 0 0 22px rgba(45,212,191,.22), inset 0 1px 0 rgba(255,255,255,.2); }
+        .v3-movement-nodes { position: relative; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; align-items: start; height: 100%; }
+        .v3-movement-node { display: grid; grid-template-rows: 17px 16px 28px 18px 18px; justify-items: center; align-items: center; gap: 3px; color: #9eb2c8; font-size: 10px; line-height: 1.1; text-align: center; }
+        .v3-movement-node span { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .v3-movement-dot { width: 16px; height: 16px; border-radius: 999px; background: #60a5fa; border: 2px solid rgba(5,19,35,.96); box-shadow: 0 0 14px rgba(96,165,250,.55); }
+        .v3-movement-node.current .v3-movement-dot { width: 22px; height: 22px; background: #2dd4bf; box-shadow: 0 0 30px rgba(45,212,191,.72); }
+        .v3-movement-node.hot .v3-movement-dot { background: #22d3ee; box-shadow: 0 0 22px rgba(34,211,238,.52); }
+        .v3-movement-node.cold .v3-movement-dot { background: #818cf8; box-shadow: 0 0 16px rgba(129,140,248,.4); }
+        .v3-movement-node strong { color: #f8fbff; font-size: 12px; line-height: 1.1; text-transform: uppercase; letter-spacing: .06em; }
         .v3-mover-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
         .v3-mover-table { min-width: 0; padding: 8px 10px; border-top: 1px solid rgba(76,151,232,.22); background: linear-gradient(180deg,rgba(8,25,43,.72),rgba(4,16,30,.42)); }
         .v3-mover-table h3 { margin-bottom: 4px; color: #dff3ff; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
@@ -988,9 +918,9 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-tooltip { position: absolute; z-index: 10; right: 0; bottom: calc(100% + 8px); width: 260px; border-radius: 10px; background: #102136; color: #fff; padding: 10px; font-size: 12px; line-height: 1.35; box-shadow: 0 16px 32px rgba(0,0,0,.25); opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
         .v3-info:hover .v3-tooltip, .v3-info:focus .v3-tooltip { opacity: 1; }
         @media (max-width: 1180px) { .v3-page { overflow: auto; } .v3-main { overflow: visible; } .v3-readout, .v3-primary-row, .v3-kpi-strip, .v3-support, .v3-analytics, .v3-watch { grid-template-columns: 1fr; } .v3-signal-forecast { height: auto; } .v3-signal-body { grid-template-columns: 1fr; } .v3-signal-list { max-height: 360px; border-right: 0; border-bottom: 1px solid rgba(125,162,199,.2); } .v3-signal-detail { max-height: none; overflow: visible; } }
-        @media (max-width: 1180px) { .v3-league-grid, .v3-composition-grid, .v3-roadmap-grid, .v3-mover-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .v3-tape-strip { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+        @media (max-width: 1180px) { .v3-league-grid, .v3-composition-grid, .v3-roadmap-grid, .v3-mover-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
         @media (max-width: 900px) { .v3-mom-body { grid-template-columns: 1fr; } }
-        @media (max-width: 760px) { h1 { font-size: 31px; } .v3-metro-grid, .v3-league-grid, .v3-composition-grid, .v3-roadmap-grid, .v3-mover-grid, .v3-tape-strip { grid-template-columns: 1fr; } .v3-signal-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+        @media (max-width: 760px) { h1 { font-size: 31px; } .v3-metro-grid, .v3-league-grid, .v3-composition-grid, .v3-roadmap-grid, .v3-mover-grid { grid-template-columns: 1fr; } .v3-signal-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); } }
       `}</style>
 
       <div className="workspace-shell" style={{ display: "grid", gridTemplateColumns: "minmax(280px, 290px) minmax(0, 1fr) minmax(300px, 320px)", gridTemplateRows: "minmax(0, 1fr)", gap: "18px", alignItems: "stretch", width: "100%", height: "calc(100vh - 126px)", maxWidth: "100%", minWidth: 0, minHeight: 0, overflow: "hidden", justifyContent: "center" }}>
@@ -1192,17 +1122,6 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
           <section className="v3-section">
             <div className="v3-section-head"><div className="v3-eyebrow">Database Market Signals</div><h2>30-Day Market Movement</h2><p>Rolling conference activity across prior, current, and forward 30-day windows, calculated from event start dates.</p></div>
             <div className="v3-market-tape">
-              <div className="v3-tape-strip">
-                {tapeSegments.map((segment) => (
-                  <div className={`v3-tape-segment ${segment.tone}`} key={segment.label}>
-                    <span>{segment.label}</span>
-                    <strong>{segment.value}</strong>
-                    <small>{segment.count}</small>
-                    <small>{segment.context}</small>
-                  </div>
-                ))}
-              </div>
-
               <div className="v3-movement-line" aria-label="Hot and cold rolling 30-day movement line">
                 <div className="v3-movement-track" />
                 <div className="v3-movement-nodes">
