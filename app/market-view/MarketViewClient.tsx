@@ -193,10 +193,23 @@ function displayAccessLabel(label: string) {
   return /no issuer participation/i.test(label) ? "Limited Issuer Access" : label;
 }
 
-function deltaLabel(change: number | null) {
-  if (change === null) return "—";
-  if (change > 0) return `+${change}`;
-  return String(change);
+function percentLabel(pct: number | null) {
+  if (pct === null) return null;
+  return `${pct > 0 ? "+" : ""}${pct}%`;
+}
+
+function windowMovementLabel(window: { key: string; count: number; pct: number | null }) {
+  if (window.key === "prior") return "Baseline context";
+  if (window.key === "current") return "Current window";
+  if (window.key === "next") return percentLabel(window.pct) ? `${percentLabel(window.pct)} vs current window` : window.count > 0 ? "New in next window" : "No current-window baseline";
+  if (window.key === "following") return percentLabel(window.pct) ? `${percentLabel(window.pct)} vs next window` : window.count > 0 ? "New in following window" : "No next-window baseline";
+  return "30-day window";
+}
+
+function moverMovementLabel(row: { count: number; pct: number | null }) {
+  const pct = percentLabel(row.pct);
+  if (pct) return pct;
+  return row.count > 0 ? "New" : "No baseline";
 }
 
 function movementTone(change: number | null) {
@@ -855,6 +868,9 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-movement-node span { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .v3-movement-dot { width: 16px; height: 16px; border-radius: 999px; background: #60a5fa; border: 2px solid rgba(5,19,35,.96); box-shadow: 0 0 14px rgba(96,165,250,.55); }
         .v3-movement-node.current .v3-movement-dot { width: 22px; height: 22px; background: #2dd4bf; box-shadow: 0 0 30px rgba(45,212,191,.72); }
+        .v3-movement-node.primary-forward strong { color: #e9feff; text-shadow: 0 0 16px rgba(45,212,191,.22); }
+        .v3-movement-node.primary-forward .v3-movement-dot { width: 24px; height: 24px; }
+        .v3-movement-node.secondary-forward .v3-movement-dot { width: 18px; height: 18px; }
         .v3-movement-node.hot .v3-movement-dot { background: #22d3ee; box-shadow: 0 0 22px rgba(34,211,238,.52); }
         .v3-movement-node.cold .v3-movement-dot { background: #818cf8; box-shadow: 0 0 16px rgba(129,140,248,.4); }
         .v3-movement-node strong { color: #f8fbff; font-size: 12px; line-height: 1.1; text-transform: uppercase; letter-spacing: .06em; }
@@ -1126,12 +1142,12 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                 <div className="v3-movement-track" />
                 <div className="v3-movement-nodes">
                   {movementWindows.map((window, index) => (
-                    <div className={`v3-movement-node ${index === 1 ? "current" : ""} ${movementTone(window.change)}`} key={window.key}>
+                    <div className={`v3-movement-node ${index === 1 ? "current" : ""} ${index === 2 ? "primary-forward" : ""} ${index === 3 ? "secondary-forward" : ""} ${movementTone(window.change)}`} key={window.key}>
                       <strong>{window.label}</strong>
                       <span>{window.rangeLabel}</span>
                       <span className="v3-movement-dot" style={{ transform: `scale(${0.82 + (window.count / rollingVolumeMax) * 0.48})` }} />
                       <span>{formatNumber(window.count)} conferences</span>
-                      <span className={`v3-tape-delta ${movementTone(window.change)}`}>{window.change === null ? "No prior-window baseline" : `${deltaLabel(window.change)} vs previous window`}</span>
+                      <span className={`v3-tape-delta ${movementTone(window.change)}`}>{windowMovementLabel(window)}</span>
                     </div>
                   ))}
                 </div>
@@ -1145,7 +1161,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                       <div className="v3-mover-row" key={row.label}>
                         <span>{row.label}</span>
                         <span className="v3-mover-count">{formatNumber(row.count)}</span>
-                        <span className={`v3-mover-delta ${movementTone(row.change)}`}>{deltaLabel(row.change)}</span>
+                        <span className={`v3-mover-delta ${movementTone(row.change)}`}>{moverMovementLabel(row)}</span>
                       </div>
                     )) : <EmptyState>Not enough mapped month data is available yet.</EmptyState>}
                   </div>

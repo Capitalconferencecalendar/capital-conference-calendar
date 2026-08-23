@@ -441,30 +441,31 @@ function buildMonthMovement(events: DiscoveryEvent[]) {
     add(bucket.access, event.issuerParticipation || "");
   });
 
-  const movementWindows = windows.map((window, index) => {
+  const movementWindows = windows.map((window) => {
     const count = buckets.get(window.key)?.count || 0;
-    const priorCount = index === 0 ? null : buckets.get(windows[index - 1].key)?.count || 0;
-    const change = priorCount === null ? null : count - priorCount;
-    const pct = change === null || !priorCount ? null : Math.round((change / priorCount) * 100);
+    const comparisonKey = window.key === "next" ? "current" : window.key === "following" ? "next" : null;
+    const comparisonCount = comparisonKey ? buckets.get(comparisonKey)?.count || 0 : null;
+    const change = comparisonCount === null ? null : count - comparisonCount;
+    const pct = change === null || !comparisonCount ? null : Math.round((change / comparisonCount) * 100);
     return { ...window, rangeLabel: formatRangeLabel(window.startDate, window.endDate), count, change, pct };
   });
 
   const current = buckets.get("current");
-  const prior = buckets.get("prior");
+  const next = buckets.get("next");
   const movers = (key: "sectors" | "characters" | "access"): MonthMovementRow[] => {
     const labels = new Set<string>([
       ...Array.from(current?.[key].keys() || []),
-      ...Array.from(prior?.[key].keys() || []),
+      ...Array.from(next?.[key].keys() || []),
     ]);
     return Array.from(labels)
       .map((label) => {
-        const count = current?.[key].get(label) || 0;
-        const priorCount = prior?.[key].get(label) || 0;
-        const change = count - priorCount;
-        return { label, count, change, pct: priorCount ? Math.round((change / priorCount) * 100) : null };
+        const count = next?.[key].get(label) || 0;
+        const currentCount = current?.[key].get(label) || 0;
+        const change = count - currentCount;
+        return { label, count, change, pct: currentCount ? Math.round((change / currentCount) * 100) : null };
       })
       .filter((row) => row.count > 0 || row.change !== 0)
-      .sort((a, b) => Math.abs(b.change || 0) - Math.abs(a.change || 0) || b.count - a.count || a.label.localeCompare(b.label))
+      .sort((a, b) => Math.abs(b.pct ?? b.change ?? 0) - Math.abs(a.pct ?? a.change ?? 0) || b.count - a.count || a.label.localeCompare(b.label))
       .slice(0, 6);
   };
 
