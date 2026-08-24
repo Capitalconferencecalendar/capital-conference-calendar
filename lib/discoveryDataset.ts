@@ -103,6 +103,16 @@ type LeaderboardContextCard = {
   rowContext: Record<string, string>;
   signalRead: string;
 };
+type LeaderboardWindowAnalytics = {
+  total: number;
+  cityCounts: RankedCount[];
+  organizerCounts: RankedCount[];
+  sectorCounts: RankedCount[];
+  focusCounts: RankedCount[];
+  eventCharacterCounts: RankedCount[];
+  issuerParticipationCounts: RankedCount[];
+  leaderboardContext: Record<string, LeaderboardContextCard>;
+};
 type RollingWindowRow = {
   key: string;
   label: string;
@@ -136,6 +146,7 @@ export type MarketViewAnalytics = {
     accessMovers: MonthMovementRow[];
   };
   leaderboardContext?: Record<string, LeaderboardContextCard>;
+  leaderboardWindows?: Record<"30" | "60" | "90", LeaderboardWindowAnalytics>;
   statesCount: number;
   citiesCount: number;
   organizersCount: number;
@@ -639,6 +650,23 @@ function buildLeaderboardContext(events: DiscoveryEvent[], counts: {
   };
 }
 
+function buildLeaderboardWindow(events: DiscoveryEvent[], days: 30 | 60 | 90): LeaderboardWindowAnalytics {
+  const startDate = dateKeyForOffset(0);
+  const endDate = dateKeyForOffset(days - 1);
+  const windowEvents = events.filter((event) => {
+    const eventStart = event.startDate.slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(eventStart) && eventStart >= startDate && eventStart <= endDate;
+  });
+  const cityCounts = ranked(windowEvents.map(cityValue));
+  const organizerCounts = ranked(windowEvents.map((event) => event.organizer));
+  const sectorCounts = ranked(windowEvents.flatMap(sectorLabels));
+  const focusCounts = ranked(windowEvents.flatMap(focusLabels));
+  const eventCharacterCounts = ranked(windowEvents.flatMap((event) => splitCsv(event.eventCharacter || "")));
+  const issuerParticipationCounts = ranked(windowEvents.flatMap((event) => splitCsv(event.issuerParticipation)));
+  const leaderboardContext = buildLeaderboardContext(windowEvents, { cityCounts, organizerCounts, sectorCounts, focusCounts, eventCharacterCounts, issuerParticipationCounts });
+  return { total: windowEvents.length, cityCounts, organizerCounts, sectorCounts, focusCounts, eventCharacterCounts, issuerParticipationCounts, leaderboardContext };
+}
+
 function eventText(event: DiscoveryEvent) {
   return [event.issuerParticipation, event.primaryCategory, event.marketFocus, event.sectorThemes, event.publicCompanySector, event.additionalPublicCompanySectors, event.eventCharacter]
     .filter(Boolean)
@@ -719,6 +747,11 @@ function buildMarketViewAnalytics(events: DiscoveryEvent[]): MarketViewAnalytics
   const eventCharacterCounts = ranked(events.flatMap((event) => splitCsv(event.eventCharacter || "")));
   const issuerParticipationCounts = ranked(events.flatMap((event) => splitCsv(event.issuerParticipation)));
   const leaderboardContext = buildLeaderboardContext(events, { cityCounts, organizerCounts, sectorCounts, focusCounts, eventCharacterCounts, issuerParticipationCounts });
+  const leaderboardWindows = {
+    "30": buildLeaderboardWindow(events, 30),
+    "60": buildLeaderboardWindow(events, 60),
+    "90": buildLeaderboardWindow(events, 90),
+  };
   const verificationStatusCounts = ranked(events.map((event) => event.verificationStatus || ""));
   const weeks = new Map<string, number>();
   const months = new Map<string, number>();
@@ -842,7 +875,7 @@ function buildMarketViewAnalytics(events: DiscoveryEvent[]): MarketViewAnalytics
   }));
   const monthMovement = buildMonthMovement(events);
   return {
-    total: events.length, cityCounts, organizerCounts, themeCounts, focusCounts, categoryCounts, formatCounts, sectorCounts, audienceCounts, eventCharacterCounts, issuerParticipationCounts, verificationStatusCounts, weekCounts, monthCounts, monthMovement, leaderboardContext,
+    total: events.length, cityCounts, organizerCounts, themeCounts, focusCounts, categoryCounts, formatCounts, sectorCounts, audienceCounts, eventCharacterCounts, issuerParticipationCounts, verificationStatusCounts, weekCounts, monthCounts, monthMovement, leaderboardContext, leaderboardWindows,
     statesCount: new Set(events.map((event) => event.state).filter(Boolean)).size,
     citiesCount: new Set(events.map(cityValue).filter(Boolean)).size,
     organizersCount: new Set(events.map((event) => event.organizer).filter(Boolean)).size,

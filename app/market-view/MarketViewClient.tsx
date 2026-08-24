@@ -36,6 +36,14 @@ type AggregateStats = {
   };
 };
 
+type LeaderboardContext = Record<string, {
+  leadLabel: string;
+  leadCount: number;
+  leadDetail?: string;
+  rowContext: Record<string, string>;
+  signalRead: string;
+}>;
+
 type MarketAnalytics = {
   monthCounts?: { month: string; count: number }[];
   cityCounts: [string, number][];
@@ -54,12 +62,16 @@ type MarketAnalytics = {
     characterMovers: { label: string; count: number; change: number | null; pct: number | null }[];
     accessMovers: { label: string; count: number; change: number | null; pct: number | null }[];
   };
-  leaderboardContext?: Record<string, {
-    leadLabel: string;
-    leadCount: number;
-    leadDetail?: string;
-    rowContext: Record<string, string>;
-    signalRead: string;
+  leaderboardContext?: LeaderboardContext;
+  leaderboardWindows?: Record<"30" | "60" | "90", {
+    total: number;
+    cityCounts: [string, number][];
+    organizerCounts: [string, number][];
+    sectorCounts: [string, number][];
+    focusCounts: [string, number][];
+    eventCharacterCounts: [string, number][];
+    issuerParticipationCounts: [string, number][];
+    leaderboardContext: LeaderboardContext;
   }>;
   weekInsights: Record<string, {
     topAudience: string;
@@ -73,6 +85,9 @@ type MarketAnalytics = {
     actionLine: string;
   }>;
 };
+
+type LeaderboardWindowDays = 30 | 60 | 90;
+const leaderboardWindowOptions = [30, 60, 90] as const;
 
 type MarketViewPageData = {
   total: number;
@@ -448,6 +463,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const [filterMode, setFilterMode] = useState<FilterMatchMode>("and");
   const [marketPage, setMarketPage] = useState<MarketViewPageData>(initialPage);
   const [viewScope, setViewScope] = useState<"full" | "filtered">("full");
+  const [leaderboardWindowDays, setLeaderboardWindowDays] = useState<LeaderboardWindowDays>(90);
   const [openFilters, setOpenFilters] = useState<Record<string, boolean>>({
     "Date & Timing": false,
     Location: false,
@@ -670,6 +686,25 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const accessRows = pctRows(displayAnalytics.issuerParticipationCounts, 5);
   const metroLeaderboard = (displayAnalytics.cityCounts || []).slice(0, 5).map(([label, count]) => ({ label, count }));
   const organizerLeaderboard = (displayAnalytics.organizerCounts || []).slice(0, 5).map(([label, count]) => ({ label, count }));
+  const leaderboardWindowKey = String(leaderboardWindowDays) as "30" | "60" | "90";
+  const selectedLeaderboardWindow = displayAnalytics.leaderboardWindows?.[leaderboardWindowKey];
+  const leaderboardSource = selectedLeaderboardWindow || {
+    total: displayAggregates.events,
+    cityCounts: displayAnalytics.cityCounts || [],
+    organizerCounts: displayAnalytics.organizerCounts || [],
+    sectorCounts: displayAnalytics.sectorCounts || displayAnalytics.themeCounts || [],
+    focusCounts: displayAnalytics.focusCounts || [],
+    eventCharacterCounts: displayAnalytics.eventCharacterCounts || [],
+    issuerParticipationCounts: displayAnalytics.issuerParticipationCounts || [],
+    leaderboardContext: displayAnalytics.leaderboardContext || {},
+  };
+  const leaderboardMetroRows = (leaderboardSource.cityCounts || []).slice(0, 5).map(([label, count]) => ({ label, count }));
+  const leaderboardOrganizerRows = (leaderboardSource.organizerCounts || []).slice(0, 5).map(([label, count]) => ({ label, count }));
+  const leaderboardSectorRows = pctRows(leaderboardSource.sectorCounts, 5);
+  const leaderboardFocusRows = pctRows(leaderboardSource.focusCounts, 5);
+  const leaderboardCharacterRows = pctRows(leaderboardSource.eventCharacterCounts, 5);
+  const leaderboardAccessRows = pctRows(leaderboardSource.issuerParticipationCounts, 5);
+  const leaderboardVisibleFocusRows = leaderboardFocusRows.filter((row) => !/institutional investors/i.test(row.label));
   const focusLeaderboard = focusRows.filter((row) => !/institutional investors/i.test(row.label));
   const visibleFocusRows = focusLeaderboard.length ? focusLeaderboard : focusRows;
   const metroMaxCount = Math.max(...metroLeaderboard.map((row) => row.count), 1);
@@ -688,14 +723,14 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
     { title: "Market Focus Mix", rows: compositionRows(visibleFocusRows), tone: "indigo" as const },
     { title: "Regional Mix", rows: compositionRows(regionalRows), tone: "blue" as const },
   ];
-  const leaderboardContext = displayAnalytics.leaderboardContext || {};
+  const leaderboardContext = leaderboardSource.leaderboardContext || {};
   const leaderboardCards = [
-    { title: "Top Metros", rows: metroLeaderboard },
-    { title: "Top Organizers", rows: organizerLeaderboard },
-    { title: "Top Event Characters", rows: characterRows },
-    { title: "Top Public Company Sectors", rows: sectorRows },
-    { title: "Top Market Focus Areas", rows: visibleFocusRows },
-    { title: "Top Access / Participation Profiles", rows: accessRows.map((row) => ({ ...row, label: displayAccessLabel(row.label) })) },
+    { title: "Top Metros", rows: leaderboardMetroRows, empty: "No metro activity in this window." },
+    { title: "Top Organizers", rows: leaderboardOrganizerRows, empty: "No organizer activity in this window." },
+    { title: "Top Event Characters", rows: leaderboardCharacterRows, empty: "No event-character activity in this window." },
+    { title: "Top Public Company Sectors", rows: leaderboardSectorRows, empty: "No sector activity in this window." },
+    { title: "Top Market Focus Areas", rows: (leaderboardVisibleFocusRows.length ? leaderboardVisibleFocusRows : leaderboardFocusRows), empty: "No market-focus activity in this window." },
+    { title: "Top Access / Participation Profiles", rows: leaderboardAccessRows.map((row) => ({ ...row, label: displayAccessLabel(row.label) })), empty: "No access-profile activity in this window." },
   ];
   const roadmapCards = [
     ["Comparable Conference Sets", "Identify events with overlapping sector exposure, audience profile, issuer access, market focus, and event character.", "Coming Soon"],
@@ -881,8 +916,12 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-data-card { background: linear-gradient(180deg,rgba(9,27,45,.94),rgba(6,19,34,.94)); border: 1px solid rgba(121,158,197,.22); border-radius: 10px; padding: 13px; display: grid; gap: 10px; }
         .v3-section { margin-top: 22px; display: grid; gap: 12px; }
         .v3-section-head { display: grid; gap: 5px; }
+        .v3-section-title-row { display: flex; justify-content: space-between; gap: 12px; align-items: end; }
         .v3-section-head h2 { color: #f5f9ff; font-size: 17px; letter-spacing: .08em; text-transform: uppercase; }
         .v3-section-head p { color: #9eb2c8; font-size: 12px; line-height: 1.45; max-width: 780px; }
+        .v3-window-toggle { display: inline-flex; gap: 5px; align-items: center; padding: 3px; border: 1px solid rgba(96,165,250,.18); border-radius: 999px; background: rgba(6,22,38,.72); }
+        .v3-window-toggle button { border: 1px solid transparent; border-radius: 999px; background: transparent; color: #93abc4; padding: 5px 9px; font-size: 10px; font-weight: 900; letter-spacing: .08em; cursor: pointer; }
+        .v3-window-toggle button.active { border-color: rgba(125,211,252,.36); background: rgba(37,99,235,.62); color: #f5fbff; box-shadow: 0 0 16px rgba(14,165,233,.22), inset 0 1px 0 rgba(255,255,255,.12); }
         .v3-market-tape { display: grid; gap: 12px; padding: 10px 0 0; }
         .v3-tape-delta.hot { color: #2dd4bf; text-shadow: 0 0 16px rgba(45,212,191,.24); }
         .v3-tape-delta.cold { color: #a5b4fc; }
@@ -1269,7 +1308,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
           </>}
 
           <section className="v3-section">
-            <div className="v3-section-head"><div className="v3-eyebrow">Upcoming Conferences</div><h2>Market Leaderboards</h2><p>A ranked view of upcoming conference activity across locations, organizers, sectors, and participation signals.</p></div>
+            <div className="v3-section-head"><div className="v3-section-title-row"><div><div className="v3-eyebrow">Upcoming Conferences</div><h2>Market Leaderboards</h2></div><div className="v3-window-toggle" aria-label="Select leaderboard window">{leaderboardWindowOptions.map((days) => <button type="button" key={days} className={leaderboardWindowDays === days ? "active" : ""} onClick={() => setLeaderboardWindowDays(days)}>{days}D</button>)}</div></div><p>A ranked view of upcoming conference activity over the next {leaderboardWindowDays} days.</p></div>
             <div className="v3-league-grid">
               {leaderboardCards.map((card) => {
                 const context = leaderboardContext[card.title];
@@ -1283,7 +1322,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                     <span className="v3-league-main"><strong>{row.label}</strong>{context?.rowContext?.[row.label] ? <small>{context.rowContext[row.label]}</small> : null}</span>
                     <span className="v3-league-count">{row.count}</span>
                     <div className="v3-league-bar"><span style={{ width: `${Math.max(8, Math.round((row.count / Math.max(...list.map((item) => item.count), 1)) * 100))}%` }} /></div>
-                  </div>) : <EmptyState>Not enough mapped data is available yet.</EmptyState>}
+                  </div>) : <EmptyState>{card.empty}</EmptyState>}
                   {context?.signalRead ? <div className="v3-league-signal">{context.signalRead}</div> : null}
                 </div>;
               })}
