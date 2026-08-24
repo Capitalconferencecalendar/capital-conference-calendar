@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import AppShell from "../components/AppShell";
+import SubmitPageClient from "./SubmitPageClient";
 
 type Status = "idle" | "submitting" | "success" | "error";
 
@@ -15,6 +16,8 @@ function isValidHttpUrl(value: string): boolean {
 }
 
 export default function SubmitConferencePage() {
+  return <SubmitPageClient />;
+
   const [url, setUrl] = useState("");
   const [conferenceName, setConferenceName] = useState("");
   const [organizer, setOrganizer] = useState("");

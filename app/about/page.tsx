@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AppShell from "../components/AppShell";
+import AboutPageClient from "./AboutPageClient";
 
 function FeatureCard({
   title,
@@ -29,6 +30,8 @@ function FeatureCard({
 }
 
 export default function AboutPage() {
+  return <AboutPageClient />;
+
   return (
     <AppShell active="about">
       <div style={{ display: "grid", gap: "14px" }}>
