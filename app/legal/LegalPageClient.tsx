@@ -1,4 +1,5 @@
 import AppShell from "../components/AppShell";
+import type { PublicTickerEvent } from "../../lib/publicTickerEvents";
 
 type LegalIconKind = "notice" | "source" | "shield";
 
@@ -70,7 +71,11 @@ function LegalSection({
   );
 }
 
-export default function LegalPageClient() {
+export default function LegalPageClient({
+  tickerEvents,
+}: {
+  tickerEvents?: PublicTickerEvent[];
+}) {
   const nav = [
     ["notice", "Important Notice"],
     ["sources", "Information Sources"],
@@ -82,7 +87,7 @@ export default function LegalPageClient() {
   ] as const;
 
   return (
-    <AppShell active="legal">
+    <AppShell active="legal" tickerEvents={tickerEvents}>
       <div style={{ maxWidth: "1180px", margin: "0 auto", padding: "26px 10px 72px", display: "grid", gap: "22px" }}>
         <section className="ccc-about-hero" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(320px, 0.8fr)", gap: "26px", alignItems: "center", padding: "30px", borderRadius: "28px", background: "radial-gradient(circle at 16% 0%, rgba(59,130,246,0.2), transparent 38%), radial-gradient(circle at 84% 18%, rgba(245,158,11,0.12), transparent 30%), linear-gradient(135deg, rgba(8,31,55,0.97), rgba(5,20,36,0.99))", border: "1px solid rgba(107,157,210,0.24)", boxShadow: "0 24px 60px rgba(0,0,0,0.26)", overflow: "hidden" }}>
           <div style={{ minWidth: 0 }}>

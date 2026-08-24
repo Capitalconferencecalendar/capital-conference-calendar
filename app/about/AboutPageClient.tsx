@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AppShell from "../components/AppShell";
+import type { PublicTickerEvent } from "../../lib/publicTickerEvents";
 
 type IconKind = "radar" | "calendar" | "network" | "building";
 
@@ -97,9 +98,13 @@ function FeatureCard({
   );
 }
 
-export default function AboutPageClient() {
+export default function AboutPageClient({
+  tickerEvents,
+}: {
+  tickerEvents?: PublicTickerEvent[];
+}) {
   return (
-    <AppShell active="about">
+    <AppShell active="about" tickerEvents={tickerEvents}>
       <div
         style={{
           maxWidth: "1180px",
