@@ -105,6 +105,8 @@ type LeaderboardContextCard = {
 };
 type LeaderboardWindowAnalytics = {
   total: number;
+  startDate: string;
+  endDate: string;
   cityCounts: RankedCount[];
   organizerCounts: RankedCount[];
   sectorCounts: RankedCount[];
@@ -664,7 +666,7 @@ function buildLeaderboardWindow(events: DiscoveryEvent[], days: 30 | 60 | 90): L
   const eventCharacterCounts = ranked(windowEvents.flatMap((event) => splitCsv(event.eventCharacter || "")));
   const issuerParticipationCounts = ranked(windowEvents.flatMap((event) => splitCsv(event.issuerParticipation)));
   const leaderboardContext = buildLeaderboardContext(windowEvents, { cityCounts, organizerCounts, sectorCounts, focusCounts, eventCharacterCounts, issuerParticipationCounts });
-  return { total: windowEvents.length, cityCounts, organizerCounts, sectorCounts, focusCounts, eventCharacterCounts, issuerParticipationCounts, leaderboardContext };
+  return { total: windowEvents.length, startDate, endDate, cityCounts, organizerCounts, sectorCounts, focusCounts, eventCharacterCounts, issuerParticipationCounts, leaderboardContext };
 }
 
 function eventText(event: DiscoveryEvent) {
@@ -1124,7 +1126,7 @@ function filterEvents(events: InternalDiscoveryEvent[], query: DiscoveryQuery) {
     }
     if (ids.size && !ids.has(event.id)) return false;
     if (!search) return true;
-    return [event.title, event.organizer, event.city, event.state, event.primaryCategory, event.marketFocus, event.sectorThemes]
+    return [event.title, event.organizer, event.city, event.state, event.primaryCategory, event.marketFocus, event.sectorThemes, event.eventCharacter, event.issuerParticipation, event.publicCompanySector, event.additionalPublicCompanySectors]
       .join(" ")
       .toLowerCase()
       .includes(search);

@@ -65,6 +65,8 @@ type MarketAnalytics = {
   leaderboardContext?: LeaderboardContext;
   leaderboardWindows?: Record<"30" | "60" | "90", {
     total: number;
+    startDate?: string;
+    endDate?: string;
     cityCounts: [string, number][];
     organizerCounts: [string, number][];
     sectorCounts: [string, number][];
@@ -184,6 +186,23 @@ function discoveryHref({ fromDate, toDate, cities = [], eventIds = [] }: { fromD
   if (toDate) params.set("endDate", toDate);
   if (cities.length === 1) params.set("city", cities[0]);
   eventIds.forEach((eventId) => params.append("eventId", eventId));
+  return `/discovery?${params.toString()}`;
+}
+
+function leaderboardDiscoveryHref({ title, label, fromDate, toDate }: { title: string; label: string; fromDate?: string; toDate?: string }) {
+  const params = new URLSearchParams();
+  params.set("filterMode", "and");
+  params.set("sort", "soonest");
+  if (fromDate) params.set("startDate", fromDate);
+  if (toDate) params.set("endDate", toDate);
+
+  if (title === "Top Metros") params.append("city", label);
+  else if (title === "Top Organizers") params.append("organizer", label);
+  else if (title === "Top Public Company Sectors") params.append("publicCompanySector", label);
+  else if (title === "Top Market Focus Areas") params.append("marketFocus", label);
+  else if (title === "Top Access / Participation Profiles") params.append("issuerParticipation", /limited issuer access/i.test(label) ? "No Issuer Participation" : label);
+  else if (title === "Top Event Characters") params.set("q", label);
+
   return `/discovery?${params.toString()}`;
 }
 
@@ -690,6 +709,8 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const selectedLeaderboardWindow = displayAnalytics.leaderboardWindows?.[leaderboardWindowKey];
   const leaderboardSource = selectedLeaderboardWindow || {
     total: displayAggregates.events,
+    startDate: "",
+    endDate: "",
     cityCounts: displayAnalytics.cityCounts || [],
     organizerCounts: displayAnalytics.organizerCounts || [],
     sectorCounts: displayAnalytics.sectorCounts || displayAnalytics.themeCounts || [],
@@ -970,10 +991,14 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-league-row { display: grid; grid-template-columns: 20px minmax(0,1fr) auto; gap: 7px; align-items: center; padding: 6px 0; border-top: 1px solid rgba(120,168,212,.14); color: #b9cbe0; font-size: 11.5px; }
         .v3-league-row:first-of-type { border-top: 0; }
         .v3-league-main { display: grid; gap: 2px; min-width: 0; }
+        .v3-league-main a { min-width: 0; color: inherit; text-decoration: none; }
         .v3-league-main strong { color: #dcecff; font-size: 11.5px; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .v3-league-main a:hover strong { color: #7dd3fc; }
         .v3-league-main small { color: #88a1bc; font-size: 9.5px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .v3-league-rank { color: #76b8fb; font-size: 10px; font-weight: 900; }
         .v3-league-count { color: #e4f1ff; font-weight: 900; }
+        a.v3-league-count { text-decoration: none; }
+        a.v3-league-count:hover { color: #7dd3fc; }
         .v3-league-bar { grid-column: 2 / -1; height: 2px; border-radius: 999px; overflow: hidden; background: rgba(77,128,178,.16); }
         .v3-league-bar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#2563eb,#38bdf8); box-shadow: 0 0 8px rgba(56,189,248,.45); }
         .v3-league-signal { margin-top: 2px; padding-top: 7px; border-top: 1px solid rgba(120,168,212,.13); color: #9db7d1; font-size: 10.5px; line-height: 1.35; }
@@ -1317,12 +1342,15 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                 return <div className="v3-league-card" key={card.title}>
                   <h3>{card.title}</h3>
                   {insight ? <div className="v3-league-insight">{insight}</div> : null}
-                  {rows.length ? rows.slice(0, 5).map((row, index, list) => <div className="v3-league-row" key={row.label}>
-                    <span className="v3-league-rank">{index + 1}</span>
-                    <span className="v3-league-main"><strong>{row.label}</strong>{context?.rowContext?.[row.label] ? <small>{context.rowContext[row.label]}</small> : null}</span>
-                    <span className="v3-league-count">{row.count}</span>
-                    <div className="v3-league-bar"><span style={{ width: `${Math.max(8, Math.round((row.count / Math.max(...list.map((item) => item.count), 1)) * 100))}%` }} /></div>
-                  </div>) : <EmptyState>{card.empty}</EmptyState>}
+                  {rows.length ? rows.slice(0, 5).map((row, index, list) => {
+                    const rowHref = leaderboardDiscoveryHref({ title: card.title, label: row.label, fromDate: leaderboardSource.startDate, toDate: leaderboardSource.endDate });
+                    return <div className="v3-league-row" key={row.label}>
+                      <span className="v3-league-rank">{index + 1}</span>
+                      <span className="v3-league-main"><a href={rowHref}><strong>{row.label}</strong></a>{context?.rowContext?.[row.label] ? <small>{context.rowContext[row.label]}</small> : null}</span>
+                      <a className="v3-league-count" href={rowHref} aria-label={`View ${row.count} ${row.label} events in Discovery`}>{row.count}</a>
+                      <div className="v3-league-bar"><span style={{ width: `${Math.max(8, Math.round((row.count / Math.max(...list.map((item) => item.count), 1)) * 100))}%` }} /></div>
+                    </div>;
+                  }) : <EmptyState>{card.empty}</EmptyState>}
                   {context?.signalRead ? <div className="v3-league-signal">{context.signalRead}</div> : null}
                 </div>;
               })}

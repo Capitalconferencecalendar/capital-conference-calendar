@@ -1688,11 +1688,32 @@ export default function EventsClient({
     if (urlSeeded || typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const cityParams = params.getAll("city");
-    const startDateParam = params.get("startDate") || "";
-    const endDateParam = params.get("endDate") || "";
+    const startDateParam = params.get("startDate") || params.get("fromDate") || "";
+    const endDateParam = params.get("endDate") || params.get("toDate") || "";
+    const countryParams = params.getAll("country");
+    const regionParams = params.getAll("region");
+    const stateParams = params.getAll("state");
+    const sectorThemeParams = params.getAll("sectorTheme");
+    const publicCompanySectorParams = params.getAll("publicCompanySector");
+    const conferenceTypeParams = params.getAll("conferenceType");
+    const issuerParticipationParams = params.getAll("issuerParticipation");
+    const organizerParams = params.getAll("organizer");
+    const marketFocusParams = params.getAll("marketFocus");
     const eventIds = params.getAll("eventId").filter(Boolean);
-    if (cityParams.length || startDateParam || endDateParam || eventIds.length) {
-      setFilters((prev) => ({ ...prev, cities: cityParams.length ? cityParams : prev.cities }));
+    if (cityParams.length || startDateParam || endDateParam || eventIds.length || countryParams.length || regionParams.length || stateParams.length || sectorThemeParams.length || publicCompanySectorParams.length || conferenceTypeParams.length || issuerParticipationParams.length || organizerParams.length || marketFocusParams.length) {
+      setFilters((prev) => ({
+        ...prev,
+        country: countryParams.length ? countryParams : prev.country,
+        region: regionParams.length ? regionParams : prev.region,
+        state: stateParams.length ? stateParams : prev.state,
+        cities: cityParams.length ? cityParams : prev.cities,
+        sectorThemes: sectorThemeParams.length ? sectorThemeParams : prev.sectorThemes,
+        publicCompanySectors: publicCompanySectorParams.length ? publicCompanySectorParams : prev.publicCompanySectors,
+        conferenceType: conferenceTypeParams.length ? conferenceTypeParams : prev.conferenceType,
+        issuerParticipation: issuerParticipationParams.length ? issuerParticipationParams : prev.issuerParticipation,
+        organizer: organizerParams.length ? organizerParams : prev.organizer,
+        marketFocus: marketFocusParams.length ? marketFocusParams : prev.marketFocus,
+      }));
       if (startDateParam) setFromDate(startDateParam);
       if (endDateParam) setToDate(endDateParam);
       if (eventIds.length) setUrlEventIds(eventIds);
