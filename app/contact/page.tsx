@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AppShell from "../components/AppShell";
+import { getPublicTickerEvents } from "../../lib/publicTickerEvents";
 
 type ContactIconKind = "mail" | "submit" | "beta";
 
@@ -41,9 +42,11 @@ function ContactIcon({
   );
 }
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  const tickerEvents = await getPublicTickerEvents();
+
   return (
-    <AppShell active="contact">
+    <AppShell active="contact" tickerEvents={tickerEvents}>
       <div
         style={{
           maxWidth: "1180px",

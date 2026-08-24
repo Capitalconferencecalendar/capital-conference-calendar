@@ -1,6 +1,7 @@
 import Link from "next/link";
 import AppShell from "../components/AppShell";
 import AboutPageClient from "./AboutPageClient";
+import { getPublicTickerEvents } from "../../lib/publicTickerEvents";
 
 function FeatureCard({
   title,
@@ -29,8 +30,10 @@ function FeatureCard({
   );
 }
 
-export default function AboutPage() {
-  return <AboutPageClient />;
+export default async function AboutPage() {
+  const tickerEvents = await getPublicTickerEvents();
+
+  return <AboutPageClient tickerEvents={tickerEvents} />;
 
   return (
     <AppShell active="about">

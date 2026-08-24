@@ -1,5 +1,6 @@
 import AppShell from "../components/AppShell";
 import LegalPageClient from "./LegalPageClient";
+import { getPublicTickerEvents } from "../../lib/publicTickerEvents";
 
 function LegalSection({
   id,
@@ -26,8 +27,10 @@ function LegalSection({
   );
 }
 
-export default function LegalPage() {
-  return <LegalPageClient />;
+export default async function LegalPage() {
+  const tickerEvents = await getPublicTickerEvents();
+
+  return <LegalPageClient tickerEvents={tickerEvents} />;
 
   const nav = [
     ["notice", "Important Notice"],
