@@ -227,7 +227,7 @@ export default function Header({
           margin: "0 auto",
           padding: compactNav ? "8px 12px" : "10px 16px",
           display: "grid",
-          gridTemplateColumns: compactNav ? "auto minmax(0, 1fr)" : "210px minmax(0, 1fr) auto",
+          gridTemplateColumns: compactNav ? "auto minmax(0, 1fr)" : "280px minmax(0, 1fr) auto",
           gridTemplateAreas: compactNav
             ? "\"actions logo\" \"search search\""
             : "\"logo search actions\"",
@@ -245,7 +245,7 @@ export default function Header({
             textDecoration: "none",
             color: "#0f172a",
             width: compactNav ? "auto" : "100%",
-            minWidth: compactNav ? "180px" : "206px",
+            minWidth: compactNav ? "260px" : "272px",
             gridArea: "logo",
             justifySelf: compactNav ? "start" : "start",
             position: "relative",
@@ -255,16 +255,16 @@ export default function Header({
           }}
         >
           <img
-            src="/landing-database-logo-white.png"
+            src="/nav-database-logo.png"
             alt="Capital Conference Calendar"
             loading="eager"
             decoding="sync"
             style={{
-              height: compactNav ? "42px" : "38px",
+              height: compactNav ? "84px" : "76px",
               width: "auto",
               objectFit: "contain",
               display: "block",
-              maxWidth: "100%",
+              maxWidth: compactNav ? "min(68vw, 260px)" : "none",
               visibility: "visible",
               opacity: 1,
             }}
