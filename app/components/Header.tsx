@@ -89,7 +89,7 @@ function TopNavLink({
   isActive?: boolean;
   compact?: boolean;
 }) {
-  const isSubmit = icon === "submit" || label === "Request Access";
+  const isSubmit = icon === "submit" || label === "Submit";
   const isDesktopSecondary = !compact && (label === "About" || label === "Contact" || label === "Submit");
   return (
     <Link
@@ -99,8 +99,8 @@ function TopNavLink({
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        minWidth: compact ? "62px" : label === "Request Access" ? "116px" : label === "Submit" ? "72px" : "64px",
-        maxWidth: compact ? "74px" : label === "Request Access" ? "124px" : label === "Contact" ? "74px" : label === "Submit" ? "76px" : "68px",
+        minWidth: compact ? "62px" : label === "Submit" ? "72px" : "64px",
+        maxWidth: compact ? "74px" : label === "Contact" ? "74px" : label === "Submit" ? "76px" : "68px",
         height: compact ? "44px" : "36px",
         padding: compact ? "3px 5px" : "0 10px",
         borderRadius: compact ? "10px" : "8px",
@@ -147,8 +147,8 @@ function WorkspaceNavButton({
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        minWidth: label === "Request Access" ? "122px" : label === "Get Started" ? "110px" : label === "Market View" ? "118px" : "108px",
-        maxWidth: label === "Request Access" ? "130px" : label === "Get Started" ? "116px" : label === "Market View" ? "124px" : "114px",
+        minWidth: label === "Get Started" ? "110px" : label === "Market View" ? "118px" : "108px",
+        maxWidth: label === "Get Started" ? "116px" : label === "Market View" ? "124px" : "114px",
         height: "42px",
         padding: "0 10px",
         borderRadius: "10px",
@@ -308,8 +308,8 @@ export default function Header({
               }}
             >
               <WorkspaceNavButton
-                href="/#request-access"
-                label="Request Access"
+                href="/"
+                label="Get Started"
                 isActive={isGetStartedActive}
               />
             </div>
@@ -490,7 +490,7 @@ export default function Header({
                   }}
                 >
                   {[
-                    { href: "/#request-access", label: "Request Access", active: workspaceMode === "getstarted" },
+                    { href: "/", label: "Get Started", active: workspaceMode === "getstarted" },
                     { href: "/discovery", label: "Discovery", active: workspaceMode === "discovery" },
                     { href: "/market-view", label: "Market View", active: workspaceMode === "marketview" },
                     { href: "/about", label: "About", icon: "about" as const, active: active === "about" },
@@ -548,8 +548,8 @@ export default function Header({
                 isActive={active === "help"}
               />
               <TopNavLink
-                href="/#request-access"
-                label="Request Access"
+                href="/submit"
+                label="Submit"
                 icon="submit"
                 isActive={active === "submit"}
                 compact={false}
