@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import SharedFilterRail from "../components/platform/SharedFilterRail";
 import FilterMatchingControl, { type FilterMatchMode } from "../components/platform/FilterMatchingControl";
+import ControlPanel from "../components/platform/ControlPanel";
 
 const quickActions = ["Clear", "Share Selected", "Save Market View", "Save Selected"];
 
@@ -1372,110 +1373,20 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
           </section>
         </main>
 
-        <aside
-          className="right-rail ccc-scroll-rail ccc-scroll-rail-right"
-          style={{ position: "relative", alignSelf: "stretch", display: "grid", gap: "10px", minWidth: 0, minHeight: 0, width: "100%", maxWidth: "320px", height: "calc(100vh - 126px)", maxHeight: "calc(100vh - 126px)", overflow: "hidden", paddingRight: "1px" }}
-        >
-          <div style={{ width: "100%", height: "100%", maxHeight: "100%", overflow: "hidden" }}>
-            <div style={{ height: "100%", maxHeight: "100%", overflowY: "auto", overflowX: "hidden", overscrollBehaviorY: "contain", WebkitOverflowScrolling: "touch", padding: "10px 16px 16px", display: "grid", gap: "4px" }}>
-              <div style={{ marginBottom: 2, textAlign: "center", display: "grid", justifyItems: "center" }}>
-                <div style={{ color: "#dbeafe", fontWeight: 900, fontSize: "20px", lineHeight: 1.05, marginBottom: "6px" }}>Control Panel</div>
-                <div style={{ color: "#9db4d3", fontSize: "13px", lineHeight: 1.35, maxWidth: "230px", width: "100%", textAlign: "left", justifySelf: "stretch" }}>Export, save, sync, and manage this market view.</div>
-              </div>
-
-              <div
-                style={{
-                  padding: 0,
-                  overflow: "visible",
-                  position: "sticky",
-                  top: 0,
-                  zIndex: 8,
-                  background: "linear-gradient(180deg, rgba(13,35,62,0.98) 0%, rgba(8,25,46,0.96) 100%)",
-                  border: "1px solid rgba(88, 145, 230, 0.34)",
-                  borderRadius: "10px",
-                  boxShadow: "0 0 0 1px rgba(70,120,220,0.12), 0 12px 24px rgba(0,0,0,0.18)",
-                }}
-              >
-                <div style={{ width: "100%", minHeight: "42px", padding: "0 14px", color: "#dbeafe", display: "flex", alignItems: "center" }}>
-                  <span style={{ fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", display: "inline-flex", alignItems: "center", gap: "9px", textTransform: "uppercase" }}>
-                    <span style={{ width: "18px", height: "18px", color: "#8fc2ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind="sync" /></span>
-                    SYNC CALENDAR
-                  </span>
-                </div>
-                <div style={{ padding: "0 14px 14px" }}>
-                  <div style={{ color: "#c6d7ee", fontSize: 13, marginBottom: 12, lineHeight: 1.4 }}>Turn this market view into a live calendar workflow.</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "8px", marginBottom: "2px" }}>
-                    {[
-                      { label: "Google", brand: "google" as const },
-                      { label: "Apple", brand: "apple" as const },
-                      { label: "Outlook", brand: "outlook" as const },
-                    ].map((platform) => (
-                      <button
-                        type="button"
-                        key={platform.label}
-                        style={{ height: "36px", borderRadius: "10px", border: platform.label === "Outlook" ? "1px solid rgba(86, 180, 220, 0.34)" : "1px solid rgba(105, 153, 205, 0.28)", background: platform.label === "Apple" ? "rgba(8, 24, 43, 0.92)" : "rgba(11, 32, 56, 0.82)", color: "#dbeafe", fontSize: "12.5px", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px", fontWeight: 800 }}
-                      >
-                        <span style={{ width: "16px", height: "16px", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                          <CalendarBrandGlyph brand={platform.brand} />
-                        </span>
-                        {platform.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ padding: 0, overflow: "visible", background: "transparent", border: "none", boxShadow: "none", borderRadius: 0 }}>
-                <div style={{ width: "100%", height: "40px", padding: "0 4px", color: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", display: "inline-flex", alignItems: "center", gap: "9px", textTransform: "uppercase" }}>
-                    <span style={{ width: "18px", height: "18px", color: "#9ec5ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind="actions" /></span>
-                    QUICK ACTIONS
-                  </span>
-                  <span style={{ fontSize: "12px", color: "#8fb3df", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "5px" }}>0 selected</span>
-                </div>
-                <div style={{ display: "grid", gap: 8, padding: "0 4px 8px" }}>
-                  {quickActions.map((action, index) => (
-                    <button
-                      type="button"
-                      key={action}
-                      style={{ height: "38px", borderRadius: "10px", border: "1px solid rgba(92,136,184,0.28)", background: "rgba(17,38,67,0.9)", color: "#e7f2ff", fontSize: "13px", fontWeight: 800, cursor: "pointer", boxShadow: "0 0 10px rgba(59,130,246,0.12), inset 0 1px 0 rgba(255,255,255,0.06)", transition: "all 140ms ease", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 10px 0 12px" }}
-                    >
-                      <span>{action}</span>
-                      <span style={{ opacity: 0.95, display: "inline-flex", alignItems: "center" }}>
-                        <span style={{ color: ["#9fc3ff", "#8fd0ff", "#7ad6c8", "#ffbf66"][index] }}>
-                          <QuickActionIcon kind={["clear", "share", "saveView", "saveSelected"][index] as "clear" | "share" | "saveView" | "saveSelected"} />
-                        </span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {([
-                ["Saved Lists", "lists" as const],
-                ["Saved Views", "views" as const],
-              ] as const).map(([section, icon]) => (
-                <div key={section} style={{ width: "100%", minHeight: "48px", padding: 0, overflow: "visible", border: "1px solid rgba(205,220,239,0.18)", borderRadius: "10px", background: "linear-gradient(180deg, rgba(12,34,60,0.42), rgba(7,24,44,0.32))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04), 0 0 8px rgba(205,220,239,0.06)" }}>
-                  <button type="button" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", border: "none", background: "transparent", color: "#dbeafe", cursor: "pointer", padding: "0 14px", textAlign: "left", height: "48px" }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: "9px", fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", color: "#f1f7ff" }}>
-                      <span style={{ width: "18px", height: "18px", color: "#9ec5ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind={icon} /></span>
-                      {section}
-                    </span>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ color: "#9fc3e7", fontSize: 12, fontWeight: 700 }}>0 saved</span>
-                      <span style={{ color: "#9fb6d4", fontSize: 14, lineHeight: 1 }}>▸</span>
-                    </span>
-                  </button>
-                </div>
-              ))}
-
-              <div style={{ marginTop: "auto", padding: "18px 0 0", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", flexWrap: "wrap" }}>
-                <a className="right-rail-utility-pill" href="/subscribe">Subscribe</a>
-                <a className="right-rail-utility-pill" href="/legal">Legal</a>
-              </div>
-            </div>
-          </div>
-        </aside>
+        <ControlPanel
+          description="Export, save, sync, and manage this market view."
+          syncDescription="Turn this market view into a live calendar workflow."
+          selectedCount={0}
+          quickActions={quickActions.map((action, index) => ({
+            label: action,
+            kind: ["clear", "share", "saveView", "saveSelected"][index] as "clear" | "share" | "saveView" | "saveSelected",
+            accent: ["#9fc3ff", "#8fd0ff", "#7ad6c8", "#ffbf66"][index],
+          }))}
+          savedSections={[
+            { title: "Saved Lists", icon: "lists", count: 0 },
+            { title: "Saved Views", icon: "views", count: 0 },
+          ]}
+        />
       </div>
     </div>
   );

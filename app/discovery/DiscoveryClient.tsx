@@ -6,6 +6,7 @@ import ConcentrationStrip from "../components/ConcentrationStrip";
 import type { ConcentrationItem } from "../components/ConcentrationStrip";
 import SharedFilterRail from "../components/platform/SharedFilterRail";
 import FilterMatchingControl, { type FilterMatchMode } from "../components/platform/FilterMatchingControl";
+import ControlPanel from "../components/platform/ControlPanel";
 
 export type WorkspaceEvent = {
   id: string;
@@ -8447,432 +8448,146 @@ useEffect(() => {
         </div>
       </section>
 
-      <aside
-        className="right-rail ccc-scroll-rail ccc-scroll-rail-right"
-        style={{ position: "relative", alignSelf: "stretch", display: "grid", gap: "10px", minWidth: 0, minHeight: 0, width: "100%", maxWidth: "320px", height: PANEL_HEIGHT, maxHeight: PANEL_HEIGHT, overflow: "hidden", paddingRight: "1px" }}
-      >
-        <div
-          style={{
-            width: "100%",
-            height: "100%",
-            maxHeight: "100%",
-            overflow: "hidden",
-          }}
-        >
-          <div style={{ height: "100%", maxHeight: "100%", overflowY: "auto", overflowX: "hidden", overscrollBehaviorY: "contain", WebkitOverflowScrolling: "touch", padding: "16px", display: "grid", gap: "10px" }}>
-            <div style={{ marginBottom: "2px", textAlign: "center", display: "grid", justifyItems: "center" }}>
-              <div style={{ color: "#dbeafe", fontWeight: 900, fontSize: "20px", lineHeight: 1.05, marginBottom: "6px" }}>Control Panel</div>
-              <div style={{ color: "#9db4d3", fontSize: "13px", lineHeight: 1.35, maxWidth: "230px", width: "100%", textAlign: "left", justifySelf: "stretch" }}>
-                Export, save, sync, and manage this market view.
+      <ControlPanel
+        description="Export, save, sync, and manage selected conferences."
+        syncDescription="Turn this conference view into a live calendar workflow."
+        selectedCount={selectedEvents.length}
+        panelHeight={PANEL_HEIGHT}
+        calendarPlatforms={[
+          { label: "Google", brand: "google", platform: "Google Calendar", onClick: () => openCalendarSync("Google Calendar") },
+          { label: "Apple", brand: "apple", platform: "Apple Calendar", onClick: () => openCalendarSync("Apple Calendar") },
+          { label: "Outlook", brand: "outlook", platform: "Outlook", onClick: () => openCalendarSync("Outlook") },
+        ]}
+        quickActions={[
+          {
+            label: "Clear",
+            kind: "clear",
+            accent: "#9fc3ff",
+            active: activeToolbarAction === "clear",
+            onClick: () => {
+              markToolbarAction("clear");
+              clearWorkspaceView();
+            },
+            onMouseEnter: () => setToolbarHelpText("Reset filters, selections, and quick views to default."),
+            onMouseLeave: () => setToolbarHelpText(""),
+          },
+          {
+            label: "Share Selected",
+            kind: "share",
+            accent: "#8fd0ff",
+            active: activeToolbarAction === "share",
+            onClick: () => {
+              markToolbarAction("share");
+              shareSelected();
+            },
+            onMouseEnter: () => setToolbarHelpText("Open an email draft with up to 20 selected events and links."),
+            onMouseLeave: () => setToolbarHelpText(""),
+          },
+          {
+            label: "Save Market View",
+            kind: "saveView",
+            accent: "#7ad6c8",
+            active: activeToolbarAction === "view",
+            onClick: () => {
+              markToolbarAction("view");
+              saveCurrentView();
+            },
+            onMouseEnter: () => setToolbarHelpText("Save your current filters as a local market view preset."),
+            onMouseLeave: () => setToolbarHelpText(""),
+          },
+          {
+            label: "Save Selected",
+            kind: "saveSelected",
+            accent: "#ffbf66",
+            active: activeToolbarAction === "save" || saveMenuOpen,
+            containerRef: saveMenuRef,
+            onClick: () => {
+              markToolbarAction("save");
+              setSaveMenuOpen((v) => !v);
+            },
+            onMouseEnter: () => setToolbarHelpText("Save selected conferences to a new or existing local list."),
+            onMouseLeave: () => setToolbarHelpText(""),
+            menu: saveMenuOpen ? (
+              <div style={{ position: "absolute", top: "35px", left: 0, right: 0, zIndex: 400, borderRadius: "10px", border: "1px solid rgba(96,165,250,0.3)", background: "linear-gradient(180deg, rgba(8,30,53,0.98) 0%, rgba(7,25,45,0.98) 100%)", boxShadow: "0 14px 28px rgba(4,12,22,0.38)", padding: "10px", display: "grid", gap: "8px" }}>
+                <div style={{ fontSize: "11px", color: "#9ec4e9", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>Save Events To</div>
+                <select value={saveListChoice} onChange={(event) => setSaveListChoice(event.target.value)} style={{ height: "34px", borderRadius: "8px", background: "#08223d", color: "#e2e8f0", border: "1px solid rgba(96,165,250,0.3)", padding: "0 8px" }}>
+                  <option value="new">Create New List</option>
+                  {savedLists.map((list) => (
+                    <option key={list.id} value={list.id}>{list.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (saveListChoice === "new") {
+                      addSelectedToNewList();
+                    } else {
+                      addSelectedToExistingList(saveListChoice);
+                    }
+                    setSaveMenuOpen(false);
+                    setSaveListChoice("new");
+                  }}
+                  style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(96,165,250,0.44)", background: "rgba(37,99,235,0.24)", color: "#dbeafe", fontWeight: 700, cursor: "pointer" }}
+                >
+                  Save
+                </button>
               </div>
-            </div>
-
-          <div
-            style={{
-              ...rightRailSectionCardStyle,
-              padding: 0,
-              overflow: "visible",
-              position: "sticky",
-              top: 0,
-              zIndex: 8,
-              background: "linear-gradient(180deg, rgba(13,35,62,0.98) 0%, rgba(8,25,46,0.96) 100%)",
-              border: "1px solid rgba(88, 145, 230, 0.34)",
-              boxShadow: "0 0 0 1px rgba(70,120,220,0.12), 0 12px 24px rgba(0,0,0,0.18)",
-            }}
-          >
-            <div style={{ width: "100%", minHeight: "42px", padding: "0 14px", color: "#dbeafe", display: "flex", alignItems: "center" }}>
-              <span style={{ fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", display: "inline-flex", alignItems: "center", gap: "9px", textTransform: "uppercase" }}>
-                <span style={{ width: "18px", height: "18px", color: "#8fc2ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind="sync" /></span>
-                SYNC CALENDAR
-              </span>
-            </div>
-            <div style={{ padding: "0 14px 14px 14px" }}>
-              <div style={{ color: "#c6d7ee", fontSize: "13px", marginBottom: "12px", lineHeight: 1.4 }}>
-                Turn this market view into a live calendar workflow.
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "8px", marginBottom: "2px" }}>
-                {[
-                  { label: "Google", brand: "google" as const, platform: "Google Calendar" as const },
-                  { label: "Apple", brand: "apple" as const, platform: "Apple Calendar" as const },
-                  { label: "Outlook", brand: "outlook" as const, platform: "Outlook" as const },
-                ].map((platform) => (
-                  <button
-                    key={platform.label}
-                    type="button"
-                    onClick={() => openCalendarSync(platform.platform)}
-                    style={{
-                      height: "36px",
-                      borderRadius: "10px",
-                      border: platform.label === "Outlook" ? "1px solid rgba(86, 180, 220, 0.34)" : "1px solid rgba(105, 153, 205, 0.28)",
-                      background: platform.label === "Apple" ? "rgba(8, 24, 43, 0.92)" : "rgba(11, 32, 56, 0.82)",
-                      color: "#dbeafe",
-                      fontSize: "12.5px",
-                      cursor: "pointer",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "6px",
-                      fontWeight: 800,
-                    }}
-                  >
-                    <span style={{ width: "16px", height: "16px", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                      <CalendarBrandGlyph brand={platform.brand} />
-                    </span>
-                    {platform.label}
-                  </button>
+            ) : null,
+          },
+        ]}
+        savedSections={[
+          {
+            title: "Saved Lists",
+            icon: "lists",
+            count: savedLists.length,
+            isOpen: savedConferenceListsOpen,
+            onToggle: () => setSavedConferenceListsOpen((value) => !value),
+            children: savedLists.length ? (
+              <div style={{ display: "grid", gap: "8px", padding: "0 14px 14px" }}>
+                {savedLists.map((list) => (
+                  <div key={list.id} style={{ border: "1px solid rgba(147,197,253,0.18)", borderRadius: "10px", padding: "10px 10px 9px" }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "10px", marginBottom: "4px" }}>
+                      <div style={{ color: "#dbeafe", fontSize: "12px", lineHeight: 1.3, fontWeight: 700 }}>{list.name}</div>
+                      <button type="button" onClick={() => deleteSavedList(list.id)} style={{ height: "20px", minWidth: "20px", borderRadius: "6px", border: "1px solid rgba(190,102,122,0.36)", background: "rgba(118,46,63,0.18)", color: "#f2b7c4", fontSize: "11px", lineHeight: 1, cursor: "pointer", padding: "0 6px" }} title="Delete saved list">✕</button>
+                    </div>
+                    <div style={{ color: "#93c5fd", fontSize: "10.5px", marginBottom: "8px" }}>{list.eventIds.length} events • Updated {new Date(list.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
+                    <button type="button" onClick={() => loadSavedList(list.id)} style={{ height: "26px", borderRadius: "7px", border: "1px solid rgba(147,197,253,0.28)", background: "rgba(147,197,253,0.08)", color: "#dbeafe", fontSize: "10.5px", cursor: "pointer", padding: "0 10px" }}>Load</button>
+                  </div>
                 ))}
               </div>
-            </div>
-          </div>
-          <div style={{ padding: 0, overflow: "visible", background: "transparent", border: "none", boxShadow: "none", borderRadius: 0 }}>
-            <div
-              style={{ width: "100%", height: "40px", padding: "0 4px", color: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "space-between" }}
-            >
-              <span style={{ fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", display: "inline-flex", alignItems: "center", gap: "9px", textTransform: "uppercase" }}>
-                <span style={{ width: "18px", height: "18px", color: "#9ec5ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind="actions" /></span>
-                QUICK ACTIONS
-              </span>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ fontSize: "12px", color: "#8fb3df", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "5px" }}>
-                  {selectedEvents.length > 0 ? <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: "#60a5fa", display: "inline-block" }} /> : null}
-                  {selectedEvents.length} selected
-                </span>
-              </span>
-            </div>
-            <div style={{ display: "grid", gap: "8px", padding: "0 4px 8px 4px" }}>
-            <div style={{ display: "grid", gap: "8px" }}>
-              <button
-                onClick={() => {
-                  markToolbarAction("clear");
-                  clearWorkspaceView();
-                }}
-                onMouseEnter={() => setToolbarHelpText("Reset filters, selections, and quick views to default.")}
-                onMouseLeave={() => setToolbarHelpText("")}
-                style={{
-                  height: "38px",
-                  borderRadius: "10px",
-                  border: activeToolbarAction === "clear" ? "1px solid rgba(125,182,255,0.58)" : "1px solid rgba(92,136,184,0.28)",
-                  background: activeToolbarAction === "clear" ? "linear-gradient(180deg, rgba(24,58,100,0.98), rgba(17,42,78,0.96))" : "rgba(17,38,67,0.9)",
-                  color: "#e7f2ff",
-                  fontSize: "13px",
-                  fontWeight: 800,
-                  cursor: "pointer",
-                  boxShadow: activeToolbarAction === "clear" ? "0 0 0 1px rgba(96,165,250,0.28), 0 0 14px rgba(59,130,246,0.24), inset 0 1px 0 rgba(255,255,255,0.08)" : "0 0 10px rgba(59,130,246,0.12), inset 0 1px 0 rgba(255,255,255,0.06)",
-                  transition: "all 140ms ease",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "0 10px 0 12px",
-                }}
-              >
-                <span>Clear</span>
-                <span style={{ opacity: 0.95, display: "inline-flex", alignItems: "center" }}>
-                    <span style={{ color: "#9fc3ff" }}><QuickActionIcon kind="clear" /></span>
-                  </span>
-                </button>
-              <button
-                onClick={() => {
-                  markToolbarAction("share");
-                  shareSelected();
-                }}
-                onMouseEnter={() => setToolbarHelpText("Open an email draft with up to 20 selected events and links.")}
-                onMouseLeave={() => setToolbarHelpText("")}
-                style={{
-                  height: "38px",
-                  borderRadius: "10px",
-                  border: activeToolbarAction === "share" ? "1px solid rgba(125,182,255,0.58)" : "1px solid rgba(92,136,184,0.28)",
-                  background: activeToolbarAction === "share" ? "linear-gradient(180deg, rgba(24,58,100,0.98), rgba(17,42,78,0.96))" : "rgba(17,38,67,0.9)",
-                  color: "#e7f2ff",
-                  fontSize: "13px",
-                  fontWeight: 800,
-                  cursor: "pointer",
-                  boxShadow: activeToolbarAction === "share" ? "0 0 0 1px rgba(96,165,250,0.28), 0 0 14px rgba(59,130,246,0.24), inset 0 1px 0 rgba(255,255,255,0.08)" : "0 0 10px rgba(59,130,246,0.12), inset 0 1px 0 rgba(255,255,255,0.06)",
-                  transition: "all 140ms ease",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "0 10px 0 12px",
-                }}
-              >
-                <span>Share Selected</span>
-                <span style={{ opacity: 0.95, display: "inline-flex", alignItems: "center" }}>
-                    <span style={{ color: "#8fd0ff" }}><QuickActionIcon kind="share" /></span>
-                  </span>
-                </button>
-              <button
-                onClick={() => {
-                  markToolbarAction("view");
-                  saveCurrentView();
-                }}
-                onMouseEnter={() => setToolbarHelpText("Save your current filters as a local market view preset.")}
-                onMouseLeave={() => setToolbarHelpText("")}
-                style={{
-                  height: "38px",
-                  borderRadius: "10px",
-                  border: activeToolbarAction === "view" ? "1px solid rgba(125,182,255,0.58)" : "1px solid rgba(92,136,184,0.28)",
-                  background: activeToolbarAction === "view" ? "linear-gradient(180deg, rgba(24,58,100,0.98), rgba(17,42,78,0.96))" : "rgba(17,38,67,0.9)",
-                  color: "#e7f2ff",
-                  fontSize: "13px",
-                  fontWeight: 800,
-                  cursor: "pointer",
-                  boxShadow: activeToolbarAction === "view" ? "0 0 0 1px rgba(96,165,250,0.28), 0 0 14px rgba(59,130,246,0.24), inset 0 1px 0 rgba(255,255,255,0.08)" : "0 0 10px rgba(59,130,246,0.12), inset 0 1px 0 rgba(255,255,255,0.06)",
-                  transition: "all 140ms ease",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "0 10px 0 12px",
-                }}
-              >
-                <span>Save Market View</span>
-                <span style={{ opacity: 0.95, display: "inline-flex", alignItems: "center" }}>
-                    <span style={{ color: "#7ad6c8" }}><QuickActionIcon kind="saveView" /></span>
-                  </span>
-                </button>
-              <div ref={saveMenuRef} style={{ position: "relative" }}>
-                <button
-                  onClick={() => {
-                    markToolbarAction("save");
-                    setSaveMenuOpen((v) => !v);
-                  }}
-                  onMouseEnter={() => setToolbarHelpText("Save selected conferences to a new or existing local list.")}
-                  onMouseLeave={() => setToolbarHelpText("")}
-                  style={{
-                    width: "100%",
-                    height: "38px",
-                    borderRadius: "10px",
-                    border: activeToolbarAction === "save" || saveMenuOpen ? "1px solid rgba(125,182,255,0.58)" : "1px solid rgba(92,136,184,0.28)",
-                    background: activeToolbarAction === "save" || saveMenuOpen ? "linear-gradient(180deg, rgba(24,58,100,0.98), rgba(17,42,78,0.96))" : "rgba(17,38,67,0.9)",
-                    color: "#e7f2ff",
-                    fontSize: "13px",
-                    fontWeight: 800,
-                    cursor: "pointer",
-                    boxShadow: activeToolbarAction === "save" || saveMenuOpen ? "0 0 0 1px rgba(96,165,250,0.28), 0 0 14px rgba(59,130,246,0.24), inset 0 1px 0 rgba(255,255,255,0.08)" : "0 0 10px rgba(59,130,246,0.12), inset 0 1px 0 rgba(255,255,255,0.06)",
-                    transition: "all 140ms ease",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "0 10px 0 12px",
-                  }}
-                >
-                  <span>Save Selected</span>
-                  <span style={{ opacity: 0.95, display: "inline-flex", alignItems: "center" }}>
-                    <span style={{ color: "#ffbf66" }}><QuickActionIcon kind="saveSelected" /></span>
-                  </span>
-                </button>
-                {saveMenuOpen ? (
-                  <div style={{ position: "absolute", top: "35px", left: 0, right: 0, zIndex: 400, borderRadius: "10px", border: "1px solid rgba(96,165,250,0.3)", background: "linear-gradient(180deg, rgba(8,30,53,0.98) 0%, rgba(7,25,45,0.98) 100%)", boxShadow: "0 14px 28px rgba(4,12,22,0.38)", padding: "10px", display: "grid", gap: "8px" }}>
-                    <div style={{ fontSize: "11px", color: "#9ec4e9", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>Save Events To</div>
-                    <select value={saveListChoice} onChange={(e) => setSaveListChoice(e.target.value)} style={{ height: "34px", borderRadius: "8px", background: "#08223d", color: "#e2e8f0", border: "1px solid rgba(96,165,250,0.3)", padding: "0 8px" }}>
-                      <option value="new">Create New List</option>
-                      {savedLists.map((list) => (
-                        <option key={list.id} value={list.id}>
-                          {list.name}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (saveListChoice === "new") {
-                          addSelectedToNewList();
-                        } else {
-                          addSelectedToExistingList(saveListChoice);
-                        }
-                        setSaveMenuOpen(false);
-                        setSaveListChoice("new");
-                      }}
-                      style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(96,165,250,0.44)", background: "rgba(37,99,235,0.24)", color: "#dbeafe", fontWeight: 700, cursor: "pointer" }}
-                    >
-                      Save
-                    </button>
-                  </div>
-                ) : null}
-            </div>
-		            </div>
-		            </div>
-		          </div>
-
-	          <div style={{ ...rightRailSectionCardStyle, padding: 0, overflow: "visible", background: "rgba(7,24,44,0.62)", border: "1px solid rgba(86,122,166,0.18)" }}>
-            <button
-              type="button"
-              onClick={() => setSavedConferenceListsOpen((v) => !v)}
-              style={{
-                width: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "8px",
-                border: "none",
-                background: "transparent",
-                color: "#dbeafe",
-                cursor: "pointer",
-                padding: "0 14px",
-                textAlign: "left",
-                height: "46px",
-              }}
-            >
-              <div style={{ display: "inline-flex", alignItems: "center", gap: "9px", fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", color: "#f1f7ff" }}>
-                <span style={{ width: "18px", height: "18px", color: "#9ec5ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind="lists" /></span>
-                SAVED LISTS
+            ) : (
+              <div style={{ color: "#9fb6d4", fontSize: "12.5px", lineHeight: 1.4, padding: "0 14px 14px" }}>
+                No saved lists yet.<br />Select events, then use Save Selected.
               </div>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ color: "#9fc3e7", fontSize: "12px", fontWeight: 700 }}>
-                  {savedLists.length} saved
-                </span>
-                <span style={{ color: "#9fb6d4", fontSize: "14px", lineHeight: 1 }}>{savedConferenceListsOpen ? "▾" : "▸"}</span>
-              </span>
-            </button>
-            {savedConferenceListsOpen ? (
-              savedLists.length ? (
-                <div style={{ display: "grid", gap: "8px", padding: "0 14px 14px 14px" }}>
-                  {savedLists.map((list) => (
-                    <div key={list.id} style={{ border: "1px solid rgba(147,197,253,0.18)", borderRadius: "10px", padding: "10px 10px 9px" }}>
-                      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "10px", marginBottom: "4px" }}>
-                        <div style={{ color: "#dbeafe", fontSize: "12px", lineHeight: 1.3, fontWeight: 700 }}>{list.name}</div>
-                        <button
-                          type="button"
-                          onClick={() => deleteSavedList(list.id)}
-                          style={{
-                            height: "20px",
-                            minWidth: "20px",
-                            borderRadius: "6px",
-                            border: "1px solid rgba(190,102,122,0.36)",
-                            background: "rgba(118,46,63,0.18)",
-                            color: "#f2b7c4",
-                            fontSize: "11px",
-                            lineHeight: 1,
-                            cursor: "pointer",
-                            padding: "0 6px",
-                          }}
-                          title="Delete saved list"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                      <div style={{ color: "#93c5fd", fontSize: "10.5px", marginBottom: "8px" }}>
-                        {list.eventIds.length} events • Updated {new Date(list.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => loadSavedList(list.id)}
-                        style={{
-                          height: "26px",
-                          borderRadius: "7px",
-                          border: "1px solid rgba(147,197,253,0.28)",
-                          background: "rgba(147,197,253,0.08)",
-                          color: "#dbeafe",
-                          fontSize: "10.5px",
-                          cursor: "pointer",
-                          padding: "0 10px",
-                        }}
-                      >
-                        Load
-                      </button>
+            ),
+          },
+          {
+            title: "Saved Views",
+            icon: "views",
+            count: savedViews.length,
+            isOpen: savedMarketViewsOpen,
+            onToggle: () => setSavedMarketViewsOpen((value) => !value),
+            children: savedViews.length ? (
+              <div style={{ display: "grid", gap: "8px", padding: "0 14px 14px" }}>
+                {savedViews.map((view) => (
+                  <div key={view.id} style={{ border: "1px solid rgba(147,197,253,0.18)", borderRadius: "10px", padding: "10px 10px 9px" }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "10px", marginBottom: "4px" }}>
+                      <div style={{ color: "#dbeafe", fontSize: "12px", lineHeight: 1.3, fontWeight: 700 }}>{view.name}</div>
+                      <button type="button" onClick={() => deleteSavedView(view.id)} style={{ height: "20px", minWidth: "20px", borderRadius: "6px", border: "1px solid rgba(190,102,122,0.36)", background: "rgba(118,46,63,0.18)", color: "#f2b7c4", fontSize: "11px", lineHeight: 1, cursor: "pointer", padding: "0 6px" }} title="Delete saved view">✕</button>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div style={{ color: "#9fb6d4", fontSize: "12.5px", lineHeight: 1.4, padding: "0 14px 14px 14px" }}>
-                  No saved lists yet.
-                  <br />
-                  Select events, then use Save Selected.
-                </div>
-              )
-            ) : null}
-          </div>
-
-	          <div style={{ ...rightRailSectionCardStyle, padding: 0, overflow: "visible", background: "rgba(7,24,44,0.62)", border: "1px solid rgba(86,122,166,0.18)" }}>
-            <button
-              type="button"
-              onClick={() => setSavedMarketViewsOpen((v) => !v)}
-              style={{
-                width: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "8px",
-                border: "none",
-                background: "transparent",
-                color: "#dbeafe",
-                cursor: "pointer",
-                padding: "0 14px",
-                textAlign: "left",
-                height: "46px",
-              }}
-            >
-              <div style={{ display: "inline-flex", alignItems: "center", gap: "9px", fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", color: "#f1f7ff" }}>
-                <span style={{ width: "18px", height: "18px", color: "#9ec5ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind="views" /></span>
-                SAVED VIEWS
+                    <div style={{ color: "#93c5fd", fontSize: "10.5px", marginBottom: "8px" }}>{view.eventCount ?? 0} events • Updated {new Date(view.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
+                    <button type="button" onClick={() => loadSavedView(view.id)} style={{ height: "26px", borderRadius: "7px", border: "1px solid rgba(147,197,253,0.28)", background: "rgba(147,197,253,0.08)", color: "#dbeafe", fontSize: "10.5px", cursor: "pointer", padding: "0 10px" }}>Load</button>
+                  </div>
+                ))}
               </div>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ color: "#9fc3e7", fontSize: "12px", fontWeight: 700 }}>
-                  {savedViews.length} saved
-                </span>
-                <span style={{ color: "#9fb6d4", fontSize: "14px", lineHeight: 1 }}>{savedMarketViewsOpen ? "▾" : "▸"}</span>
-              </span>
-            </button>
-            {savedMarketViewsOpen ? (
-              <>
-                {savedViews.length ? (
-                  <div style={{ display: "grid", gap: "8px", padding: "0 14px 14px 14px" }}>
-                    {savedViews.map((v) => (
-                      <div key={v.id} style={{ border: "1px solid rgba(147,197,253,0.18)", borderRadius: "10px", padding: "10px 10px 9px" }}>
-                        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "10px", marginBottom: "4px" }}>
-                          <div style={{ color: "#dbeafe", fontSize: "12px", lineHeight: 1.3, fontWeight: 700 }}>{v.name}</div>
-                          <button
-                            type="button"
-                            onClick={() => deleteSavedView(v.id)}
-                            style={{
-                              height: "20px",
-                              minWidth: "20px",
-                              borderRadius: "6px",
-                              border: "1px solid rgba(190,102,122,0.36)",
-                              background: "rgba(118,46,63,0.18)",
-                              color: "#f2b7c4",
-                              fontSize: "11px",
-                              lineHeight: 1,
-                              cursor: "pointer",
-                              padding: "0 6px",
-                            }}
-                            title="Delete saved view"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                        <div style={{ color: "#93c5fd", fontSize: "10.5px", marginBottom: "8px" }}>
-                          {(v.eventCount ?? 0)} events • Updated {new Date(v.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                        </div>
-                        <button type="button" onClick={() => loadSavedView(v.id)} style={{ height: "26px", borderRadius: "7px", border: "1px solid rgba(147,197,253,0.28)", background: "rgba(147,197,253,0.08)", color: "#dbeafe", fontSize: "10.5px", cursor: "pointer", padding: "0 10px" }}>Load</button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ color: "#9fb6d4", fontSize: "12.5px", lineHeight: 1.4, padding: "0 14px 14px 14px" }}>
-                    No saved views yet.
-                    <br />
-                    Save your current filters to return to this market view later.
-                  </div>
-                )}
-              </>
-            ) : null}
-          </div>
-
-          <div style={{ paddingTop: "12px", marginTop: "6px", borderTop: "1px solid rgba(90, 124, 166, 0.16)" }}>
-            <div style={{ fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", color: "#8fb7e8", textTransform: "uppercase", marginBottom: "8px", display: "inline-flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ width: "16px", height: "16px", color: "#7fb4ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind="status" /></span>
-              WORKSPACE STATUS
-            </div>
-            <div style={{ display: "grid", gap: "8px", color: "#c9d8ed", fontSize: "12.5px", lineHeight: 1.3, marginTop: "10px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}><span style={{ width: "7px", height: "7px", borderRadius: "999px", background: "#22c55e", display: "inline-block" }} />Conference index: Live</div>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}><span style={{ width: "7px", height: "7px", borderRadius: "999px", background: "#57a6ff", display: "inline-block" }} />Calendar feed: Ready</div>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}><span style={{ width: "7px", height: "7px", borderRadius: "999px", background: "#6eb6ff", display: "inline-block" }} />Saved views: Local browser</div>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}><span style={{ width: "7px", height: "7px", borderRadius: "999px", background: "#9aaec8", display: "inline-block" }} />Last refresh: Recently</div>
-            </div>
-          </div>
-
-        </div>
-        </div>
-      </aside>
+            ) : (
+              <div style={{ color: "#9fb6d4", fontSize: "12.5px", lineHeight: 1.4, padding: "0 14px 14px" }}>
+                No saved views yet.<br />Save your current filters to return to this market view later.
+              </div>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }
