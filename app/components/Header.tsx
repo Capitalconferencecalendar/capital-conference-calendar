@@ -265,6 +265,8 @@ export default function Header({
               objectFit: "contain",
               display: "block",
               maxWidth: "100%",
+              transform: "scale(2)",
+              transformOrigin: "left center",
               visibility: "visible",
               opacity: 1,
             }}
