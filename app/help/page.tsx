@@ -98,7 +98,7 @@ export default function HelpPage() {
           </Link>
 
           <Link
-            href="/submit"
+            href="/#request-access"
             style={{
               textDecoration: "none",
               border: "1px solid #d7dde5",

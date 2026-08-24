@@ -192,7 +192,7 @@ export default function AboutPage() {
           <div style={{ fontSize: "15px", color: "#334155", lineHeight: 1.6 }}>
             General inquiries: <a href="mailto:info@capitalconferencecalendar.com" style={{ color: "#0f3d75", textDecoration: "none" }}>info@capitalconferencecalendar.com</a>
             <br />
-            Conference submissions: <Link href="/submit" style={{ color: "#0f3d75", textDecoration: "none" }}>Use the Submit Conference page</Link>
+            Conference submissions: <Link href="/#request-access" style={{ color: "#0f3d75", textDecoration: "none" }}>Request beta access</Link>
           </div>
         </section>
 
@@ -205,7 +205,7 @@ export default function AboutPage() {
             <Link href="/events#calendar-feed" style={{ textDecoration: "none", height: "40px", display: "inline-flex", alignItems: "center", padding: "0 14px", borderRadius: "10px", border: "1px solid #0f2d4f", backgroundColor: "#0f2d4f", color: "#fff", fontSize: "14px", fontWeight: 700 }}>
               Open Calendar Feed Builder
             </Link>
-            <Link href="/submit" style={{ textDecoration: "none", height: "40px", display: "inline-flex", alignItems: "center", padding: "0 14px", borderRadius: "10px", border: "1px solid #d7dde5", backgroundColor: "#ffffff", color: "#334155", fontSize: "14px", fontWeight: 700 }}>
+            <Link href="/#request-access" style={{ textDecoration: "none", height: "40px", display: "inline-flex", alignItems: "center", padding: "0 14px", borderRadius: "10px", border: "1px solid #d7dde5", backgroundColor: "#ffffff", color: "#334155", fontSize: "14px", fontWeight: 700 }}>
               Submit a Conference
             </Link>
           </div>

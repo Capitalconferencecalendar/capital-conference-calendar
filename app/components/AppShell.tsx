@@ -148,17 +148,17 @@ export default function AppShell({
               {
                 title: "Explore",
                 links: [
-                  { label: "Get Started", href: "/?mode=getstarted" },
-                  { label: "Discovery", href: "/?mode=market" },
-                  { label: "Market View", href: "/?mode=marketview" },
+                  { label: "Get Started", href: "/" },
+                  { label: "Discovery", href: "/discovery" },
+                  { label: "Market View", href: "/market-view" },
                 ],
               },
               {
                 title: "Company",
                 links: [
-                  { label: "About", href: "/about" },
-                  { label: "Contact", href: "/help" },
-                  { label: "Submit", href: "/submit" },
+                  { label: "About", href: "/" },
+                  { label: "Contact", href: "/#request-access" },
+                  { label: "Submit", href: "/#request-access" },
                 ],
               },
               {
