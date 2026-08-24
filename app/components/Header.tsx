@@ -255,7 +255,7 @@ export default function Header({
           }}
         >
           <img
-            src="/logo.png"
+            src="/landing-database-logo-white.png"
             alt="Capital Conference Calendar"
             loading="eager"
             decoding="sync"
