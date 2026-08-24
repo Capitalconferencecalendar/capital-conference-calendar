@@ -43,7 +43,7 @@ function ContactIcon({
 
 export default function ContactPage() {
   return (
-    <AppShell active="help">
+    <AppShell active="contact">
       <div
         style={{
           maxWidth: "1180px",

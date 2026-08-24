@@ -3,7 +3,7 @@ import EventTicker from "./EventTicker";
 import Link from "next/link";
 
 type AppShellProps = {
-  active?: "dashboard" | "events" | "feeds" | "submit" | "help" | "about" | "legal";
+  active?: "dashboard" | "events" | "feeds" | "submit" | "help" | "about" | "contact" | "legal";
   searchQuery?: string;
   workspaceMode?: "getstarted" | "discovery" | "marketview";
   fixedDesktopPreview?: boolean;

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 type HeaderProps = {
-  active?: "dashboard" | "events" | "feeds" | "submit" | "help" | "about" | "legal" | "subscribe";
+  active?: "dashboard" | "events" | "feeds" | "submit" | "help" | "about" | "contact" | "legal" | "subscribe";
   searchQuery?: string;
   workspaceMode?: "getstarted" | "discovery" | "marketview";
 };
@@ -494,7 +494,7 @@ export default function Header({
                     { href: "/discovery", label: "Discovery", active: workspaceMode === "discovery" },
                     { href: "/market-view", label: "Market View", active: workspaceMode === "marketview" },
                     { href: "/about", label: "About", icon: "about" as const, active: active === "about" },
-                    { href: "/contact", label: "Contact", icon: "contact" as const, active: active === "help" },
+                    { href: "/contact", label: "Contact", icon: "contact" as const, active: active === "contact" },
                     { href: "/submit", label: "Submit", icon: "submit" as const, active: active === "submit" },
                     { href: "/legal", label: "Legal", icon: "legal" as const, active: active === "legal" },
                     { href: "/subscribe", label: "Subscribe", icon: "subscribe" as const, active: active === "subscribe" },
