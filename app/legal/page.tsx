@@ -1,4 +1,5 @@
 import AppShell from "../components/AppShell";
+import LegalPageClient from "./LegalPageClient";
 
 function LegalSection({
   id,
@@ -26,6 +27,8 @@ function LegalSection({
 }
 
 export default function LegalPage() {
+  return <LegalPageClient />;
+
   const nav = [
     ["notice", "Important Notice"],
     ["sources", "Information Sources"],

@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import AppShell from "../components/AppShell";
+import SubscribePageClient from "./SubscribePageClient";
 
 function ReceiveCard({ title, copy }: { title: string; copy: string }) {
   return (
@@ -23,6 +24,8 @@ function ReceiveCard({ title, copy }: { title: string; copy: string }) {
 }
 
 export default function SubscribePage() {
+  return <SubscribePageClient />;
+
   const [email, setEmail] = useState("");
   const [company, setCompany] = useState("");
   const [role, setRole] = useState("");
