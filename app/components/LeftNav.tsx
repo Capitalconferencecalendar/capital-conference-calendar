@@ -182,9 +182,9 @@ export default function LeftNav({ active = "dashboard" }: LeftNavProps) {
         <div style={{ display: "grid", gap: "8px" }}>
           <NavIconButton href="/" title="Workspace" icon="workspace" isActive={active === "dashboard" || active === "events"} />
           <NavIconButton href="/events#calendar-feed" title="Calendar Feed" icon="calendar" isActive={active === "feeds"} />
-          <NavIconButton href="/#request-access" title="Submit" icon="submit" isActive={active === "submit"} />
+          <NavIconButton href="/submit" title="Submit" icon="submit" isActive={active === "submit"} />
           <NavIconButton href="/help" title="Help" icon="help" isActive={active === "help"} />
-          <NavIconButton href="/" title="About" icon="about" isActive={active === "about"} />
+          <NavIconButton href="/about" title="About" icon="about" isActive={active === "about"} />
         </div>
       </div>
 

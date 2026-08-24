@@ -156,9 +156,9 @@ export default function AppShell({
               {
                 title: "Company",
                 links: [
-                  { label: "About", href: "/" },
-                  { label: "Contact", href: "/#request-access" },
-                  { label: "Submit", href: "/#request-access" },
+                  { label: "About", href: "/about" },
+                  { label: "Contact", href: "/contact" },
+                  { label: "Submit", href: "/submit" },
                 ],
               },
               {

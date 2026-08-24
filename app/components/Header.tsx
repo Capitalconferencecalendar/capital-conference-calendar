@@ -493,8 +493,8 @@ export default function Header({
                     { href: "/", label: "Get Started", active: workspaceMode === "getstarted" },
                     { href: "/discovery", label: "Discovery", active: workspaceMode === "discovery" },
                     { href: "/market-view", label: "Market View", active: workspaceMode === "marketview" },
-                    { href: "/", label: "About", icon: "about" as const, active: active === "about" },
-                    { href: "/#request-access", label: "Contact", icon: "contact" as const, active: active === "help" },
+                    { href: "/about", label: "About", icon: "about" as const, active: active === "about" },
+                    { href: "/contact", label: "Contact", icon: "contact" as const, active: active === "help" },
                     { href: "/legal", label: "Legal", icon: "legal" as const, active: active === "legal" },
                     { href: "/subscribe", label: "Subscribe", icon: "subscribe" as const, active: active === "subscribe" },
                   ].map((item) => (
@@ -538,17 +538,17 @@ export default function Header({
                 }}
               />
               <TopNavLink
-                href="/"
+                href="/about"
                 label="About"
                 isActive={active === "about"}
               />
               <TopNavLink
-                href="/#request-access"
+                href="/contact"
                 label="Contact"
                 isActive={active === "help"}
               />
               <TopNavLink
-                href="/#request-access"
+                href="/submit"
                 label="Submit"
                 icon="submit"
                 isActive={active === "submit"}
