@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Capital Conference Calendar",
+  title: "Capital Conference Database",
   description: "Capital markets conference database and live calendar feeds.",
 };
 
