@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 const betaCards = [
@@ -63,10 +64,12 @@ const supportItems = [
 ];
 
 export default function LandingPageClient() {
+  const router = useRouter();
   const [submitState, setSubmitState] = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [betaModalOpen, setBetaModalOpen] = useState(false);
   const [betaCode, setBetaCode] = useState("");
   const [betaState, setBetaState] = useState<"idle" | "submitting" | "error">("idle");
+  const [isEnteringBeta, setIsEnteringBeta] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -110,7 +113,13 @@ export default function LandingPageClient() {
       });
 
       if (!response.ok) throw new Error("Invalid access code.");
-      window.location.href = "/discovery";
+      setBetaModalOpen(false);
+      setBetaState("idle");
+      setIsEnteringBeta(true);
+      router.prefetch("/discovery");
+      window.setTimeout(() => {
+        router.push("/discovery");
+      }, 1350);
     } catch {
       setBetaState("error");
     }
@@ -636,7 +645,148 @@ export default function LandingPageClient() {
           </form>
         </div>
       ) : null}
+
+      {isEnteringBeta ? <BetaAccessTransition /> : null}
     </main>
+  );
+}
+
+function BetaAccessTransition() {
+  const steps = ["Index", "Signals", "Discovery"];
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-label="Access granted. Preparing your conference intelligence workspace."
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 40,
+        display: "grid",
+        placeItems: "center",
+        padding: "24px",
+        background:
+          "radial-gradient(60% 42% at 50% 42%, rgba(56,189,248,0.18) 0%, rgba(8,24,44,0.82) 42%, rgba(2,8,15,0.98) 100%), linear-gradient(180deg, #03101e 0%, #020914 100%)",
+        color: "#eaf6ff",
+      }}
+    >
+      <style>
+        {`
+          @keyframes beta-scan {
+            from { transform: translateX(-28%); opacity: .2; }
+            45% { opacity: 1; }
+            to { transform: translateX(128%); opacity: .12; }
+          }
+          @keyframes beta-node {
+            0%, 100% { transform: scale(.78); opacity: .46; }
+            45% { transform: scale(1); opacity: 1; }
+          }
+          @keyframes beta-fade-up {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .beta-access-scan,
+            .beta-access-node,
+            .beta-access-card {
+              animation: none !important;
+            }
+          }
+        `}
+      </style>
+      <div
+        className="beta-access-card"
+        style={{
+          width: "min(100%, 460px)",
+          display: "grid",
+          gap: "22px",
+          justifyItems: "center",
+          textAlign: "center",
+          animation: "beta-fade-up 360ms ease-out both",
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            width: "74px",
+            height: "74px",
+            borderRadius: "22px",
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "7px",
+            padding: "8px",
+            background: "rgba(8,24,44,0.76)",
+            boxShadow: "0 0 52px rgba(56,189,248,0.26), inset 0 1px 0 rgba(191,219,254,0.2)",
+          }}
+        >
+          {[0, 1, 2, 3].map((index) => (
+            <span
+              key={index}
+              style={{
+                borderRadius: index === 1 ? "9px 16px 9px 9px" : "9px",
+                background: "linear-gradient(135deg, #0757ff 0%, #12c8f4 100%)",
+                boxShadow: "0 0 18px rgba(18,200,244,0.24)",
+              }}
+            />
+          ))}
+        </div>
+        <div style={{ display: "grid", gap: "8px" }}>
+          <div style={{ color: "#ffffff", fontSize: "28px", lineHeight: 1.1, fontWeight: 950 }}>
+            Access granted
+          </div>
+          <div style={{ color: "#a9c4df", fontSize: "15px", lineHeight: 1.5, fontWeight: 650 }}>
+            Preparing your conference intelligence workspace…
+          </div>
+        </div>
+        <div style={{ width: "100%", display: "grid", gap: "14px" }}>
+          <div
+            style={{
+              position: "relative",
+              height: "2px",
+              overflow: "hidden",
+              borderRadius: "999px",
+              background: "rgba(96,165,250,0.18)",
+              boxShadow: "0 0 26px rgba(56,189,248,0.18)",
+            }}
+          >
+            <span
+              className="beta-access-scan"
+              style={{
+                position: "absolute",
+                top: 0,
+                bottom: 0,
+                left: 0,
+                width: "32%",
+                borderRadius: "999px",
+                background: "linear-gradient(90deg, transparent 0%, #38bdf8 48%, #93c5fd 100%)",
+                animation: "beta-scan 1.15s ease-in-out both",
+              }}
+            />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
+            {steps.map((step, index) => (
+              <div key={step} style={{ display: "grid", justifyItems: "center", gap: "7px" }}>
+                <span
+                  className="beta-access-node"
+                  style={{
+                    width: "8px",
+                    height: "8px",
+                    borderRadius: "999px",
+                    background: "#38bdf8",
+                    boxShadow: "0 0 18px rgba(56,189,248,0.64)",
+                    animation: `beta-node 900ms ease-in-out ${index * 160}ms both`,
+                  }}
+                />
+                <span style={{ color: "#7dd3fc", fontSize: "10px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>
+                  {step}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
