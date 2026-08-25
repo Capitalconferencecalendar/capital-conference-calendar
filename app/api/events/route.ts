@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDiscoveryPage, type DiscoveryQuery } from "../../../lib/discoveryDataset";
 import { getOrCreateDiscoverySession, limitDiscoveryRequest } from "../../../lib/discoveryRateLimit";
 
+const LOAD_MORE_INCREMENT = 20;
+
 function values(params: URLSearchParams, key: string) {
   return params.getAll(key).map((value) => value.trim()).filter(Boolean);
 }
@@ -42,7 +44,7 @@ export async function GET(request: NextRequest) {
     const filterMode = params.get("filterMode");
     const query: DiscoveryQuery = {
       cursor: params.get("cursor"),
-      limit: Number(params.get("limit") || 30),
+      limit: Number(params.get("limit") || LOAD_MORE_INCREMENT),
       q: params.get("q") || "",
       dateRange: dateRange === "next30" || dateRange === "next60" || dateRange === "next90" || dateRange === "all" ? dateRange : "all",
       fromDate: params.get("fromDate") || "",

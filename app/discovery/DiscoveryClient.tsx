@@ -124,6 +124,9 @@ type Props = {
   } | null;
 };
 
+const INITIAL_VISIBLE_EVENTS = 20;
+const LOAD_MORE_INCREMENT = INITIAL_VISIBLE_EVENTS;
+
 type DiscoveryFilterOptions = {
   cities: string[];
   regions: string[];
@@ -1755,7 +1758,7 @@ export default function EventsClient({
 
   const discoveryRequest = useMemo(() => {
     const params = new URLSearchParams();
-    params.set("limit", "30");
+    params.set("limit", String(LOAD_MORE_INCREMENT));
     params.set("dateRange", filters.dateRange);
     params.set("filterMode", filterMode);
     params.set("sort", sortMode);
@@ -8480,7 +8483,7 @@ useEffect(() => {
                     cursor: isLoadingEvents ? "wait" : "pointer",
                   }}
                 >
-                  {isLoadingEvents ? "Loading…" : `Load 30 more (${Math.max(discoveryPage.total - events.length, 0)} remaining)`}
+                  {isLoadingEvents ? "Loading…" : `Load ${LOAD_MORE_INCREMENT} more (${Math.max(discoveryPage.total - events.length, 0)} remaining)`}
                 </button>
               </div>
             ) : null}

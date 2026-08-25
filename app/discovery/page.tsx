@@ -15,6 +15,8 @@ type DiscoveryPageProps = {
   searchParams?: Promise<SearchParamsShape>;
 };
 
+const INITIAL_VISIBLE_EVENTS = 20;
+
 function firstParam(params: SearchParamsShape, key: string) {
   const value = params[key];
   return Array.isArray(value) ? value[0] || "" : value || "";
@@ -51,7 +53,7 @@ function buildInitialDiscoveryQuery(params: SearchParamsShape): DiscoveryQuery {
     dateRange: dateRange === "next30" || dateRange === "next60" || dateRange === "next90" || dateRange === "all" ? dateRange : undefined,
     sort: sort === "city" ? "city" : "soonest",
     filterMode: filterMode === "or" ? "or" : "and",
-    limit: 30,
+    limit: INITIAL_VISIBLE_EVENTS,
   };
 }
 
