@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 const betaCards = [
   {
@@ -71,6 +71,23 @@ export default function LandingPageClient() {
   const [betaState, setBetaState] = useState<"idle" | "submitting" | "error">("idle");
   const [isEnteringBeta, setIsEnteringBeta] = useState(false);
 
+  useEffect(() => {
+    if (!isEnteringBeta) return;
+
+    router.prefetch("/discovery");
+    let timeout: number | null = null;
+    const frame = window.requestAnimationFrame(() => {
+      timeout = window.setTimeout(() => {
+        router.push("/discovery");
+      }, 1650);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (timeout !== null) window.clearTimeout(timeout);
+    };
+  }, [isEnteringBeta, router]);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitState("submitting");
@@ -116,10 +133,6 @@ export default function LandingPageClient() {
       setBetaModalOpen(false);
       setBetaState("idle");
       setIsEnteringBeta(true);
-      router.prefetch("/discovery");
-      window.setTimeout(() => {
-        router.push("/discovery");
-      }, 1350);
     } catch {
       setBetaState("error");
     }
