@@ -1,6 +1,6 @@
 import "server-only";
-import { buildMarketViewIntelligence, type MarketViewIntelligence } from "./marketViewIntelligence";
-import { buildInternalMarketIntelligence, type InternalMarketIntelligence } from "./internalMarketIntelligence";
+import type { MarketViewIntelligence } from "./marketViewIntelligence";
+import type { InternalMarketIntelligence } from "./internalMarketIntelligence";
 
 export type DiscoveryEvent = {
   id: string;
@@ -205,8 +205,8 @@ export type DiscoveryPage = {
   allAggregates: DiscoveryAggregateStats;
   marketAnalytics: MarketViewAnalytics;
   allMarketAnalytics: MarketViewAnalytics;
-  marketViewIntelligence: MarketViewIntelligenceWithInternal;
-  allMarketViewIntelligence: MarketViewIntelligenceWithInternal;
+  marketViewIntelligence?: MarketViewIntelligenceWithInternal;
+  allMarketViewIntelligence?: MarketViewIntelligenceWithInternal;
 };
 
 export type DiscoveryQuery = {
@@ -1151,20 +1151,28 @@ function toPublicEvent(event: InternalDiscoveryEvent): DiscoveryEvent {
   return publicEvent;
 }
 
-function buildMarketViewIntelligenceWithInternal(events: InternalDiscoveryEvent[]): MarketViewIntelligenceWithInternal {
+async function buildMarketViewIntelligenceWithInternal(events: InternalDiscoveryEvent[]): Promise<MarketViewIntelligenceWithInternal> {
+  const [{ buildMarketViewIntelligence }, { buildInternalMarketIntelligence }] = await Promise.all([
+    import("./marketViewIntelligence"),
+    import("./internalMarketIntelligence"),
+  ]);
+
   return {
     ...buildMarketViewIntelligence(events),
     internalIntelligence: buildInternalMarketIntelligence(events),
   };
 }
 
-export async function getDiscoveryPage(query: DiscoveryQuery = {}): Promise<DiscoveryPage> {
+export async function getDiscoveryPage(
+  query: DiscoveryQuery = {},
+  options: { includeMarketViewIntelligence?: boolean } = {}
+): Promise<DiscoveryPage> {
   const approvedEvents = await fetchApprovedEvents();
   const filtered = filterEvents(approvedEvents, query);
   const limit = Math.min(Math.max(query.limit || 30, 1), 30);
   const start = decodeCursor(query.cursor);
   const nextIndex = start + limit;
-  return {
+  const page: DiscoveryPage = {
     events: filtered.slice(start, nextIndex).map(toPublicEvent),
     total: filtered.length,
     nextCursor: nextIndex < filtered.length ? encodeCursor(nextIndex) : null,
@@ -1173,7 +1181,12 @@ export async function getDiscoveryPage(query: DiscoveryQuery = {}): Promise<Disc
     allAggregates: aggregate(approvedEvents),
     marketAnalytics: buildMarketViewAnalytics(filtered),
     allMarketAnalytics: buildMarketViewAnalytics(approvedEvents),
-    marketViewIntelligence: buildMarketViewIntelligenceWithInternal(filtered),
-    allMarketViewIntelligence: buildMarketViewIntelligenceWithInternal(approvedEvents),
   };
+
+  if (options.includeMarketViewIntelligence !== false) {
+    page.marketViewIntelligence = await buildMarketViewIntelligenceWithInternal(filtered);
+    page.allMarketViewIntelligence = await buildMarketViewIntelligenceWithInternal(approvedEvents);
+  }
+
+  return page;
 }

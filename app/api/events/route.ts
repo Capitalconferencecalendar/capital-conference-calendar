@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
       sort: sort === "city" ? "city" : "soonest",
       filterMode: filterMode === "or" ? "or" : "and",
     };
-    const response = NextResponse.json(await getDiscoveryPage(query), {
+    const response = NextResponse.json(await getDiscoveryPage(query, { includeMarketViewIntelligence: false }), {
       headers: { "Cache-Control": "no-store, max-age=0" },
     });
     response.cookies.set(sessionCookie.name, sessionCookie.value, sessionCookie.options);

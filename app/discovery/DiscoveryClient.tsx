@@ -1776,6 +1776,7 @@ export default function EventsClient({
     urlEventIds.forEach((value) => params.append("eventId", value));
     return params;
   }, [activeSavedList?.eventIds, filterMode, filters, fromDate, searchQuery, sortMode, toDate, urlEventIds]);
+  const initialDiscoveryRequestRef = useRef<string | null>(null);
 
   const loadDiscoveryPage = useCallback(async (cursor?: string | null, append = false) => {
     const params = new URLSearchParams(discoveryRequest);
@@ -1804,8 +1805,13 @@ export default function EventsClient({
   }, [discoveryRequest]);
 
   useEffect(() => {
+    const requestKey = discoveryRequest.toString();
+    if (initialDiscoveryRequestRef.current === null) {
+      initialDiscoveryRequestRef.current = requestKey;
+      return;
+    }
     void loadDiscoveryPage();
-  }, [loadDiscoveryPage]);
+  }, [discoveryRequest, loadDiscoveryPage]);
 
   const cities = discoveryPage.filterOptions.cities;
   const regions = discoveryPage.filterOptions.regions;

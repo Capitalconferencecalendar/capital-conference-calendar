@@ -9,7 +9,7 @@ export type PublicTickerEvent = {
 };
 
 export async function getPublicTickerEvents(): Promise<PublicTickerEvent[]> {
-  const tickerPage = await getDiscoveryPage({ limit: 20 });
+  const tickerPage = await getDiscoveryPage({ limit: 20 }, { includeMarketViewIntelligence: false });
 
   return tickerPage.events.map((event) => ({
     id: event.id,
