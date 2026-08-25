@@ -1402,7 +1402,7 @@ export default function EventsClient({
   const firstResultCardRef = useRef<HTMLElement | null>(null);
   const [filters, setFilters] = useState<FiltersState>(DEFAULT_FILTERS);
   const [filterMode, setFilterMode] = useState<FilterMatchMode>("and");
-  const searchQuery = initialSearchQuery;
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const shouldLoadInitialDiscovery = initialEvents.length === 0 && initialPage.total === 0;
   const [events, setEvents] = useState<WorkspaceEvent[]>(initialEvents);
   const [discoveryPage, setDiscoveryPage] = useState(() => ({
@@ -1425,7 +1425,7 @@ export default function EventsClient({
   const [activeQuickView, setActiveQuickView] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [urlEventIds, setUrlEventIds] = useState<string[]>([]);
+  const [urlEventIds, setUrlEventIds] = useState<string[]>(initialEventId ? [initialEventId] : []);
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<"soonest" | "city">("soonest");
   const [urlSeeded, setUrlSeeded] = useState(false);
@@ -1739,6 +1739,8 @@ export default function EventsClient({
     const organizerParams = params.getAll("organizer");
     const marketFocusParams = params.getAll("marketFocus");
     const eventIds = params.getAll("eventId").filter(Boolean);
+    const searchParam = params.get("q") || "";
+    if (searchParam) setSearchQuery(searchParam);
     if (cityParams.length || startDateParam || endDateParam || eventIds.length || countryParams.length || regionParams.length || stateParams.length || sectorThemeParams.length || publicCompanySectorParams.length || conferenceTypeParams.length || issuerParticipationParams.length || organizerParams.length || marketFocusParams.length) {
       setFilters((prev) => ({
         ...prev,
@@ -1866,17 +1868,19 @@ export default function EventsClient({
   const organizers = discoveryPage.filterOptions.organizers;
   const marketFocusOptions = discoveryPage.filterOptions.marketFocuses;
 
+  const focusedEventId = initialEventId || urlEventIds[0] || "";
+
   const filteredEvents = useMemo(() => {
     const list = [...events];
-    if (initialEventId) {
-      const matchedIndex = list.findIndex((event) => event.id === initialEventId);
+    if (focusedEventId) {
+      const matchedIndex = list.findIndex((event) => event.id === focusedEventId);
       if (matchedIndex > 0) {
         const [matched] = list.splice(matchedIndex, 1);
         list.unshift(matched);
       }
     }
     return list;
-  }, [events, initialEventId]);
+  }, [events, focusedEventId]);
 
   const activeFilterChips = useMemo(() => {
     const chips: Array<{ key: string; label: string; clear: () => void }> = [];
@@ -1934,9 +1938,9 @@ export default function EventsClient({
     filteredEvents.length === 1;
 
 useEffect(() => {
-    if (!initialEventId) return;
+    if (!focusedEventId) return;
     if (dashboardMode !== "market" || workspaceViewMode !== "database") return;
-    const matched = filteredEvents.find((event) => event.id === initialEventId);
+    const matched = filteredEvents.find((event) => event.id === focusedEventId);
     if (!matched) return;
 
     setSelectedEvents([matched.id]);
@@ -1955,7 +1959,7 @@ useEffect(() => {
       window.cancelAnimationFrame(raf);
       window.clearTimeout(timer);
     };
-  }, [initialEventId, dashboardMode, workspaceViewMode, filteredEvents]);
+  }, [focusedEventId, dashboardMode, workspaceViewMode, filteredEvents]);
 
   const locationActiveCount = filters.country.length + filters.region.length + filters.state.length + filters.cities.length;
   const marketSegmentsActiveCount = filters.sectorThemes.length + filters.publicCompanySectors.length + filters.conferenceType.length + filters.marketFocus.length;
@@ -8075,7 +8079,7 @@ useEffect(() => {
                 id={`event-card-${e.id}`}
                 className="ccc-workspace-event-card event-card"
                 key={e.id}
-                ref={e.id === initialEventId || (!initialEventId && index === 0) ? firstResultCardRef : null}
+                ref={e.id === focusedEventId || (!focusedEventId && index === 0) ? firstResultCardRef : null}
                 onMouseEnter={() => setHoveredCardId(e.id)}
                 onMouseLeave={() => setHoveredCardId((prev) => (prev === e.id ? null : prev))}
                 onClick={() => {
