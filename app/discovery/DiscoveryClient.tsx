@@ -2872,26 +2872,28 @@ useEffect(() => {
   const discoveryHeaderMetrics = useMemo(() => {
     const hasManualFilterSelection = activeFilterChips.length > 0 || Boolean(activeSavedListId);
     const stats = hasManualFilterSelection ? discoveryPage.aggregates : discoveryPage.allAggregates;
+    const loadingValue = dataIsBootstrapping ? "Loading" : null;
+    const loadingCountValue = dataIsBootstrapping ? "—" : null;
 
     return {
       metrics: [
         {
           label: hasManualFilterSelection ? "Filtered Records" : "Visible Records",
-          value: stats.events,
+          value: loadingValue || stats.events,
           tone: "#69b7ff",
         },
-        { label: "Investor-Heavy", value: stats.investorHeavy, tone: "#22c55e" },
-        { label: "Issuer Access", value: stats.issuerAccess, tone: "#8b5cf6" },
-        { label: "Highest Activity Week", value: stats.highestActivityWeek?.label || "—", detail: stats.highestActivityWeek ? `${stats.highestActivityWeek.count} events` : "", tone: "#38d5c4", compact: true },
-        { label: "Lowest Activity Week", value: stats.lowestActivityWeek?.label || "—", detail: stats.lowestActivityWeek ? `${stats.lowestActivityWeek.count} events` : "", tone: "#78aaff", compact: true },
-        { label: "Leading Sector", value: stats.leadingSector?.label || "Not classified", detail: stats.leadingSector ? `${stats.leadingSector.count} events` : "", tone: "#8fbfff", compact: true },
+        { label: "Investor-Heavy", value: loadingCountValue || stats.investorHeavy, tone: "#22c55e" },
+        { label: "Issuer Access", value: loadingCountValue || stats.issuerAccess, tone: "#8b5cf6" },
+        { label: "Highest Activity Week", value: loadingValue || stats.highestActivityWeek?.label || "—", detail: dataIsBootstrapping ? "" : stats.highestActivityWeek ? `${stats.highestActivityWeek.count} events` : "", tone: "#38d5c4", compact: true },
+        { label: "Lowest Activity Week", value: loadingValue || stats.lowestActivityWeek?.label || "—", detail: dataIsBootstrapping ? "" : stats.lowestActivityWeek ? `${stats.lowestActivityWeek.count} events` : "", tone: "#78aaff", compact: true },
+        { label: "Leading Sector", value: loadingValue || stats.leadingSector?.label || "Not classified", detail: dataIsBootstrapping ? "" : stats.leadingSector ? `${stats.leadingSector.count} events` : "", tone: "#8fbfff", compact: true },
       ],
       earliestDate: stats.earliestDate,
       latestDate: stats.latestDate,
       latestVerificationStamp: stats.latestVerificationStamp,
       recordCount: stats.events,
     };
-  }, [activeFilterChips.length, activeSavedListId, discoveryPage.aggregates, discoveryPage.allAggregates]);
+  }, [activeFilterChips.length, activeSavedListId, dataIsBootstrapping, discoveryPage.aggregates, discoveryPage.allAggregates]);
 
 
   const computeMarketViewAnalytics = useCallback((source: WorkspaceEvent[]) => {
