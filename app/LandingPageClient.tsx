@@ -79,7 +79,7 @@ export default function LandingPageClient() {
     const frame = window.requestAnimationFrame(() => {
       timeout = window.setTimeout(() => {
         router.push("/discovery");
-      }, 1650);
+      }, 2400);
     });
 
     return () => {
@@ -722,27 +722,27 @@ function BetaAccessTransition() {
         <div
           aria-hidden="true"
           style={{
-            width: "74px",
-            height: "74px",
-            borderRadius: "22px",
+            width: "82px",
+            height: "82px",
+            borderRadius: "24px",
             display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "7px",
-            padding: "8px",
+            placeItems: "center",
+            padding: "10px",
             background: "rgba(8,24,44,0.76)",
             boxShadow: "0 0 52px rgba(56,189,248,0.26), inset 0 1px 0 rgba(191,219,254,0.2)",
           }}
         >
-          {[0, 1, 2, 3].map((index) => (
-            <span
-              key={index}
-              style={{
-                borderRadius: index === 1 ? "9px 16px 9px 9px" : "9px",
-                background: "linear-gradient(135deg, #0757ff 0%, #12c8f4 100%)",
-                boxShadow: "0 0 18px rgba(18,200,244,0.24)",
-              }}
-            />
-          ))}
+          <img
+            src="/icon-512.png"
+            alt=""
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              display: "block",
+              filter: "drop-shadow(0 0 20px rgba(56,189,248,0.32))",
+            }}
+          />
         </div>
         <div style={{ display: "grid", gap: "8px" }}>
           <div style={{ color: "#ffffff", fontSize: "28px", lineHeight: 1.1, fontWeight: 950 }}>
@@ -773,7 +773,7 @@ function BetaAccessTransition() {
                 width: "32%",
                 borderRadius: "999px",
                 background: "linear-gradient(90deg, transparent 0%, #38bdf8 48%, #93c5fd 100%)",
-                animation: "beta-scan 1.15s ease-in-out both",
+                animation: "beta-scan 1.8s ease-in-out both",
               }}
             />
           </div>
@@ -788,7 +788,7 @@ function BetaAccessTransition() {
                     borderRadius: "999px",
                     background: "#38bdf8",
                     boxShadow: "0 0 18px rgba(56,189,248,0.64)",
-                    animation: `beta-node 900ms ease-in-out ${index * 160}ms both`,
+                    animation: `beta-node 1.25s ease-in-out ${index * 240}ms both`,
                   }}
                 />
                 <span style={{ color: "#7dd3fc", fontSize: "10px", fontWeight: 950, letterSpacing: "0.14em", textTransform: "uppercase" }}>
