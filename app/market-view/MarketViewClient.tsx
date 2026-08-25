@@ -5,6 +5,7 @@ import type { CSSProperties, ReactNode } from "react";
 import SharedFilterRail from "../components/platform/SharedFilterRail";
 import FilterMatchingControl, { type FilterMatchMode } from "../components/platform/FilterMatchingControl";
 import ControlPanel from "../components/platform/ControlPanel";
+import { getCachedEventPage, getOrFetchEventPage, seedEventPage } from "../components/platform/eventDataCache";
 
 const quickActions = ["Clear", "Share Selected", "Save Market View", "Save Selected"];
 
@@ -93,6 +94,7 @@ type LeaderboardWindowDays = 30 | 60 | 90;
 const leaderboardWindowOptions = [30, 60, 90] as const;
 
 type MarketViewPageData = {
+  events?: ForecastEvent[];
   total: number;
   nextCursor: string | null;
   filterOptions: FilterOptions;
@@ -436,6 +438,10 @@ function buildMarketViewRequest(filters: FiltersState, filterMode: FilterMatchMo
   return params;
 }
 
+function discoveryCursor(index: number) {
+  return btoa(String(index)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
 function optionLabel(count: number, singular: string, plural = `${singular}s`) {
   return count ? `${count} ${count === 1 ? singular : plural} selected` : "";
 }
@@ -518,14 +524,42 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   };
 
   useEffect(() => {
+    const defaultMarketRequest = buildMarketViewRequest(DEFAULT_FILTERS, "and").toString();
+    seedEventPage<MarketViewPageData>(defaultMarketRequest, initialPage);
+
+    if (initialPage.events?.length) {
+      (["and", "or"] as const).forEach((mode) => {
+        const discoveryRequest = new URLSearchParams();
+        discoveryRequest.set("limit", "20");
+        discoveryRequest.set("dateRange", "all");
+        discoveryRequest.set("filterMode", mode);
+        discoveryRequest.set("sort", "soonest");
+        seedEventPage(discoveryRequest.toString(), {
+          ...initialPage,
+          events: initialPage.events?.slice(0, 20) || [],
+          nextCursor: initialPage.total > 20 ? discoveryCursor(20) : null,
+        });
+      });
+    }
+  }, [initialPage]);
+
+  useEffect(() => {
     let active = true;
     const params = buildMarketViewRequest(filters, filterMode);
+    const requestKey = params.toString();
+    const cachedPage = getCachedEventPage<MarketViewPageData>(requestKey);
+    if (cachedPage) {
+      setMarketPage(cachedPage);
+      setIsFiltering(false);
+      return;
+    }
+
     setIsFiltering(true);
-    fetch(`/api/events?${params.toString()}`, { cache: "no-store" })
-      .then((response) => {
-        if (!response.ok) throw new Error("Unable to load Market View filters.");
-        return response.json() as Promise<MarketViewPageData>;
-      })
+    getOrFetchEventPage<MarketViewPageData>(requestKey, async () => {
+      const response = await fetch(`/api/events?${requestKey}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("Unable to load Market View filters.");
+      return response.json() as Promise<MarketViewPageData>;
+    })
       .then((next) => {
         if (!active) return;
         setMarketPage(next);

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { getCachedTickerData, getOrFetchTickerData, seedTickerData } from "./platform/eventDataCache";
 
 type TickerEvent = {
   id: string;
@@ -57,16 +58,30 @@ export default function EventTicker({ events: providedEvents }: EventTickerProps
     if (hasProvidedEvents) {
       setEvents(providedEvents || []);
       setStatus("ready");
+      if (providedEvents?.length) seedTickerData({ events: providedEvents });
       return;
     }
 
     let cancelled = false;
+    const cached = getCachedTickerData<{ events?: TickerEvent[] }>();
+    if (cached) {
+      setEvents((cached.events || []).map((event) => ({
+        id: toText(event.id),
+        title: toText(event.title) || "Untitled Event",
+        startDate: cleanDateOnly(event.startDate),
+        endDate: cleanDateOnly(event.endDate || event.startDate),
+        city: toText(event.city),
+      })).filter((event) => event.id && event.startDate));
+      setStatus("ready");
+      return;
+    }
+
     setStatus("loading");
-    fetch("/api/ticker-events", { cache: "force-cache" })
-      .then((response) => {
+    getOrFetchTickerData<{ events?: TickerEvent[] }>(async () => {
+      const response = await fetch("/api/ticker-events", { cache: "force-cache" });
         if (!response.ok) throw new Error("Unable to load ticker events.");
-        return response.json() as Promise<{ events?: TickerEvent[] }>;
-      })
+      return response.json() as Promise<{ events?: TickerEvent[] }>;
+    })
       .then((data) => {
         if (cancelled) return;
         setEvents((data.events || []).map((event) => ({

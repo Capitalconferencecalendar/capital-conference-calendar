@@ -7,6 +7,7 @@ import type { ConcentrationItem } from "../components/ConcentrationStrip";
 import SharedFilterRail from "../components/platform/SharedFilterRail";
 import FilterMatchingControl, { type FilterMatchMode } from "../components/platform/FilterMatchingControl";
 import ControlPanel from "../components/platform/ControlPanel";
+import { getCachedEventPage, getOrFetchEventPage, seedEventPage } from "../components/platform/eventDataCache";
 
 export type WorkspaceEvent = {
   id: string;
@@ -1818,31 +1819,61 @@ export default function EventsClient({
   }, [activeSavedList?.eventIds, filterMode, filters, fromDate, searchQuery, sortMode, toDate, urlEventIds]);
   const initialDiscoveryRequestRef = useRef<string | null>(null);
 
+  const applyDiscoveryPage = useCallback((next: DiscoveryPageResponse, append = false) => {
+    setEvents((current) => append ? [...current, ...next.events] : next.events);
+    setDiscoveryPage({
+      total: next.total,
+      nextCursor: next.nextCursor,
+      filterOptions: next.filterOptions,
+      aggregates: normalizeDiscoveryAggregateStats(next.aggregates),
+      allAggregates: normalizeDiscoveryAggregateStats(next.allAggregates || next.aggregates),
+      marketAnalytics: normalizeMarketViewAnalytics(next.marketAnalytics),
+      allMarketAnalytics: normalizeMarketViewAnalytics(next.allMarketAnalytics || next.marketAnalytics),
+    });
+  }, []);
+
   const loadDiscoveryPage = useCallback(async (cursor?: string | null, append = false) => {
     const params = new URLSearchParams(discoveryRequest);
     if (cursor) params.set("cursor", cursor);
+    const requestKey = params.toString();
+    const cachedPage = getCachedEventPage<DiscoveryPageResponse>(requestKey);
+    if (cachedPage) {
+      applyDiscoveryPage(cachedPage, append);
+      setEventLoadError(null);
+      setIsLoadingEvents(false);
+      return;
+    }
+
     setIsLoadingEvents(true);
     setEventLoadError(null);
     try {
-      const response = await fetch(`/api/events?${params.toString()}`, { cache: "no-store" });
-      if (!response.ok) throw new Error("Unable to load conferences.");
-      const next = await response.json() as DiscoveryPageResponse;
-      setEvents((current) => append ? [...current, ...next.events] : next.events);
-      setDiscoveryPage({
-        total: next.total,
-        nextCursor: next.nextCursor,
-        filterOptions: next.filterOptions,
-        aggregates: normalizeDiscoveryAggregateStats(next.aggregates),
-        allAggregates: normalizeDiscoveryAggregateStats(next.allAggregates || next.aggregates),
-        marketAnalytics: normalizeMarketViewAnalytics(next.marketAnalytics),
-        allMarketAnalytics: normalizeMarketViewAnalytics(next.allMarketAnalytics || next.marketAnalytics),
+      const next = await getOrFetchEventPage<DiscoveryPageResponse>(requestKey, async () => {
+        const response = await fetch(`/api/events?${requestKey}`, { cache: "no-store" });
+        if (!response.ok) throw new Error("Unable to load conferences.");
+        return response.json() as Promise<DiscoveryPageResponse>;
       });
+      applyDiscoveryPage(next, append);
     } catch (error) {
       setEventLoadError(error instanceof Error ? error.message : "Unable to load conference index.");
     } finally {
       setIsLoadingEvents(false);
     }
-  }, [discoveryRequest]);
+  }, [applyDiscoveryPage, discoveryRequest]);
+
+  useEffect(() => {
+    if (shouldLoadInitialDiscovery || initialEvents.length === 0) return;
+    const requestKey = discoveryRequest.toString();
+    seedEventPage<DiscoveryPageResponse>(requestKey, {
+      events: initialEvents,
+      total: discoveryPage.total,
+      nextCursor: discoveryPage.nextCursor,
+      filterOptions: discoveryPage.filterOptions,
+      aggregates: discoveryPage.aggregates,
+      allAggregates: discoveryPage.allAggregates,
+      marketAnalytics: discoveryPage.marketAnalytics,
+      allMarketAnalytics: discoveryPage.allMarketAnalytics,
+    });
+  }, [discoveryPage, discoveryRequest, initialEvents, shouldLoadInitialDiscovery]);
 
   useEffect(() => {
     if (shouldLoadInitialDiscovery && !urlSeeded) return;
