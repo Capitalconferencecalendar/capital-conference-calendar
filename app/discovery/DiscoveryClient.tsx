@@ -90,8 +90,8 @@ type Props = {
     filterOptions: DiscoveryFilterOptions;
     aggregates: DiscoveryAggregateStats;
     allAggregates: DiscoveryAggregateStats;
-    marketAnalytics: MarketViewAnalytics;
-    allMarketAnalytics: MarketViewAnalytics;
+    marketAnalytics?: MarketViewAnalytics;
+    allMarketAnalytics?: MarketViewAnalytics;
   };
   initialCity: string;
   initialSearchQuery?: string;
@@ -242,8 +242,8 @@ type DiscoveryPageResponse = {
   filterOptions: DiscoveryFilterOptions;
   aggregates: DiscoveryAggregateStats;
   allAggregates: DiscoveryAggregateStats;
-  marketAnalytics: MarketViewAnalytics;
-  allMarketAnalytics: MarketViewAnalytics;
+  marketAnalytics?: MarketViewAnalytics;
+  allMarketAnalytics?: MarketViewAnalytics;
 };
 
 function normalizeDiscoveryAggregateStats(stats?: Partial<DiscoveryAggregateStats>): DiscoveryAggregateStats {
@@ -2137,6 +2137,46 @@ useEffect(() => {
   const viewTopWeeks = useMemo(() => buildHotWeeksByMonth(filteredEvents), [filteredEvents, buildHotWeeksByMonth]);
   const allEventClusters = useMemo(() => buildCityClusters(events), [events, buildCityClusters]);
   const viewClusters = useMemo(() => buildCityClusters(filteredEvents), [filteredEvents, buildCityClusters]);
+  const relatedEventCountsById = useMemo(() => {
+    const cityWeekCounts = new Map<string, number>();
+    const themeWeekEventIds = new Map<string, Set<string>>();
+    const eventKeys = new Map<string, { cityWeekKey: string; themeWeekKeys: string[] }>();
+
+    filteredEvents.forEach((event) => {
+      const week = getWeekStart(event.startDate);
+      const cityLabel = [event.city, event.state].filter(Boolean).join(", ");
+      const cityWeekKey = cityLabel && week ? `${cityLabel}||${week}` : "";
+      const themeWeekKeys = splitCsv(event.sectorThemes).map((theme) => `${week}||${theme}`);
+
+      if (cityWeekKey) cityWeekCounts.set(cityWeekKey, (cityWeekCounts.get(cityWeekKey) || 0) + 1);
+      themeWeekKeys.forEach((key) => {
+        const ids = themeWeekEventIds.get(key) || new Set<string>();
+        ids.add(event.id);
+        themeWeekEventIds.set(key, ids);
+      });
+      eventKeys.set(event.id, { cityWeekKey, themeWeekKeys });
+    });
+
+    return new Map(
+      filteredEvents.map((event) => {
+        const keys = eventKeys.get(event.id);
+        if (!keys) return [event.id, { sameCityWeekCount: 0, sameThemeWeekCount: 0 }] as const;
+        const themeIds = new Set<string>();
+        keys.themeWeekKeys.forEach((key) => {
+          themeWeekEventIds.get(key)?.forEach((id) => {
+            if (id !== event.id) themeIds.add(id);
+          });
+        });
+        return [
+          event.id,
+          {
+            sameCityWeekCount: Math.max(0, (cityWeekCounts.get(keys.cityWeekKey) || 0) - 1),
+            sameThemeWeekCount: themeIds.size,
+          },
+        ] as const;
+      })
+    );
+  }, [filteredEvents]);
 
   const buildConcentrationCards = useCallback((hot: Omit<ConcentrationItem, "type" | "label">[], clusters: ConcentrationItem[]) => {
     const hotCards: ConcentrationItem[] = hot.map((h) => ({
@@ -7772,8 +7812,9 @@ useEffect(() => {
             if (signalBadges.length < 2 && regionBadge) signalBadges.push({ label: regionBadge.toUpperCase(), tone: "theme" });
             const visibleBadges = signalBadges.slice(0, 2);
 
-            const sameCityWeekCount = filteredEvents.filter((x) => x.id !== e.id && [x.city, x.state].filter(Boolean).join(", ") === cityLabel && getWeekStart(x.startDate) === weekStart).length;
-            const sameThemeWeekCount = filteredEvents.filter((x) => x.id !== e.id && getWeekStart(x.startDate) === weekStart && splitCsv(x.sectorThemes).some((t) => themeTags.includes(t))).length;
+            const relatedEventCounts = relatedEventCountsById.get(e.id);
+            const sameCityWeekCount = relatedEventCounts?.sameCityWeekCount || 0;
+            const sameThemeWeekCount = relatedEventCounts?.sameThemeWeekCount || 0;
 
             const marketSignal = (() => {
               if (isHot && isCluster) return "Clustered activity inside a peak conference window";

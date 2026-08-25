@@ -1165,28 +1165,32 @@ async function buildMarketViewIntelligenceWithInternal(events: InternalDiscovery
 
 export async function getDiscoveryPage(
   query: DiscoveryQuery = {},
-  options: { includeMarketViewIntelligence?: boolean } = {}
+  options: { includeMarketAnalytics?: boolean; includeMarketViewIntelligence?: boolean } = {}
 ): Promise<DiscoveryPage> {
   const approvedEvents = await fetchApprovedEvents();
   const filtered = filterEvents(approvedEvents, query);
   const limit = Math.min(Math.max(query.limit || 30, 1), 30);
   const start = decodeCursor(query.cursor);
   const nextIndex = start + limit;
-  const page: DiscoveryPage = {
+  const page: Omit<DiscoveryPage, "marketAnalytics" | "allMarketAnalytics" | "marketViewIntelligence" | "allMarketViewIntelligence"> &
+    Partial<Pick<DiscoveryPage, "marketAnalytics" | "allMarketAnalytics" | "marketViewIntelligence" | "allMarketViewIntelligence">> = {
     events: filtered.slice(start, nextIndex).map(toPublicEvent),
     total: filtered.length,
     nextCursor: nextIndex < filtered.length ? encodeCursor(nextIndex) : null,
     filterOptions: buildFilterOptions(approvedEvents),
     aggregates: aggregate(filtered),
     allAggregates: aggregate(approvedEvents),
-    marketAnalytics: buildMarketViewAnalytics(filtered),
-    allMarketAnalytics: buildMarketViewAnalytics(approvedEvents),
   };
+
+  if (options.includeMarketAnalytics !== false) {
+    page.marketAnalytics = buildMarketViewAnalytics(filtered);
+    page.allMarketAnalytics = buildMarketViewAnalytics(approvedEvents);
+  }
 
   if (options.includeMarketViewIntelligence !== false) {
     page.marketViewIntelligence = await buildMarketViewIntelligenceWithInternal(filtered);
     page.allMarketViewIntelligence = await buildMarketViewIntelligenceWithInternal(approvedEvents);
   }
 
-  return page;
+  return page as DiscoveryPage;
 }

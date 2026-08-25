@@ -61,7 +61,10 @@ export default async function DiscoveryPage({ searchParams }: DiscoveryPageProps
   const initialQuery = buildInitialDiscoveryQuery(params);
   const initialSearchQuery = initialQuery.q || "";
   const initialEventId = initialQuery.eventIds?.[0] || "";
-  const initialPage = await getDiscoveryPage(initialQuery, { includeMarketViewIntelligence: false });
+  const initialPage = await getDiscoveryPage(initialQuery, {
+    includeMarketAnalytics: false,
+    includeMarketViewIntelligence: false,
+  });
   const tickerEvents = initialPage.events;
   const initialCity = reqHeaders.get("x-vercel-ip-city") || reqHeaders.get("x-city") || "";
 
