@@ -1369,6 +1369,8 @@ export default function EventsClient({
   const firstResultCardRef = useRef<HTMLElement | null>(null);
   const [filters, setFilters] = useState<FiltersState>(DEFAULT_FILTERS);
   const [filterMode, setFilterMode] = useState<FilterMatchMode>("and");
+  const searchQuery = initialSearchQuery;
+  const shouldLoadInitialDiscovery = initialEvents.length === 0 && initialPage.total === 0;
   const [events, setEvents] = useState<WorkspaceEvent[]>(initialEvents);
   const [discoveryPage, setDiscoveryPage] = useState(() => ({
     total: initialPage.total,
@@ -1379,14 +1381,13 @@ export default function EventsClient({
     marketAnalytics: normalizeMarketViewAnalytics(initialPage.marketAnalytics),
     allMarketAnalytics: normalizeMarketViewAnalytics(initialPage.allMarketAnalytics || initialPage.marketAnalytics),
   }));
-  const [isLoadingEvents, setIsLoadingEvents] = useState(false);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(shouldLoadInitialDiscovery);
   const [eventLoadError, setEventLoadError] = useState<string | null>(null);
   const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
   const [savedLists, setSavedLists] = useState<SavedList[]>([]);
   const [activeSavedListId, setActiveSavedListId] = useState<string | null>(null);
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
-  const searchQuery = initialSearchQuery;
   const [activeQuickView, setActiveQuickView] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -1808,13 +1809,17 @@ export default function EventsClient({
   }, [discoveryRequest]);
 
   useEffect(() => {
+    if (shouldLoadInitialDiscovery && !urlSeeded) return;
     const requestKey = discoveryRequest.toString();
     if (initialDiscoveryRequestRef.current === null) {
       initialDiscoveryRequestRef.current = requestKey;
+      if (shouldLoadInitialDiscovery) {
+        void loadDiscoveryPage();
+      }
       return;
     }
     void loadDiscoveryPage();
-  }, [discoveryRequest, loadDiscoveryPage]);
+  }, [discoveryRequest, loadDiscoveryPage, shouldLoadInitialDiscovery, urlSeeded]);
 
   const cities = discoveryPage.filterOptions.cities;
   const regions = discoveryPage.filterOptions.regions;

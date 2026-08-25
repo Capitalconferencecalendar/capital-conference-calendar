@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import AppShell from "../components/AppShell";
 import DiscoveryClient from "./DiscoveryClient";
-import { getDiscoveryPage } from "../../lib/discoveryDataset";
-import type { DiscoveryQuery } from "../../lib/discoveryDataset";
+import type { DiscoveryAggregateStats, DiscoveryFilterOptions, DiscoveryQuery } from "../../lib/discoveryDataset";
 
 export const metadata: Metadata = {
   title: "Discovery | Capital Conference Calendar",
@@ -16,6 +14,47 @@ type DiscoveryPageProps = {
 };
 
 const INITIAL_VISIBLE_EVENTS = 20;
+
+const emptyFilterOptions: DiscoveryFilterOptions = {
+  cities: [],
+  regions: [],
+  countries: [],
+  states: [],
+  themes: [],
+  publicCompanySectors: [],
+  conferenceTypes: [],
+  issuers: [],
+  organizers: [],
+  marketFocuses: [],
+};
+
+const emptyAggregates: DiscoveryAggregateStats = {
+  events: 0,
+  organizers: 0,
+  states: 0,
+  cities: 0,
+  themes: 0,
+  focus: 0,
+  investorHeavy: 0,
+  issuerAccess: 0,
+  verified: 0,
+  hotWeeks: 0,
+  highestActivityWeek: null,
+  lowestActivityWeek: null,
+  leadingSector: null,
+  mostActiveDealWeek: null,
+  earliestDate: null,
+  latestDate: null,
+  latestVerificationStamp: null,
+  quickFeeds: {
+    investorConferences: 0,
+    healthcareConferences: 0,
+    privateMarkets: 0,
+    canadaEvents: 0,
+    upcoming30: 0,
+    hotWeeks: 0,
+  },
+};
 
 function firstParam(params: SearchParamsShape, key: string) {
   const value = params[key];
@@ -58,35 +97,28 @@ function buildInitialDiscoveryQuery(params: SearchParamsShape): DiscoveryQuery {
 }
 
 export default async function DiscoveryPage({ searchParams }: DiscoveryPageProps) {
-  const reqHeaders = await headers();
   const params = (searchParams ? await searchParams : {}) as SearchParamsShape;
   const initialQuery = buildInitialDiscoveryQuery(params);
   const initialSearchQuery = initialQuery.q || "";
   const initialEventId = initialQuery.eventIds?.[0] || "";
-  const initialPage = await getDiscoveryPage(initialQuery, {
-    includeMarketAnalytics: false,
-    includeMarketViewIntelligence: false,
-  });
-  const tickerEvents = initialPage.events;
-  const initialCity = reqHeaders.get("x-vercel-ip-city") || reqHeaders.get("x-city") || "";
 
   return (
     <AppShell
       active="dashboard"
       searchQuery={initialSearchQuery}
-      tickerEvents={tickerEvents.map((event) => ({
-        id: event.id,
-        title: event.title,
-        startDate: event.startDate,
-        endDate: event.endDate,
-        city: event.city,
-      }))}
+      tickerEvents={[]}
       workspaceMode="discovery"
     >
       <DiscoveryClient
-        events={initialPage.events}
-        initialPage={initialPage}
-        initialCity={initialCity}
+        events={[]}
+        initialPage={{
+          total: 0,
+          nextCursor: null,
+          filterOptions: emptyFilterOptions,
+          aggregates: emptyAggregates,
+          allAggregates: emptyAggregates,
+        }}
+        initialCity=""
         initialSearchQuery={initialSearchQuery}
         initialMode="market"
         initialEventId={initialEventId}

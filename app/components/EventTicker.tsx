@@ -127,7 +127,7 @@ async function getUpcomingTickerEvents(): Promise<TickerEvent[]> {
 }
 
 export default async function EventTicker({ events: providedEvents }: EventTickerProps) {
-  const events = providedEvents?.length ? providedEvents : await getUpcomingTickerEvents();
+  const events = providedEvents !== undefined ? providedEvents : await getUpcomingTickerEvents();
   if (events.length === 0) return null;
 
   const items = events.map((event) => {
