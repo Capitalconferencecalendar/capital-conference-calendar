@@ -53,6 +53,7 @@ type Props = {
   quickFeeds: SharedQuickFeed[];
   dateRangeExtra?: ReactNode;
   filterMatchingControl?: ReactNode;
+  isLoading?: boolean;
 };
 
 const controlStyle: CSSProperties = {
@@ -83,24 +84,28 @@ export function FilterDropdown({
   values,
   options,
   onToggle,
+  isLoading = false,
 }: {
   label: string;
   emptyLabel: string;
   values: string[];
   options: string[];
   onToggle: (value: string) => void;
+  isLoading?: boolean;
 }) {
   return (
     <select
       aria-label={label}
       value=""
       onChange={(event) => {
+        if (isLoading) return;
         onToggle(event.target.value);
         event.currentTarget.value = "";
       }}
       style={controlStyle}
+      disabled={isLoading}
     >
-      <option value="">{values.length ? `${values.length} ${label.toLowerCase()} selected` : emptyLabel}</option>
+      <option value="">{isLoading ? "Loading options..." : values.length ? `${values.length} ${label.toLowerCase()} selected` : emptyLabel}</option>
       {options.map((option, index) => (
         <option key={`${label}-${option}-${index}`} value={option}>
           {values.includes(option) ? `✓ ${option}` : option}
@@ -146,6 +151,7 @@ export default function SharedFilterRail({
   quickFeeds,
   dateRangeExtra,
   filterMatchingControl,
+  isLoading = false,
 }: Props) {
   const activeCounts: Record<PlatformFilterSection, number> = {
     dateTiming: 0,
@@ -190,19 +196,19 @@ export default function SharedFilterRail({
                 {dateRangeExtra}
               </> : null}
               {section.key === "location" ? <>
-                <FilterDropdown label="Country" emptyLabel="All Country" values={filters.country} options={filterOptions.countries} onToggle={(value) => onToggleFilter("country", value)} />
-                <FilterDropdown label="Region" emptyLabel="All Region" values={filters.region} options={filterOptions.regions} onToggle={(value) => onToggleFilter("region", value)} />
-                <FilterDropdown label="State" emptyLabel="All State" values={filters.state} options={filterOptions.states} onToggle={(value) => onToggleFilter("state", value)} />
-                <FilterDropdown label="Cities" emptyLabel="All Cities" values={filters.cities} options={filterOptions.cities} onToggle={(value) => onToggleFilter("cities", value)} />
+                <FilterDropdown label="Country" emptyLabel="All Country" values={filters.country} options={filterOptions.countries} onToggle={(value) => onToggleFilter("country", value)} isLoading={isLoading} />
+                <FilterDropdown label="Region" emptyLabel="All Region" values={filters.region} options={filterOptions.regions} onToggle={(value) => onToggleFilter("region", value)} isLoading={isLoading} />
+                <FilterDropdown label="State" emptyLabel="All State" values={filters.state} options={filterOptions.states} onToggle={(value) => onToggleFilter("state", value)} isLoading={isLoading} />
+                <FilterDropdown label="Cities" emptyLabel="All Cities" values={filters.cities} options={filterOptions.cities} onToggle={(value) => onToggleFilter("cities", value)} isLoading={isLoading} />
               </> : null}
               {section.key === "marketSegments" ? <>
-                <FilterDropdown label="Sectors and themes" emptyLabel="All Sectors / Themes" values={filters.sectorThemes} options={filterOptions.themes} onToggle={(value) => onToggleFilter("sectorThemes", value)} />
-                <FilterDropdown label="Public company sectors" emptyLabel="All Public Company Sectors" values={filters.publicCompanySectors} options={filterOptions.publicCompanySectors || []} onToggle={(value) => onToggleFilter("publicCompanySectors", value)} />
-                <FilterDropdown label="Conference types" emptyLabel="All Types" values={filters.conferenceType} options={filterOptions.conferenceTypes} onToggle={(value) => onToggleFilter("conferenceType", value)} />
-                <FilterDropdown label="Market focus" emptyLabel="All Market Focus" values={filters.marketFocus} options={filterOptions.marketFocuses} onToggle={(value) => onToggleFilter("marketFocus", value)} />
+                <FilterDropdown label="Sectors and themes" emptyLabel="All Sectors / Themes" values={filters.sectorThemes} options={filterOptions.themes} onToggle={(value) => onToggleFilter("sectorThemes", value)} isLoading={isLoading} />
+                <FilterDropdown label="Public company sectors" emptyLabel="All Public Company Sectors" values={filters.publicCompanySectors} options={filterOptions.publicCompanySectors || []} onToggle={(value) => onToggleFilter("publicCompanySectors", value)} isLoading={isLoading} />
+                <FilterDropdown label="Conference types" emptyLabel="All Types" values={filters.conferenceType} options={filterOptions.conferenceTypes} onToggle={(value) => onToggleFilter("conferenceType", value)} isLoading={isLoading} />
+                <FilterDropdown label="Market focus" emptyLabel="All Market Focus" values={filters.marketFocus} options={filterOptions.marketFocuses} onToggle={(value) => onToggleFilter("marketFocus", value)} isLoading={isLoading} />
               </> : null}
-              {section.key === "participation" ? <FilterDropdown label="Issuer participation" emptyLabel="All Issuer Participation" values={filters.issuerParticipation} options={filterOptions.issuers} onToggle={(value) => onToggleFilter("issuerParticipation", value)} /> : null}
-              {section.key === "organizers" ? <FilterDropdown label="Organizers" emptyLabel="All Organizers" values={filters.organizer} options={filterOptions.organizers} onToggle={(value) => onToggleFilter("organizer", value)} /> : null}
+              {section.key === "participation" ? <FilterDropdown label="Issuer participation" emptyLabel="All Issuer Participation" values={filters.issuerParticipation} options={filterOptions.issuers} onToggle={(value) => onToggleFilter("issuerParticipation", value)} isLoading={isLoading} /> : null}
+              {section.key === "organizers" ? <FilterDropdown label="Organizers" emptyLabel="All Organizers" values={filters.organizer} options={filterOptions.organizers} onToggle={(value) => onToggleFilter("organizer", value)} isLoading={isLoading} /> : null}
             </div> : null}
           </div>
         ))}
@@ -217,7 +223,7 @@ export default function SharedFilterRail({
             <span style={{ width: "20px", height: "20px", display: "inline-flex", alignItems: "center", justifyContent: "center", color: feed.color, filter: "brightness(1.2)" }}><QuickFeedGlyph kind={feed.icon} color={feed.color} /></span>
             <span style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", alignItems: "center", gap: "8px", width: "100%", minWidth: 0 }}>
               <span style={{ fontSize: "13px", fontWeight: 700, color: "#dce8f8", lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "left" }}>{feed.title}</span>
-              <span style={{ fontSize: "12px", fontWeight: 800, color: "#f8fbff" }}>({feed.count})</span>
+              <span style={{ fontSize: "12px", fontWeight: 800, color: "#f8fbff" }}>({isLoading ? "—" : feed.count})</span>
             </span>
           </button>)}
         </div>

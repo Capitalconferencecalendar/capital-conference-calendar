@@ -1,9 +1,7 @@
-import Link from "next/link";
+"use client";
 
-type AirtableRecord = {
-  id: string;
-  fields: Record<string, unknown>;
-};
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
 type TickerEvent = {
   id: string;
@@ -28,27 +26,6 @@ function cleanDateOnly(value: unknown): string {
   return toText(value).slice(0, 10);
 }
 
-function toUtcDayTime(dateOnly: string): number {
-  if (!dateOnly) return Number.NaN;
-  return new Date(`${dateOnly}T00:00:00Z`).getTime();
-}
-
-function isWebsiteApproved(fields: Record<string, unknown>): boolean {
-  const approvalKey =
-    Object.keys(fields).find(
-      (key) => key.replace(/[^a-z]/gi, "").toLowerCase() === "websiteapproval"
-    ) || "Website Approval";
-  const normalized = toText(fields[approvalKey]).toLowerCase().replace(/\s+/g, "");
-  if (!normalized) return false;
-  const looksApproved = normalized.includes("approved") || normalized.includes("appoved");
-  const looksRejected =
-    normalized.includes("notapproved") ||
-    normalized.includes("unapproved") ||
-    normalized.includes("pending") ||
-    normalized.includes("rejected");
-  return looksApproved && !looksRejected;
-}
-
 function formatDateRange(startDate: string, endDate: string): string {
   if (!startDate) return "";
   const start = new Date(`${startDate}T00:00:00`);
@@ -69,78 +46,65 @@ function formatDateRange(startDate: string, endDate: string): string {
   return `${startLabel}–${endLabel}`;
 }
 
-async function getUpcomingTickerEvents(): Promise<TickerEvent[]> {
-  const baseId = process.env.AIRTABLE_BASE_ID;
-  const tableName = process.env.AIRTABLE_TABLE_NAME;
-  const token = process.env.AIRTABLE_TOKEN;
-  if (!baseId || !tableName || !token) return [];
+export default function EventTicker({ events: providedEvents }: EventTickerProps) {
+  const hasProvidedEvents = providedEvents !== undefined;
+  const [events, setEvents] = useState<TickerEvent[]>(providedEvents || []);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">(
+    hasProvidedEvents ? "ready" : "loading"
+  );
 
-  const records: AirtableRecord[] = [];
-  let offset: string | undefined;
+  useEffect(() => {
+    if (hasProvidedEvents) {
+      setEvents(providedEvents || []);
+      setStatus("ready");
+      return;
+    }
 
-  try {
-    do {
-      const url = new URL(
-        `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`
-      );
-      if (offset) url.searchParams.set("offset", offset);
-
-      const response = await fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${token}` },
-        next: { revalidate: 300 },
+    let cancelled = false;
+    setStatus("loading");
+    fetch("/api/ticker-events", { cache: "force-cache" })
+      .then((response) => {
+        if (!response.ok) throw new Error("Unable to load ticker events.");
+        return response.json() as Promise<{ events?: TickerEvent[] }>;
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setEvents((data.events || []).map((event) => ({
+          id: toText(event.id),
+          title: toText(event.title) || "Untitled Event",
+          startDate: cleanDateOnly(event.startDate),
+          endDate: cleanDateOnly(event.endDate || event.startDate),
+          city: toText(event.city),
+        })).filter((event) => event.id && event.startDate));
+        setStatus("ready");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setEvents([]);
+        setStatus("error");
       });
-      if (!response.ok) return [];
 
-      const data = await response.json();
-      records.push(...(data.records || []));
-      offset = data.offset;
-    } while (offset);
-  } catch {
-    return [];
-  }
+    return () => {
+      cancelled = true;
+    };
+  }, [hasProvidedEvents, providedEvents]);
 
-  const today = new Date();
-  const todayTime = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const displayEvents = events;
+  const isLoading = status === "loading";
+  const isError = status === "error";
+  const showEmpty = status === "ready" && displayEvents.length === 0;
 
-  return records
-    .filter((record) => isWebsiteApproved(record.fields || {}))
-    .map((record) => {
-      const fields = record.fields || {};
-      return {
-        id: record.id,
-        title: toText(fields["Event Name"]) || "Untitled Event",
-        startDate: cleanDateOnly(fields["Start Date"]),
-        endDate: cleanDateOnly(fields["End Date"] || fields["Start Date"]),
-        city: toText(fields["City"]),
-      };
-    })
-    .filter((event) => event.startDate)
-    .filter((event) => {
-      const activeUntil = toUtcDayTime(event.endDate || event.startDate);
-      return !Number.isNaN(activeUntil) && activeUntil >= todayTime;
-    })
-    .sort((a, b) => {
-      if (a.startDate !== b.startDate) return a.startDate.localeCompare(b.startDate);
-      return a.title.localeCompare(b.title);
-    })
-    .slice(0, 20);
-}
-
-export default async function EventTicker({ events: providedEvents }: EventTickerProps) {
-  const events = providedEvents !== undefined ? providedEvents : await getUpcomingTickerEvents();
-  if (events.length === 0) return null;
-
-  const items = events.map((event) => {
+  const items = displayEvents.map((event) => {
     const dateLabel = formatDateRange(event.startDate, event.endDate);
     return `${event.title} — ${dateLabel}${event.city ? `, ${event.city}` : ""}`;
   });
 
-  const tickerLoops = events.length === 1 ? 12 : 3;
-  const duplicated = Array.from({ length: tickerLoops }, () => events).flat();
+  const tickerLoops = displayEvents.length === 1 ? 12 : 3;
+  const duplicated = Array.from({ length: tickerLoops }, () => displayEvents).flat();
   // The track repeats the same set three times for a seamless loop. Give each
   // complete set its own slow reading interval rather than dividing that time
   // across all duplicated copies.
-  const tickerPassSeconds = Math.max(55, events.length * 2.75);
+  const tickerPassSeconds = Math.max(55, displayEvents.length * 2.75);
   const tickerDurationSeconds = tickerPassSeconds * tickerLoops;
 
   return (
@@ -200,6 +164,22 @@ export default async function EventTicker({ events: providedEvents }: EventTicke
       </Link>
 
       <div className="ccc-ticker-viewport" style={{ minWidth: 0, flex: 1, overflow: "hidden" }}>
+        {isLoading || isError || showEmpty ? (
+          <div
+            style={{
+              height: "100%",
+              display: "flex",
+              alignItems: "center",
+              color: isError ? "#fca5a5" : "#b9cee4",
+              fontSize: "12px",
+              fontWeight: 700,
+              letterSpacing: "0.01em",
+              opacity: 0.9,
+            }}
+          >
+            {isLoading ? "Loading upcoming conferences..." : isError ? "Unable to load upcoming conferences." : "No upcoming conferences available for ticker."}
+          </div>
+        ) : (
         <div
           className={`ccc-ticker-track${duplicated.length > 1 ? "" : " ccc-ticker-track-static"}`}
           style={{
@@ -224,6 +204,7 @@ export default async function EventTicker({ events: providedEvents }: EventTicke
             </span>
           ))}
         </div>
+        )}
       </div>
     </div>
   );

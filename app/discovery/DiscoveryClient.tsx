@@ -1354,6 +1354,39 @@ function CalendarBrandGlyph({ brand }: { brand: "google" | "apple" | "outlook" }
   );
 }
 
+function DiscoveryEventSkeletonCards() {
+  return (
+    <div className="event-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: "12px", width: "100%", maxWidth: "100%", minWidth: 0 }}>
+      {Array.from({ length: 4 }, (_, index) => (
+        <article
+          key={`discovery-skeleton-${index}`}
+          style={{
+            minHeight: "154px",
+            borderRadius: "16px",
+            border: "1px solid rgba(96,165,250,0.16)",
+            background: "linear-gradient(180deg, rgba(8,30,53,0.72), rgba(5,21,38,0.82))",
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+            padding: "16px",
+            display: "grid",
+            gap: "14px",
+          }}
+        >
+          <div style={{ height: "15px", width: index % 2 ? "56%" : "68%", borderRadius: "999px", background: "linear-gradient(90deg, rgba(96,165,250,0.10), rgba(147,197,253,0.24), rgba(96,165,250,0.10))" }} />
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {[0, 1, 2].map((item) => (
+              <span key={item} style={{ height: "22px", width: item === 0 ? "90px" : "118px", borderRadius: "999px", background: "rgba(147,197,253,0.10)", border: "1px solid rgba(147,197,253,0.10)" }} />
+            ))}
+          </div>
+          <div style={{ display: "grid", gap: "8px" }}>
+            <div style={{ height: "11px", width: "92%", borderRadius: "999px", background: "rgba(203,213,225,0.12)" }} />
+            <div style={{ height: "11px", width: "74%", borderRadius: "999px", background: "rgba(203,213,225,0.10)" }} />
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 export default function EventsClient({
   events: initialEvents,
   initialPage,
@@ -1382,6 +1415,7 @@ export default function EventsClient({
     allMarketAnalytics: normalizeMarketViewAnalytics(initialPage.allMarketAnalytics || initialPage.marketAnalytics),
   }));
   const [isLoadingEvents, setIsLoadingEvents] = useState(shouldLoadInitialDiscovery);
+  const dataIsBootstrapping = shouldLoadInitialDiscovery && isLoadingEvents && events.length === 0;
   const [eventLoadError, setEventLoadError] = useState<string | null>(null);
   const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
   const [savedLists, setSavedLists] = useState<SavedList[]>([]);
@@ -1802,7 +1836,7 @@ export default function EventsClient({
         allMarketAnalytics: normalizeMarketViewAnalytics(next.allMarketAnalytics || next.marketAnalytics),
       });
     } catch (error) {
-      setEventLoadError(error instanceof Error ? error.message : "Unable to load conferences.");
+      setEventLoadError(error instanceof Error ? error.message : "Unable to load conference index.");
     } finally {
       setIsLoadingEvents(false);
     }
@@ -3986,6 +4020,7 @@ useEffect(() => {
             { key: "upcoming-30-days", title: "Next 30 Days", color: "#2563eb", icon: "next30", count: quickFeedCounts.upcoming30, onClick: () => applyHeroQuickView("upcoming-30-days") },
             { key: "hot-weeks", title: "Hot Weeks", color: "#f97316", icon: "next60", count: quickFeedCounts.hotWeeks, onClick: () => { const firstHot = viewConcentrationCards.find((item) => item.type === "hotweek") || allConcentrationCards.find((item) => item.type === "hotweek"); if (firstHot) { applyConcentrationItem(firstHot); recordActivity("feed", "Quick feed: hot weeks"); } } },
           ]}
+          isLoading={dataIsBootstrapping}
         />
         </div>
       </aside>
@@ -5537,7 +5572,7 @@ useEffect(() => {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "10px", minWidth: 0 }}>
-              <div style={{ color: "#dbeafe", fontWeight: 700 }}>{selectedEvents.length ? `${selectedEvents.length} selected` : `Showing ${events.length} of ${discoveryHeaderMetrics.recordCount} conferences`}</div>
+              <div style={{ color: "#dbeafe", fontWeight: 700 }}>{selectedEvents.length ? `${selectedEvents.length} selected` : dataIsBootstrapping ? "Loading conference index..." : `Showing ${events.length} of ${discoveryHeaderMetrics.recordCount} conferences`}</div>
             </div>
             <div style={{ display: "none", gap: "6px" }}>
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -7761,7 +7796,9 @@ useEffect(() => {
               })()
             ) : null}
             {dashboardMode === "market" && workspaceViewMode === "database" ? (
-            filteredEvents.length === 0 ? (
+            dataIsBootstrapping ? (
+              <DiscoveryEventSkeletonCards />
+            ) : filteredEvents.length === 0 ? (
               <div style={{ border: "1px solid rgba(96,165,250,0.2)", borderRadius: "12px", background: "rgba(8,24,42,0.68)", padding: "18px 16px", color: "#c7dcf6", fontSize: "15px", lineHeight: 1.45 }}>
                 No current results for this market view, try refining your search.
               </div>
@@ -8492,7 +8529,18 @@ useEffect(() => {
                 </button>
               </div>
             ) : null}
-            {eventLoadError ? <div style={{ color: "#fcb5c5", fontSize: "12px", textAlign: "center" }}>{eventLoadError}</div> : null}
+            {eventLoadError ? (
+              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "10px", color: "#fcb5c5", fontSize: "12px", textAlign: "center" }}>
+                <span>{eventLoadError}</span>
+                <button
+                  type="button"
+                  onClick={() => void loadDiscoveryPage()}
+                  style={{ height: "28px", padding: "0 10px", borderRadius: "8px", border: "1px solid rgba(252,181,197,0.32)", background: "rgba(252,181,197,0.08)", color: "#ffd5df", fontSize: "11px", fontWeight: 800, cursor: "pointer" }}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : null}
             </>
             )
             ) : null}

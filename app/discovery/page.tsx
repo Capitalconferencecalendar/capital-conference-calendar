@@ -106,7 +106,6 @@ export default async function DiscoveryPage({ searchParams }: DiscoveryPageProps
     <AppShell
       active="dashboard"
       searchQuery={initialSearchQuery}
-      tickerEvents={[]}
       workspaceMode="discovery"
     >
       <DiscoveryClient
