@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Fragment, type CSSProperties, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import AddToCalendar from "../components/AddToCalendar";
 import ConcentrationStrip from "../components/ConcentrationStrip";
@@ -8018,7 +8019,8 @@ useEffect(() => {
                       Live Market Signals
                     </div>
                   ) : null}
-                  <div
+                  <Link
+                    href="/market-view"
                     style={{
                       minHeight: "96px",
                       borderTop: `1px solid ${stripTone.border}`,
@@ -8033,6 +8035,8 @@ useEffect(() => {
                       alignItems: "center",
                       gap: "18px",
                       boxShadow: "0 16px 28px rgba(2,10,24,0.18), inset 0 1px 0 rgba(255,255,255,0.04)",
+                      textDecoration: "none",
+                      cursor: "pointer",
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: "16px", minWidth: 0, flex: 1 }}>
@@ -8085,9 +8089,7 @@ useEffect(() => {
                         </div>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleMarketSignalAction(insertedSignal)}
+                    <span
                       style={{
                         height: "40px",
                         borderRadius: "10px",
@@ -8097,14 +8099,16 @@ useEffect(() => {
                         fontSize: "14px",
                         fontWeight: 700,
                         padding: "0 16px",
-                        cursor: "pointer",
                         whiteSpace: "nowrap",
                         boxShadow: `0 0 18px ${stripTone.glow}`,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
                       }}
                     >
                       {insertedSignal.cta}
-                    </button>
-                  </div>
+                    </span>
+                  </Link>
                 </div>
               ) : null,
               (
