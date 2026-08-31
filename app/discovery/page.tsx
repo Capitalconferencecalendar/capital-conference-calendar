@@ -16,6 +16,11 @@ const emptyFilterOptions: DiscoveryFilterOptions = {
   publicCompanySectors: [],
   conferenceTypes: [],
   issuers: [],
+  targetAudiences: [],
+  companyParticipants: [],
+  eventFeatures: [],
+  accessModels: [],
+  marketCaps: [],
   organizers: [],
   marketFocuses: [],
 };

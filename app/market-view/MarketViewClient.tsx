@@ -18,6 +18,11 @@ type FilterOptions = {
   publicCompanySectors?: string[];
   conferenceTypes: string[];
   issuers: string[];
+  targetAudiences?: string[];
+  companyParticipants?: string[];
+  eventFeatures?: string[];
+  accessModels?: string[];
+  marketCaps?: string[];
   organizers: string[];
   marketFocuses: string[];
 };
@@ -116,6 +121,11 @@ type FiltersState = {
   publicCompanySectors: string[];
   conferenceType: string[];
   issuerParticipation: string[];
+  targetAudience: string[];
+  companyParticipants: string[];
+  eventFeatures: string[];
+  accessModel: string[];
+  marketCap: string[];
   organizer: string[];
   marketFocus: string[];
 };
@@ -132,6 +142,11 @@ const DEFAULT_FILTERS: FiltersState = {
   publicCompanySectors: [],
   conferenceType: [],
   issuerParticipation: [],
+  targetAudience: [],
+  companyParticipants: [],
+  eventFeatures: [],
+  accessModel: [],
+  marketCap: [],
   organizer: [],
   marketFocus: [],
 };
@@ -201,10 +216,10 @@ function leaderboardDiscoveryHref({ title, label, fromDate, toDate }: { title: s
 
   if (title === "Top Metros") params.append("city", label);
   else if (title === "Top Organizers") params.append("organizer", label);
-  else if (title === "Top Public Company Sectors") params.append("publicCompanySector", label);
-  else if (title === "Top Market Focus Areas") params.append("marketFocus", label);
-  else if (title === "Top Access / Participation Profiles") params.append("issuerParticipation", /limited issuer access/i.test(label) ? "No Issuer Participation" : label);
-  else if (title === "Top Event Characters") params.set("q", label);
+  else if (title === "Top Industries") params.append("industry", label);
+  else if (title === "Top Investment Focuses") params.append("investmentFocus", label);
+  else if (title === "Top Company Participant Profiles") params.append("companyParticipants", label);
+  else if (title === "Top Event Features") params.append("eventFeatures", label);
 
   return `/discovery?${params.toString()}`;
 }
@@ -259,9 +274,9 @@ function moverMovementLabel(row: { count: number; change: number | null }) {
 function leaderboardInsightPrefix(title: string) {
   if (title === "Top Metros") return "Anchor market";
   if (title === "Top Organizers") return "Lead organizer";
-  if (title === "Top Event Characters") return "Leading character";
-  if (title === "Top Public Company Sectors") return "Leading sector";
-  if (title === "Top Market Focus Areas") return "Leading focus";
+  if (title === "Top Event Features") return "Leading feature";
+  if (title === "Top Industries") return "Leading industry";
+  if (title === "Top Investment Focuses") return "Leading focus";
   return "Leading profile";
 }
 
@@ -409,6 +424,11 @@ function isDefaultFilters(filters: FiltersState) {
     filters.publicCompanySectors.length === 0 &&
     filters.conferenceType.length === 0 &&
     filters.issuerParticipation.length === 0 &&
+    filters.targetAudience.length === 0 &&
+    filters.companyParticipants.length === 0 &&
+    filters.eventFeatures.length === 0 &&
+    filters.accessModel.length === 0 &&
+    filters.marketCap.length === 0 &&
     filters.organizer.length === 0 &&
     filters.marketFocus.length === 0
   );
@@ -429,12 +449,17 @@ function buildMarketViewRequest(filters: FiltersState, filterMode: FilterMatchMo
   appendMany(params, "region", filters.region);
   appendMany(params, "state", filters.state);
   appendMany(params, "city", filters.cities);
-  appendMany(params, "sectorTheme", filters.sectorThemes);
-  appendMany(params, "publicCompanySector", filters.publicCompanySectors);
+  appendMany(params, "industry", filters.sectorThemes);
+  appendMany(params, "industry", filters.publicCompanySectors);
   appendMany(params, "conferenceType", filters.conferenceType);
   appendMany(params, "issuerParticipation", filters.issuerParticipation);
+  appendMany(params, "targetAudience", filters.targetAudience);
+  appendMany(params, "companyParticipants", filters.companyParticipants);
+  appendMany(params, "eventFeatures", filters.eventFeatures);
+  appendMany(params, "accessModel", filters.accessModel);
+  appendMany(params, "marketCap", filters.marketCap);
   appendMany(params, "organizer", filters.organizer);
-  appendMany(params, "marketFocus", filters.marketFocus);
+  appendMany(params, "investmentFocus", filters.marketFocus);
   return params;
 }
 
@@ -773,20 +798,20 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
     share: displayAggregates.events ? Math.round((row.count / displayAggregates.events) * 100) : 0,
   }));
   const compositionCards = [
-    { title: "Event Character Mix", rows: compositionRows(characterRows), tone: "indigo" as const },
-    { title: "Access / Participation Mix", rows: compositionRows(accessRows.map((row) => ({ ...row, label: displayAccessLabel(row.label) }))), tone: "blue" as const },
-    { title: "Public Company Sector Mix", rows: compositionRows(sectorRows), tone: "blue" as const },
-    { title: "Market Focus Mix", rows: compositionRows(visibleFocusRows), tone: "indigo" as const },
+    { title: "Event Features Mix", rows: compositionRows(characterRows), tone: "indigo" as const },
+    { title: "Audience & Access Mix", rows: compositionRows(accessRows.map((row) => ({ ...row, label: displayAccessLabel(row.label) }))), tone: "blue" as const },
+    { title: "Industry Mix", rows: compositionRows(sectorRows), tone: "blue" as const },
+    { title: "Investment Focus Mix", rows: compositionRows(visibleFocusRows), tone: "indigo" as const },
     { title: "Regional Mix", rows: compositionRows(regionalRows), tone: "blue" as const },
   ];
   const leaderboardContext = leaderboardSource.leaderboardContext || {};
   const leaderboardCards = [
     { title: "Top Metros", rows: leaderboardMetroRows, empty: "No metro activity in this window." },
     { title: "Top Organizers", rows: leaderboardOrganizerRows, empty: "No organizer activity in this window." },
-    { title: "Top Event Characters", rows: leaderboardCharacterRows, empty: "No event-character activity in this window." },
-    { title: "Top Public Company Sectors", rows: leaderboardSectorRows, empty: "No sector activity in this window." },
-    { title: "Top Market Focus Areas", rows: (leaderboardVisibleFocusRows.length ? leaderboardVisibleFocusRows : leaderboardFocusRows), empty: "No market-focus activity in this window." },
-    { title: "Top Access / Participation Profiles", rows: leaderboardAccessRows.map((row) => ({ ...row, label: displayAccessLabel(row.label) })), empty: "No access-profile activity in this window." },
+    { title: "Top Event Features", rows: leaderboardCharacterRows, empty: "No event-feature activity in this window." },
+    { title: "Top Industries", rows: leaderboardSectorRows, empty: "No industry activity in this window." },
+    { title: "Top Investment Focuses", rows: (leaderboardVisibleFocusRows.length ? leaderboardVisibleFocusRows : leaderboardFocusRows), empty: "No investment-focus activity in this window." },
+    { title: "Top Company Participant Profiles", rows: leaderboardAccessRows.map((row) => ({ ...row, label: displayAccessLabel(row.label) })), empty: "No company-participant activity in this window." },
   ];
   const roadmapCards = [
     ["Comparable Conference Sets", "Identify events with overlapping sector exposure, audience profile, issuer access, market focus, and event character.", "Coming Soon"],
@@ -1317,7 +1342,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
             <div className="v3-support-card">
               <div className="v3-eyebrow">Access Signal Mix</div>
               <h3>Classified Access</h3>
-              {accessRows.length ? accessRows.slice(0, 4).map((row) => <div className="v3-muted-row" key={row.label}>{row.label}: {row.count} approved events</div>) : <EmptyState>Issuer Participation is required to calculate access signal mix.</EmptyState>}
+              {accessRows.length ? accessRows.slice(0, 4).map((row) => <div className="v3-muted-row" key={row.label}>{row.label}: {row.count} approved events</div>) : <EmptyState>Company Participants and Event Features are required to calculate access signal mix.</EmptyState>}
               {accessRead ? <p style={{ marginTop: 8 }}>{accessRead}</p> : null}
             </div>
           </section>
@@ -1325,10 +1350,10 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
           <section className="v3-panel">
             <div style={{ display: "grid", gap: 6, marginBottom: 14 }}><div className="v3-eyebrow">Data / Analytics</div><h2>Signal Breakdowns</h2></div>
             <div className="v3-analytics">
-              <div className="v3-data-card"><h3>Sector Breakdown</h3>{sectorRows.length ? sectorRows.map((row) => <Bar key={row.label} label={row.label} value={row.pct} />) : <EmptyState>Sector / Themes or Public Company Sector is required to calculate this signal.</EmptyState>}</div>
-              <div className="v3-data-card"><h3>Market Focus Mix</h3>{focusRows.length ? focusRows.map((row) => <Bar key={row.label} label={row.label} value={row.pct} />) : <EmptyState>Market Focus is required to calculate this signal.</EmptyState>}</div>
+              <div className="v3-data-card"><h3>Industry Breakdown</h3>{sectorRows.length ? sectorRows.map((row) => <Bar key={row.label} label={row.label} value={row.pct} />) : <EmptyState>Industry is required to calculate this signal.</EmptyState>}</div>
+              <div className="v3-data-card"><h3>Investment Focus Mix</h3>{focusRows.length ? focusRows.map((row) => <Bar key={row.label} label={row.label} value={row.pct} />) : <EmptyState>Investment Focus is required to calculate this signal.</EmptyState>}</div>
               <div className="v3-data-card"><h3>Event Character Mix</h3>{characterRows.length ? characterRows.map((row) => <Bar key={row.label} label={row.label} value={row.pct} tone="indigo" />) : <EmptyState>Event Character is required to calculate this signal.</EmptyState>}</div>
-              <div className="v3-data-card"><h3>Access / Audience Signal Mix</h3>{accessRows.length ? accessRows.map((row) => <Bar key={row.label} label={row.label} value={row.pct} />) : <EmptyState>Issuer Participation is required to calculate this signal.</EmptyState>}</div>
+              <div className="v3-data-card"><h3>Audience &amp; Access Signal Mix</h3>{accessRows.length ? accessRows.map((row) => <Bar key={row.label} label={row.label} value={row.pct} />) : <EmptyState>Company Participants and Event Features are required to calculate this signal.</EmptyState>}</div>
             </div>
           </section>
 

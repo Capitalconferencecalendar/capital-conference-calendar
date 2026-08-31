@@ -19,6 +19,14 @@ export type DiscoveryEvent = {
   marketFocus: string;
   sectorThemes: string;
   issuerParticipation: string;
+  conferenceType?: string;
+  industry?: string;
+  investmentFocus?: string;
+  targetAudience?: string;
+  companyParticipants?: string;
+  eventFeatures?: string;
+  accessModel?: string;
+  marketCap?: string;
   audience: string;
   region: string;
   format: string;
@@ -55,6 +63,11 @@ export type DiscoveryFilterOptions = {
   publicCompanySectors: string[];
   conferenceTypes: string[];
   issuers: string[];
+  targetAudiences: string[];
+  companyParticipants: string[];
+  eventFeatures: string[];
+  accessModels: string[];
+  marketCaps: string[];
   organizers: string[];
   marketFocuses: string[];
 };
@@ -224,6 +237,11 @@ export type DiscoveryQuery = {
   publicCompanySectors?: string[];
   conferenceType?: string[];
   issuerParticipation?: string[];
+  targetAudience?: string[];
+  companyParticipants?: string[];
+  eventFeatures?: string[];
+  accessModel?: string[];
+  marketCap?: string[];
   organizer?: string[];
   marketFocus?: string[];
   eventIds?: string[];
@@ -273,6 +291,14 @@ function isWebsiteApproved(fields: Record<string, unknown>) {
 function mapRecord(record: AirtableRecord): InternalDiscoveryEvent {
   const fields = record.fields || {};
   const startDate = cleanDateOnly(fields["Start Date"]);
+  const conferenceType = toText(fields["Conference Type"]);
+  const industry = toText(fields["Industry"]);
+  const investmentFocus = toText(fields["Investment Focus"]);
+  const targetAudience = toText(fields["Target Audience"]);
+  const companyParticipants = toText(fields["Company Participants"]);
+  const eventFeatures = toText(fields["Event Activities"]);
+  const accessModel = toText(fields["Access Model"]);
+  const marketCap = toText(fields["Market Cap"]);
   return {
     id: record.id,
     title: toText(fields["Event Name"]) || "Untitled Event",
@@ -286,16 +312,24 @@ function mapRecord(record: AirtableRecord): InternalDiscoveryEvent {
     website: firstText(fields, ["Event Website", "Website", "Event Link", "Conference URL"]),
     sourcePage: firstText(fields, ["Source Page (event-specific)", "Source Page", "Source URL"]),
     organizer: toText(fields["Organizer Name (from Organizer)"]),
-    primaryCategory: toText(fields["Primary Category"]),
-    marketFocus: toText(fields["Market Focus"]),
-    sectorThemes: toText(fields["Sector / Themes"]) || toText(fields["Sector / Theme"]),
-    issuerParticipation: toText(fields["Issuer Participation"]),
-    audience: toText(fields["Audience"]),
+    primaryCategory: conferenceType,
+    marketFocus: investmentFocus,
+    sectorThemes: industry,
+    issuerParticipation: companyParticipants,
+    conferenceType,
+    industry,
+    investmentFocus,
+    targetAudience,
+    companyParticipants,
+    eventFeatures,
+    accessModel,
+    marketCap,
+    audience: targetAudience,
     region: toText(fields["Region"]),
-    format: toText(fields["Format"]),
-    publicCompanySector: toText(fields["Public Company Sector"]),
-    additionalPublicCompanySectors: toText(fields["Additional Public Company Sectors"]),
-    eventCharacter: toText(fields["Event Character"]),
+    format: toText(fields["Event Format"]) || toText(fields["Format"]),
+    publicCompanySector: industry,
+    additionalPublicCompanySectors: "",
+    eventCharacter: eventFeatures,
     organizerType: toText(fields["Organizer Type / Type from Organizer"]) || toText(fields["Type from Organizer"]),
     verificationStatus: toText(fields["Verification Status"]),
     dataCompletenessScore: toText(fields["Data Completeness Score copy"]) || toText(fields["Data Completeness Score"]),
@@ -372,15 +406,17 @@ function buildFilterOptions(events: DiscoveryEvent[]): DiscoveryFilterOptions {
     regions: unique(events.map((event) => event.region)),
     countries: unique(events.map((event) => event.country)),
     states: unique(events.map((event) => event.state)),
-    themes: unique(events.flatMap((event) => splitCsv(event.sectorThemes))),
-    publicCompanySectors: unique(events.flatMap((event) => [
-      ...splitCsv(event.publicCompanySector || ""),
-      ...splitCsv(event.additionalPublicCompanySectors || ""),
-    ])),
-    conferenceTypes: unique(events.map((event) => event.primaryCategory)),
-    issuers: unique(events.map((event) => event.issuerParticipation)),
+    themes: unique(events.flatMap((event) => splitCsv(event.industry || ""))),
+    publicCompanySectors: [],
+    conferenceTypes: unique(events.flatMap((event) => splitCsv(event.conferenceType || ""))),
+    issuers: [],
+    targetAudiences: unique(events.flatMap((event) => splitCsv(event.targetAudience || ""))),
+    companyParticipants: unique(events.flatMap((event) => splitCsv(event.companyParticipants || ""))),
+    eventFeatures: unique(events.flatMap((event) => splitCsv(event.eventFeatures || ""))),
+    accessModels: unique(events.flatMap((event) => splitCsv(event.accessModel || ""))),
+    marketCaps: unique(events.flatMap((event) => splitCsv(event.marketCap || ""))),
     organizers: unique(events.map((event) => event.organizer)),
-    marketFocuses: unique(events.flatMap((event) => splitCsv(event.marketFocus))),
+    marketFocuses: unique(events.flatMap((event) => splitCsv(event.investmentFocus || ""))),
   };
 }
 
@@ -454,12 +490,10 @@ function buildMonthMovement(events: DiscoveryEvent[]) {
     const bucket = buckets.get(window.key);
     if (!bucket) return;
     bucket.count += 1;
-    const sectorValue = splitCsv(event.publicCompanySector || "").length
-      ? event.publicCompanySector || ""
-      : event.sectorThemes || "";
+    const sectorValue = event.industry || "";
     add(bucket.sectors, sectorValue);
-    add(bucket.characters, event.eventCharacter || "");
-    add(bucket.access, event.issuerParticipation || "");
+    add(bucket.characters, event.eventFeatures || "");
+    add(bucket.access, event.companyParticipants || "");
   });
 
   const movementWindows = windows.map((window) => {
@@ -506,13 +540,11 @@ function displayAccessProfile(label: string) {
 }
 
 function sectorLabels(event: DiscoveryEvent) {
-  const sectors = splitCsv(event.publicCompanySector || "");
-  return sectors.length ? sectors : splitCsv(event.sectorThemes);
+  return splitCsv(event.industry || "");
 }
 
 function focusLabels(event: DiscoveryEvent) {
-  const focus = splitCsv(event.marketFocus);
-  return focus.length ? focus : splitCsv(event.sectorThemes);
+  return splitCsv(event.investmentFocus || "");
 }
 
 function eventCountLabel(count: number) {
@@ -554,7 +586,7 @@ function buildLeaderboardContext(events: DiscoveryEvent[], counts: {
   const byCharacter = (label: string) => events.filter((event) => splitCsv(event.eventCharacter || "").includes(label));
   const bySector = (label: string) => events.filter((event) => sectorLabels(event).includes(label));
   const byFocus = (label: string) => events.filter((event) => focusLabels(event).includes(label));
-  const byAccess = (label: string) => events.filter((event) => splitCsv(event.issuerParticipation).map(displayAccessProfile).includes(label));
+  const byAccess = (label: string) => events.filter((event) => splitCsv(event.companyParticipants || "").map(displayAccessProfile).includes(label));
   const leadSector = (items: DiscoveryEvent[]) => ranked(items.flatMap(sectorLabels))[0]?.[0] || "";
   const leadCharacter = (items: DiscoveryEvent[]) => ranked(items.flatMap((event) => splitCsv(event.eventCharacter || "")))[0]?.[0] || "";
   const leadMetro = (items: DiscoveryEvent[]) => ranked(items.map(cityValue))[0]?.[0] || "";
@@ -598,17 +630,17 @@ function buildLeaderboardContext(events: DiscoveryEvent[], counts: {
         ? `Top 5 organizers account for ${eventCountLabel(top5Count(counts.organizerCounts))}.`
         : `${organizerLead[0] || "The leading organizer"} leads the current organizer table.`,
     },
-    "Top Event Characters": {
+    "Top Event Features": {
       leadLabel: characterLead[0],
       leadCount: characterLead[1],
       leadDetail: `${percent(characterLead[1], total)}% of the current index`,
       rowContext: rowContext(counts.eventCharacterCounts, (label, _index, count) => {
         const sector = leadSector(byCharacter(label));
-        return sector ? `Lead sector: ${sector}` : `Share of index: ${percent(count, total)}%`;
+        return sector ? `Lead industry: ${sector}` : `Share of index: ${percent(count, total)}%`;
       }),
-      signalRead: characterLead[0] ? `${characterLead[0]} is the leading event-character signal at ${eventCountLabel(characterLead[1])}.` : "Event-character data is still building across the current index.",
+      signalRead: characterLead[0] ? `${characterLead[0]} is the leading event-feature signal at ${eventCountLabel(characterLead[1])}.` : "Event-feature data is still building across the current index.",
     },
-    "Top Public Company Sectors": {
+    "Top Industries": {
       leadLabel: sectorLead[0],
       leadCount: sectorLead[1],
       leadDetail: `${percent(sectorLead[1], total)}% of the current index`,
@@ -619,35 +651,35 @@ function buildLeaderboardContext(events: DiscoveryEvent[], counts: {
         return metro ? `Top metro: ${metro}` : character ? `Lead character: ${character}` : "";
       }),
       signalRead: counts.sectorCounts[1]
-        ? `${sectorLead[0]} leads sector exposure, followed by ${counts.sectorCounts[1][0]}.`
-        : `${sectorLead[0] || "Sector exposure"} leads the current sector table.`,
+        ? `${sectorLead[0]} leads industry exposure, followed by ${counts.sectorCounts[1][0]}.`
+        : `${sectorLead[0] || "Industry exposure"} leads the current industry table.`,
     },
-    "Top Market Focus Areas": {
+    "Top Investment Focuses": {
       leadLabel: focusLead[0],
       leadCount: focusLead[1],
       leadDetail: `${percent(focusLead[1], total)}% of the current index`,
       rowContext: rowContext(counts.focusCounts, (label, index) => {
-        if (index === 0) return "Most common focus signal";
+        if (index === 0) return "Most common investment focus";
         const sector = leadSector(byFocus(label));
-        return sector ? `Lead sector: ${sector}` : "";
+        return sector ? `Lead industry: ${sector}` : "";
       }),
       signalRead: counts.focusCounts[1]
-        ? `${focusLead[0]} and ${counts.focusCounts[1][0]} are the strongest focus areas in the current index.`
-        : `${focusLead[0] || "Market focus"} leads the current focus table.`,
+        ? `${focusLead[0]} and ${counts.focusCounts[1][0]} are the strongest investment focuses in the current index.`
+        : `${focusLead[0] || "Investment focus"} leads the current focus table.`,
     },
-    "Top Access / Participation Profiles": {
+    "Top Company Participant Profiles": {
       leadLabel: accessLead[0],
       leadCount: accessLead[1],
       leadDetail: accessSecond ? `No. 2: ${accessSecond[0]} (${eventCountLabel(accessSecond[1])})` : undefined,
       rowContext: rowContext(accessCounts, (label, index) => {
-        if (/limited issuer access/i.test(label)) return "Issuer access not clearly indicated";
-        if (index === 0) return "Most common access profile";
+        if (/limited issuer access/i.test(label)) return "Corporate access not clearly indicated";
+        if (index === 0) return "Most common company participant profile";
         const character = leadCharacter(byAccess(label));
         return character ? `Lead character: ${character}` : `Share of index: ${percent(accessCounts[index]?.[1] || 0, total)}%`;
       }),
       signalRead: accessLead[1] && accessSecond?.[1] && Math.abs(accessLead[1] - accessSecond[1]) <= 5
-        ? `The top two access profiles are nearly even in the current index.`
-        : `${accessLead[0] || "The leading access profile"} accounts for ${eventCountLabel(accessLead[1])}.`,
+        ? `The top two company participant profiles are nearly even in the current index.`
+        : `${accessLead[0] || "The leading company participant profile"} accounts for ${eventCountLabel(accessLead[1])}.`,
     },
   };
 }
@@ -663,21 +695,24 @@ function buildLeaderboardWindow(events: DiscoveryEvent[], days: 30 | 60 | 90): L
   const organizerCounts = ranked(windowEvents.map((event) => event.organizer));
   const sectorCounts = ranked(windowEvents.flatMap(sectorLabels));
   const focusCounts = ranked(windowEvents.flatMap(focusLabels));
-  const eventCharacterCounts = ranked(windowEvents.flatMap((event) => splitCsv(event.eventCharacter || "")));
-  const issuerParticipationCounts = ranked(windowEvents.flatMap((event) => splitCsv(event.issuerParticipation)));
+  const eventCharacterCounts = ranked(windowEvents.flatMap((event) => splitCsv(event.eventFeatures || "")));
+  const issuerParticipationCounts = ranked(windowEvents.flatMap((event) => splitCsv(event.companyParticipants || "")));
   const leaderboardContext = buildLeaderboardContext(windowEvents, { cityCounts, organizerCounts, sectorCounts, focusCounts, eventCharacterCounts, issuerParticipationCounts });
   return { total: windowEvents.length, startDate, endDate, cityCounts, organizerCounts, sectorCounts, focusCounts, eventCharacterCounts, issuerParticipationCounts, leaderboardContext };
 }
 
 function eventText(event: DiscoveryEvent) {
-  return [event.issuerParticipation, event.primaryCategory, event.marketFocus, event.sectorThemes, event.publicCompanySector, event.additionalPublicCompanySectors, event.eventCharacter]
+  return [event.conferenceType, event.industry, event.investmentFocus, event.targetAudience, event.companyParticipants, event.eventFeatures, event.accessModel, event.marketCap]
     .filter(Boolean)
     .join(", ")
     .toLowerCase();
 }
 
 function eventIsInvestorHeavy(event: DiscoveryEvent) {
-  return /(institutional investors|investor conference|investor-heavy|family office|private equity|venture capital|lp\/gp|investor access|retail investors)/i.test(eventText(event));
+  const conferenceTypes = splitCsv(event.conferenceType || "").map((value) => value.toLowerCase());
+  const targetAudiences = splitCsv(event.targetAudience || "").map((value) => value.toLowerCase());
+  return conferenceTypes.includes("allocator / manager forum") ||
+    targetAudiences.some((value) => ["institutional investors / asset managers", "family offices", "allocators / pensions / endowments"].includes(value));
 }
 
 function eventHasNoIssuer(event: DiscoveryEvent) {
@@ -685,22 +720,38 @@ function eventHasNoIssuer(event: DiscoveryEvent) {
 }
 
 function eventHasIssuerAccess(event: DiscoveryEvent) {
-  return !eventHasNoIssuer(event) && /(company presentations|public company presentations|presentations \+ 1x1 meetings|1x1 meetings only|1x1 meetings|one-on-one|issuer participation|mixed participation|public company|issuer access|roadshow)/i.test(eventText(event));
+  const conferenceTypes = splitCsv(event.conferenceType || "").map((value) => value.toLowerCase());
+  const features = splitCsv(event.eventFeatures || "").map((value) => value.toLowerCase());
+  const participants = splitCsv(event.companyParticipants || "").map((value) => value.toLowerCase());
+  const hasIssuerType = conferenceTypes.some((value) => value === "issuer access conference" || value === "sell-side / corporate access");
+  const hasStructuredFeature = features.some((value) => value === "company presentations" || value === "1x1 meetings");
+  const hasPublicCompanyParticipant = participants.some((value) => value === "public company executives" || value === "public company ir / corporate access");
+  return !eventHasNoIssuer(event) && (hasIssuerType || (hasStructuredFeature && hasPublicCompanyParticipant));
 }
 
-const structuredAccessLabels = ["Presentations + 1x1 Meetings", "1x1 Meetings Only", "Company Presentations"];
+const structuredAccessLabels = ["Company Presentations", "1x1 Meetings"];
 
 function structuredAccessValues(event: DiscoveryEvent) {
-  const values = splitCsv(event.issuerParticipation);
+  const values = splitCsv(event.eventFeatures || "");
   return structuredAccessLabels.filter((label) => values.some((value) => value.toLowerCase() === label.toLowerCase()));
 }
 
 function eventIsDealMaking(event: DiscoveryEvent) {
-  return splitCsv(event.eventCharacter || "").some((value) => value.toLowerCase() === "deal-making and partnering");
+  const conferenceTypes = splitCsv(event.conferenceType || "").map((value) => value.toLowerCase());
+  const features = splitCsv(event.eventFeatures || "").map((value) => value.toLowerCase());
+  const participants = splitCsv(event.companyParticipants || "").map((value) => value.toLowerCase());
+  const hasPrivateParticipant = participants.some((value) => [
+    "private company founders / executives",
+    "private / portfolio company management",
+    "project developers / sponsors",
+  ].includes(value));
+  return conferenceTypes.includes("private markets / deal-making") ||
+    features.includes("partnering / deal-making") ||
+    (features.includes("1x1 meetings") && hasPrivateParticipant);
 }
 
 function eventIsIssuerHeavy(event: DiscoveryEvent) {
-  return !eventHasNoIssuer(event) && /(public company|issuer participation|company presentations|presentations \+ 1x1 meetings|1x1 meetings|public markets|micro-cap|small-cap|issuer-heavy)/i.test(eventText(event));
+  return eventHasIssuerAccess(event);
 }
 
 function cityValue(event: DiscoveryEvent) {
@@ -730,24 +781,21 @@ function windowStats(events: DiscoveryEvent[]): MarketWindow {
 function buildMarketViewAnalytics(events: DiscoveryEvent[]): MarketViewAnalytics {
   const cityCounts = ranked(events.map(cityValue));
   const organizerCounts = ranked(events.map((event) => event.organizer));
-  const themeCounts = ranked(events.flatMap((event) => splitCsv(event.sectorThemes)));
+  const themeCounts = ranked(events.flatMap((event) => splitCsv(event.industry || "")));
   const focusCounts = ranked(events.flatMap((event) => {
-    const values = splitCsv(event.marketFocus);
-    return values.length ? values : splitCsv(event.sectorThemes);
+    return splitCsv(event.investmentFocus || "");
   }));
-  const categoryCounts = ranked(events.map((event) => event.primaryCategory));
+  const categoryCounts = ranked(events.map((event) => event.conferenceType || ""));
   const formatCounts = ranked(events.map((event) => event.format));
-  const sectorCounts = ranked(events.flatMap((event) => {
-    const sectors = splitCsv(event.publicCompanySector || "");
-    return sectors.length ? sectors : splitCsv(event.sectorThemes);
-  }));
+  const sectorCounts = ranked(events.flatMap((event) => splitCsv(event.industry || "")));
   const audienceCounts = ranked(events.flatMap((event) => unique([
-    ...splitCsv(event.issuerParticipation),
-    ...splitCsv(event.marketFocus),
-    ...splitCsv(event.primaryCategory),
+    ...splitCsv(event.targetAudience || ""),
+    ...splitCsv(event.companyParticipants || ""),
+    ...splitCsv(event.eventFeatures || ""),
+    ...splitCsv(event.accessModel || ""),
   ]).filter((value) => /(institutional investors?|family offices?|private equity|venture capital|retail investors?|public company|issuer|mixed participation|company presentations|1x1|one-on-one|industry networking|public markets|private markets)/i.test(value))));
-  const eventCharacterCounts = ranked(events.flatMap((event) => splitCsv(event.eventCharacter || "")));
-  const issuerParticipationCounts = ranked(events.flatMap((event) => splitCsv(event.issuerParticipation)));
+  const eventCharacterCounts = ranked(events.flatMap((event) => splitCsv(event.eventFeatures || "")));
+  const issuerParticipationCounts = ranked(events.flatMap((event) => splitCsv(event.companyParticipants || "")));
   const leaderboardContext = buildLeaderboardContext(events, { cityCounts, organizerCounts, sectorCounts, focusCounts, eventCharacterCounts, issuerParticipationCounts });
   const leaderboardWindows = {
     "30": buildLeaderboardWindow(events, 30),
@@ -770,9 +818,9 @@ function buildMarketViewAnalytics(events: DiscoveryEvent[]): MarketViewAnalytics
   const monthCounts = Array.from(months.entries()).map(([month, count]) => ({ month, count })).sort((a, b) => a.month.localeCompare(b.month));
   const issuerAccess = events.filter(eventHasIssuerAccess);
   const institutional = events.filter(eventIsInvestorHeavy);
-  const mixed = events.filter((event) => /mixed participation|mixed|presentations \+ 1x1 meetings/i.test(eventText(event)) || (eventHasIssuerAccess(event) && eventIsInvestorHeavy(event)));
-  const presentation = events.filter((event) => /company presentations|public company presentations|presentations/i.test(event.issuerParticipation));
-  const oneOnOne = events.filter((event) => /1x1|1×1|one-on-one|one on one/i.test(event.issuerParticipation));
+  const mixed = events.filter((event) => eventHasIssuerAccess(event) && eventIsInvestorHeavy(event));
+  const presentation = events.filter((event) => splitCsv(event.eventFeatures || "").some((value) => value.toLowerCase() === "company presentations"));
+  const oneOnOne = events.filter((event) => splitCsv(event.eventFeatures || "").some((value) => value.toLowerCase() === "1x1 meetings"));
   const organizerCityMap = new Map<string, Set<string>>();
   events.forEach((event) => {
     const organizer = event.organizer.trim();
@@ -787,16 +835,14 @@ function buildMarketViewAnalytics(events: DiscoveryEvent[]): MarketViewAnalytics
     .sort((a, b) => b.cities - a.cities || a.organizer.localeCompare(b.organizer))[0] || null;
   const focusIntelligence = focusCounts.slice(0, 5).map(([label, count]) => {
     const matches = events.filter((event) => {
-      const focus = splitCsv(event.marketFocus);
-      return focus.length ? focus.includes(label) : splitCsv(event.sectorThemes).includes(label);
+      return splitCsv(event.investmentFocus || "").includes(label);
     });
     const window = windowStats(matches);
     return { label, count, topCity: window.bestWeekCity.city, peakWeek: window.bestWeek, issuerAccessCount: matches.filter(eventHasIssuerAccess).length };
   });
   const sectorWindows = sectorCounts.slice(0, 4).map(([sector, count]) => {
     const matches = events.filter((event) => {
-      const labels = splitCsv(event.publicCompanySector || "");
-      return (labels.length ? labels : splitCsv(event.sectorThemes)).includes(sector);
+      return splitCsv(event.industry || "").includes(sector);
     });
     const window = windowStats(matches);
     return { sector, count, peakWeek: window.bestWeek, topCity: window.bestWeekCity.city, topCities: window.bestWeekCities, issuerAccessCount: matches.filter(eventHasIssuerAccess).length, investorHeavyCount: matches.filter(eventIsInvestorHeavy).length };
@@ -805,9 +851,9 @@ function buildMarketViewAnalytics(events: DiscoveryEvent[]): MarketViewAnalytics
   weekCounts.forEach(({ weekStart: week }) => {
     const weekEvents = events.filter((event) => weekStart(event.startDate) === week);
     const cities = ranked(weekEvents.map(cityValue));
-    const audiences = ranked(weekEvents.flatMap((event) => splitCsv(event.issuerParticipation)));
-    const focuses = ranked(weekEvents.flatMap((event) => splitCsv(event.marketFocus)));
-    const participation = ranked(weekEvents.flatMap((event) => splitCsv(event.issuerParticipation)));
+    const audiences = ranked(weekEvents.flatMap((event) => splitCsv(event.targetAudience || "")));
+    const focuses = ranked(weekEvents.flatMap((event) => splitCsv(event.investmentFocus || "")));
+    const participation = ranked(weekEvents.flatMap((event) => splitCsv(event.companyParticipants || "")));
     const investorHeavyCount = weekEvents.filter(eventIsInvestorHeavy).length;
     const issuerHeavyCount = weekEvents.filter(eventIsIssuerHeavy).length;
     const topCity = cities[0]?.[0] || "N/A";
@@ -844,9 +890,9 @@ function buildMarketViewAnalytics(events: DiscoveryEvent[]): MarketViewAnalytics
   }));
   const accessTypeRows = [
     ...accessBreakdown,
-    { label: "Deal-Making and Partnering", count: dealMakingEvents.length },
-    { label: "Mixed Participation", count: events.filter((event) => splitCsv(event.issuerParticipation).some((value) => value.toLowerCase() === "mixed participation")).length },
-    { label: "No Issuer Participation", count: events.filter((event) => splitCsv(event.issuerParticipation).some((value) => value.toLowerCase() === "no issuer participation")).length },
+    { label: "Partnering / Deal-Making", count: dealMakingEvents.length },
+    { label: "Company Participants + Allocators", count: mixed.length },
+    { label: "No Corporate Access Signal", count: events.filter((event) => !eventHasIssuerAccess(event)).length },
   ];
   const dealCityMap = new Map<string, DiscoveryEvent[]>();
   const dealWeekMap = new Map<string, DiscoveryEvent[]>();
@@ -873,7 +919,7 @@ function buildMarketViewAnalytics(events: DiscoveryEvent[]): MarketViewAnalytics
     return priority(b) - priority(a) || a.startDate.localeCompare(b.startDate) || a.title.localeCompare(b.title);
   }).slice(0, 4).map((event) => ({
     id: event.id, title: event.title, startDate: event.startDate, endDate: event.endDate, city: event.city, state: event.state,
-    organizer: event.organizer, issuerParticipation: event.issuerParticipation, audience: event.audience, eventCharacter: event.eventCharacter || "", sectorThemes: event.sectorThemes, marketFocus: event.marketFocus,
+    organizer: event.organizer, issuerParticipation: event.companyParticipants || "", audience: event.targetAudience || "", eventCharacter: event.eventFeatures || "", sectorThemes: event.industry || "", marketFocus: event.investmentFocus || "",
   }));
   const monthMovement = buildMonthMovement(events);
   return {
@@ -881,7 +927,7 @@ function buildMarketViewAnalytics(events: DiscoveryEvent[]): MarketViewAnalytics
     statesCount: new Set(events.map((event) => event.state).filter(Boolean)).size,
     citiesCount: new Set(events.map(cityValue).filter(Boolean)).size,
     organizersCount: new Set(events.map((event) => event.organizer).filter(Boolean)).size,
-    themesCount: new Set(events.flatMap((event) => splitCsv(event.sectorThemes))).size,
+    themesCount: new Set(events.flatMap((event) => splitCsv(event.industry || ""))).size,
     issuerAccessCount: issuerAccess.length,
     issuerOnlyCount: issuerAccess.filter((event) => !eventIsInvestorHeavy(event)).length,
     noIssuerCount: events.filter(eventHasNoIssuer).length,
@@ -890,7 +936,7 @@ function buildMarketViewAnalytics(events: DiscoveryEvent[]): MarketViewAnalytics
     mixedCount: mixed.length,
     presentationCount: presentation.length,
     oneOnOneCount: oneOnOne.length,
-    presentationAndOneOnOneCount: events.filter((event) => /presentations \+ 1x1 meetings/i.test(event.issuerParticipation)).length,
+    presentationAndOneOnOneCount: events.filter((event) => eventHasIssuerAccess(event) && structuredAccessValues(event).length >= 2).length,
     issuerWindow: windowStats(issuerAccess), institutionalWindow: windowStats(institutional), sectorWindows, focusIntelligence,
     topRegion: ranked(events.map((event) => event.region))[0]?.[0] || "",
     canadaCount: events.filter((event) => /canada/i.test(event.country)).length,
@@ -899,9 +945,9 @@ function buildMarketViewAnalytics(events: DiscoveryEvent[]): MarketViewAnalytics
     organizerIssuerAccess: ranked(issuerAccess.map((event) => event.organizer))[0]?.[0] || "",
     mostGeographicOrganizer, verifiedCount, websiteApprovedCount, eventCharacterCoverage,
     coverageMetrics: [
-      { label: "Market focus tagged", count: events.filter((event) => splitCsv(event.marketFocus).length > 0).length },
-      { label: "Sector tagged", count: events.filter((event) => splitCsv(event.publicCompanySector || "").length > 0 || splitCsv(event.sectorThemes).length > 0).length },
-      { label: "Issuer tagged", count: events.filter((event) => Boolean(event.issuerParticipation.trim())).length },
+      { label: "Investment Focus tagged", count: events.filter((event) => splitCsv(event.investmentFocus || "").length > 0).length },
+      { label: "Industry tagged", count: events.filter((event) => splitCsv(event.industry || "").length > 0).length },
+      { label: "Company Participants tagged", count: events.filter((event) => Boolean((event.companyParticipants || "").trim())).length },
       { label: "Format tagged", count: formatTaggedCount },
       { label: "Character tagged", count: eventCharacterCoverage },
       { label: "Venue listed", count: venueCount },
@@ -926,20 +972,19 @@ function buildMarketViewAnalytics(events: DiscoveryEvent[]): MarketViewAnalytics
 
 function aggregate(events: DiscoveryEvent[]): DiscoveryAggregateStats {
   const participationText = (event: DiscoveryEvent) => [
-    event.issuerParticipation,
-    event.primaryCategory,
-    event.marketFocus,
-    event.sectorThemes,
-    event.publicCompanySector,
-    event.additionalPublicCompanySectors,
-    event.eventCharacter,
+    event.conferenceType,
+    event.industry,
+    event.investmentFocus,
+    event.targetAudience,
+    event.companyParticipants,
+    event.eventFeatures,
+    event.accessModel,
+    event.marketCap,
   ].filter(Boolean).join(", ").toLowerCase();
   const isInvestorHeavy = (event: DiscoveryEvent) =>
-    /(institutional investors|investor conference|investor-heavy|family office|private equity|venture capital|lp\/gp|investor access|retail investors)/i.test(participationText(event));
+    eventIsInvestorHeavy(event);
   const hasIssuerAccess = (event: DiscoveryEvent) => {
-    const text = participationText(event);
-    return !/no issuer participation|without issuer participation|issuer not participating/i.test(text) &&
-      /(company presentations|public company presentations|presentations \+ 1x1 meetings|1x1 meetings only|1x1 meetings|one-on-one|issuer participation|mixed participation|public company|issuer access|roadshow)/i.test(text);
+    return eventHasIssuerAccess(event);
   };
   const weekCounts = new Map<string, number>();
   const today = new Date();
@@ -963,9 +1008,7 @@ function aggregate(events: DiscoveryEvent[]): DiscoveryAggregateStats {
   const hotWeekCount = Array.from(weekCounts.values()).filter((count) => count >= 8).length;
   const sectorCounts = new Map<string, number>();
   events.forEach((event) => {
-    const sectors = splitCsv(event.publicCompanySector || "").length
-      ? splitCsv(event.publicCompanySector || "")
-      : splitCsv(event.sectorThemes);
+    const sectors = splitCsv(event.industry || "");
     sectors.forEach((sector) => sectorCounts.set(sector, (sectorCounts.get(sector) || 0) + 1));
   });
   const leadingSector = Array.from(sectorCounts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
@@ -977,7 +1020,7 @@ function aggregate(events: DiscoveryEvent[]): DiscoveryAggregateStats {
   };
   const dealWeekCounts = new Map<string, number>();
   events
-    .filter((event) => splitCsv(event.eventCharacter || "").some((value) => value.toLowerCase() === "deal-making and partnering"))
+    .filter(eventIsDealMaking)
     .forEach((event) => {
       const start = new Date(`${event.startDate}T00:00:00Z`);
       const timestamp = start.getTime();
@@ -996,8 +1039,8 @@ function aggregate(events: DiscoveryEvent[]): DiscoveryAggregateStats {
     organizers: new Set(events.map((event) => event.organizer).filter(Boolean)).size,
     states: new Set(events.map((event) => event.state).filter(Boolean)).size,
     cities: new Set(events.map((event) => [event.city, event.state].filter(Boolean).join(", ")).filter(Boolean)).size,
-    themes: new Set(events.flatMap((event) => splitCsv(event.sectorThemes))).size,
-    focus: new Set(events.flatMap((event) => splitCsv(event.marketFocus))).size,
+    themes: new Set(events.flatMap((event) => splitCsv(event.industry || ""))).size,
+    focus: new Set(events.flatMap((event) => splitCsv(event.investmentFocus || ""))).size,
     investorHeavy: events.filter(isInvestorHeavy).length,
     issuerAccess: events.filter(hasIssuerAccess).length,
     verified: events.filter((event) => /verified|approved|reviewed/i.test(event.verificationStatus || "") || /approved|appoved/i.test(event.websiteApproval || "")).length,
@@ -1015,9 +1058,9 @@ function aggregate(events: DiscoveryEvent[]): DiscoveryAggregateStats {
     latestDate: dated[dated.length - 1]?.endDate || dated[dated.length - 1]?.startDate || null,
     latestVerificationStamp: verificationStamps[verificationStamps.length - 1] || null,
     quickFeeds: {
-      investorConferences: events.filter((event) => event.primaryCategory.toLowerCase().includes("investor")).length,
-      healthcareConferences: events.filter((event) => event.sectorThemes.toLowerCase().includes("health")).length,
-      privateMarkets: events.filter((event) => event.marketFocus.toLowerCase().includes("private")).length,
+      investorConferences: events.filter((event) => `${event.conferenceType} ${event.targetAudience}`.toLowerCase().includes("investor")).length,
+      healthcareConferences: events.filter((event) => (event.industry || "").toLowerCase().includes("health")).length,
+      privateMarkets: events.filter((event) => `${event.conferenceType} ${event.investmentFocus}`.toLowerCase().includes("private")).length,
       canadaEvents: events.filter((event) => event.country.toLowerCase() === "canada").length,
       upcoming30: events.filter((event) => {
         const timestamp = new Date(`${event.startDate}T00:00:00Z`).getTime();
@@ -1069,10 +1112,14 @@ function filterEvents(events: InternalDiscoveryEvent[], query: DiscoveryQuery) {
     if (query.fromDate && event.startDate < query.fromDate) return false;
     if (query.toDate && event.startDate > query.toDate) return false;
 
-    const publicCompanySectorCandidates = [
-      ...splitCsv(event.publicCompanySector || ""),
-      ...splitCsv(event.additionalPublicCompanySectors || ""),
-    ];
+    const conferenceTypeCandidates = splitCsv(event.conferenceType || "");
+    const industryCandidates = splitCsv(event.industry || "");
+    const investmentFocusCandidates = splitCsv(event.investmentFocus || "");
+    const targetAudienceCandidates = splitCsv(event.targetAudience || "");
+    const companyParticipantCandidates = splitCsv(event.companyParticipants || "");
+    const eventFeatureCandidates = splitCsv(event.eventFeatures || "");
+    const accessModelCandidates = splitCsv(event.accessModel || "");
+    const marketCapCandidates = splitCsv(event.marketCap || "");
     const cityLabel = [event.city, event.state].filter(Boolean).join(", ");
     const selectedLocationGroups = [
       query.country || [],
@@ -1096,9 +1143,13 @@ function filterEvents(events: InternalDiscoveryEvent[], query: DiscoveryQuery) {
         query.cities || [],
         query.conferenceType || [],
         query.issuerParticipation || [],
+        query.targetAudience || [],
+        query.companyParticipants || [],
+        query.eventFeatures || [],
+        query.accessModel || [],
+        query.marketCap || [],
         query.organizer || [],
         query.marketFocus || [],
-        query.publicCompanySectors || [],
         query.sectorThemes || [],
       ];
       const hasSelectedFilters = selectedFilterGroups.some((values) => values.length > 0);
@@ -1108,25 +1159,35 @@ function filterEvents(events: InternalDiscoveryEvent[], query: DiscoveryQuery) {
         hasSelectedFilterMatches(query.region || [], [event.region]) ||
         hasSelectedFilterMatches(query.state || [], [event.state]) ||
         hasSelectedFilterMatches(query.cities || [], [cityLabel]) ||
-        hasSelectedFilterMatches(query.conferenceType || [], [event.primaryCategory]) ||
-        hasSelectedFilterMatches(query.issuerParticipation || [], splitCsv(event.issuerParticipation)) ||
+        hasSelectedFilterMatches(query.conferenceType || [], conferenceTypeCandidates) ||
+        hasSelectedFilterMatches(query.issuerParticipation || [], companyParticipantCandidates) ||
+        hasSelectedFilterMatches(query.targetAudience || [], targetAudienceCandidates) ||
+        hasSelectedFilterMatches(query.companyParticipants || [], companyParticipantCandidates) ||
+        hasSelectedFilterMatches(query.eventFeatures || [], eventFeatureCandidates) ||
+        hasSelectedFilterMatches(query.accessModel || [], accessModelCandidates) ||
+        hasSelectedFilterMatches(query.marketCap || [], marketCapCandidates) ||
         hasSelectedFilterMatches(query.organizer || [], [event.organizer]) ||
-        hasSelectedFilterMatches(query.marketFocus || [], splitCsv(event.marketFocus)) ||
-        hasSelectedFilterMatches(query.publicCompanySectors || [], publicCompanySectorCandidates) ||
-        hasSelectedFilterMatches(query.sectorThemes || [], splitCsv(event.sectorThemes));
+        hasSelectedFilterMatches(query.marketFocus || [], investmentFocusCandidates) ||
+        hasSelectedFilterMatches(query.publicCompanySectors || [], industryCandidates) ||
+        hasSelectedFilterMatches(query.sectorThemes || [], industryCandidates);
       if (!matchesAnySelectedFilter) return false;
     } else {
       if (!matchesAnySelectedLocation) return false;
-      if (!hasAnyMatch(query.conferenceType || [], [event.primaryCategory])) return false;
-      if (!hasAnyMatch(query.issuerParticipation || [], splitCsv(event.issuerParticipation))) return false;
+      if (!hasAnyMatch(query.conferenceType || [], conferenceTypeCandidates)) return false;
+      if (!hasAnyMatch(query.issuerParticipation || [], companyParticipantCandidates)) return false;
+      if (!hasAnyMatch(query.targetAudience || [], targetAudienceCandidates)) return false;
+      if (!hasAnyMatch(query.companyParticipants || [], companyParticipantCandidates)) return false;
+      if (!hasAnyMatch(query.eventFeatures || [], eventFeatureCandidates)) return false;
+      if (!hasAnyMatch(query.accessModel || [], accessModelCandidates)) return false;
+      if (!hasAnyMatch(query.marketCap || [], marketCapCandidates)) return false;
       if (!hasAnyMatch(query.organizer || [], [event.organizer])) return false;
-      if (!hasAnyMatch(query.marketFocus || [], splitCsv(event.marketFocus))) return false;
-      if (!hasAnyMatch(query.publicCompanySectors || [], publicCompanySectorCandidates)) return false;
-      if (!hasAnyMatch(query.sectorThemes || [], splitCsv(event.sectorThemes))) return false;
+      if (!hasAnyMatch(query.marketFocus || [], investmentFocusCandidates)) return false;
+      if (!hasAnyMatch(query.publicCompanySectors || [], industryCandidates)) return false;
+      if (!hasAnyMatch(query.sectorThemes || [], industryCandidates)) return false;
     }
     if (ids.size && !ids.has(event.id)) return false;
     if (!search) return true;
-    return [event.title, event.organizer, event.city, event.state, event.primaryCategory, event.marketFocus, event.sectorThemes, event.eventCharacter, event.issuerParticipation, event.publicCompanySector, event.additionalPublicCompanySectors]
+    return [event.title, event.organizer, event.city, event.state, event.conferenceType, event.industry, event.investmentFocus, event.targetAudience, event.companyParticipants, event.eventFeatures, event.accessModel, event.marketCap, event.format]
       .join(" ")
       .toLowerCase()
       .includes(search);

@@ -31,6 +31,14 @@ export type WorkspaceEvent = {
   region: string;
   format: string;
   publicCompanySector?: string;
+  conferenceType?: string;
+  industry?: string;
+  investmentFocus?: string;
+  targetAudience?: string;
+  companyParticipants?: string;
+  eventFeatures?: string;
+  accessModel?: string;
+  marketCap?: string;
   additionalPublicCompanySectors?: string;
   eventCharacter?: string;
   organizerType?: string;
@@ -54,6 +62,11 @@ type FiltersState = {
   publicCompanySectors: string[];
   conferenceType: string[];
   issuerParticipation: string[];
+  targetAudience: string[];
+  companyParticipants: string[];
+  eventFeatures: string[];
+  accessModel: string[];
+  marketCap: string[];
   organizer: string[];
   marketFocus: string[];
 };
@@ -138,6 +151,11 @@ type DiscoveryFilterOptions = {
   publicCompanySectors: string[];
   conferenceTypes: string[];
   issuers: string[];
+  targetAudiences: string[];
+  companyParticipants: string[];
+  eventFeatures: string[];
+  accessModels: string[];
+  marketCaps: string[];
   organizers: string[];
   marketFocuses: string[];
 };
@@ -323,6 +341,11 @@ const DEFAULT_FILTERS: FiltersState = {
   publicCompanySectors: [],
   conferenceType: [],
   issuerParticipation: [],
+  targetAudience: [],
+  companyParticipants: [],
+  eventFeatures: [],
+  accessModel: [],
+  marketCap: [],
   organizer: [],
   marketFocus: [],
 };
@@ -345,6 +368,11 @@ function normalizeFiltersState(value: Partial<FiltersState> | Record<string, unk
     publicCompanySectors: toFilterValues(value.publicCompanySectors),
     conferenceType: toFilterValues(value.conferenceType),
     issuerParticipation: toFilterValues(value.issuerParticipation),
+    targetAudience: toFilterValues(value.targetAudience),
+    companyParticipants: toFilterValues(value.companyParticipants),
+    eventFeatures: toFilterValues(value.eventFeatures),
+    accessModel: toFilterValues(value.accessModel),
+    marketCap: toFilterValues(value.marketCap),
     organizer: toFilterValues(value.organizer),
     marketFocus: toFilterValues(value.marketFocus),
   };
@@ -376,11 +404,11 @@ function getOrganizerValue(event: WorkspaceEvent) {
 }
 
 function getMarketFocusValues(event: WorkspaceEvent) {
-  return splitCsv(event.marketFocus);
+  return splitCsv(event.investmentFocus || "");
 }
 
 function getThemeValues(event: WorkspaceEvent) {
-  return splitCsv(event.sectorThemes);
+  return splitCsv(event.industry || "");
 }
 
 function formatPreviewDate(value: string | null | undefined) {
@@ -395,10 +423,7 @@ function formatPreviewDate(value: string | null | undefined) {
 }
 
 function getPublicCompanySectorValues(event: WorkspaceEvent) {
-  return unique([
-    ...splitCsv(event.publicCompanySector || ""),
-    ...splitCsv(event.additionalPublicCompanySectors || ""),
-  ]);
+  return splitCsv(event.industry || "");
 }
 
 function getSectorLabels(event: WorkspaceEvent) {
@@ -408,14 +433,15 @@ function getSectorLabels(event: WorkspaceEvent) {
 }
 
 function getEventCharacterValues(event: WorkspaceEvent) {
-  return splitCsv(event.eventCharacter || "");
+  return splitCsv(event.eventFeatures || "");
 }
 
 function getAudienceValues(event: WorkspaceEvent) {
   return unique([
-    ...splitCsv(event.issuerParticipation),
-    ...splitCsv(event.marketFocus),
-    ...splitCsv(event.primaryCategory),
+    ...splitCsv(event.targetAudience || ""),
+    ...splitCsv(event.companyParticipants || ""),
+    ...splitCsv(event.eventFeatures || ""),
+    ...splitCsv(event.accessModel || ""),
   ]).filter((value) =>
     /(institutional investors?|family offices?|private equity|venture capital|retail investors?|public company|issuer|mixed participation|company presentations|1x1|one-on-one|industry networking|public markets|private markets)/i.test(
       value
@@ -425,13 +451,14 @@ function getAudienceValues(event: WorkspaceEvent) {
 
 function getParticipationText(event: WorkspaceEvent) {
   return [
-    event.issuerParticipation,
-    event.primaryCategory,
-    event.marketFocus,
-    event.sectorThemes,
-    event.publicCompanySector,
-    event.additionalPublicCompanySectors,
-    event.eventCharacter,
+    event.conferenceType,
+    event.industry,
+    event.investmentFocus,
+    event.targetAudience,
+    event.companyParticipants,
+    event.eventFeatures,
+    event.accessModel,
+    event.marketCap,
   ]
     .filter(Boolean)
     .join(", ")
@@ -439,14 +466,14 @@ function getParticipationText(event: WorkspaceEvent) {
 }
 
 function isInvestorHeavy(event: WorkspaceEvent) {
-  const haystack = getParticipationText(event);
-  return /(institutional investors|investor conference|investor-heavy|family office|private equity|venture capital|lp\/gp|investor access|retail investors)/i.test(haystack);
+  const conferenceTypes = splitCsv(event.conferenceType || "").map((value) => value.toLowerCase());
+  const targetAudiences = splitCsv(event.targetAudience || "").map((value) => value.toLowerCase());
+  return conferenceTypes.includes("allocator / manager forum") ||
+    targetAudiences.some((value) => ["institutional investors / asset managers", "family offices", "allocators / pensions / endowments"].includes(value));
 }
 
 function isIssuerHeavy(event: WorkspaceEvent) {
-  const haystack = getParticipationText(event);
-  if (/no issuer participation/i.test(haystack)) return false;
-  return /(public company|issuer participation|company presentations|presentations \+ 1x1 meetings|1x1 meetings|public markets|micro-cap|small-cap|issuer-heavy)/i.test(haystack);
+  return hasIssuerAccess(event);
 }
 
 function hasNoIssuerParticipation(event: WorkspaceEvent) {
@@ -456,16 +483,18 @@ function hasNoIssuerParticipation(event: WorkspaceEvent) {
 }
 
 function hasIssuerAccess(event: WorkspaceEvent) {
-  const haystack = getParticipationText(event);
   if (hasNoIssuerParticipation(event)) return false;
-  return /(company presentations|public company presentations|presentations \+ 1x1 meetings|1x1 meetings only|1x1 meetings|one-on-one|issuer participation|mixed participation|public company|issuer access|roadshow)/i.test(
-    haystack
-  );
+  const conferenceTypes = splitCsv(event.conferenceType || "").map((value) => value.toLowerCase());
+  const features = splitCsv(event.eventFeatures || "").map((value) => value.toLowerCase());
+  const participants = splitCsv(event.companyParticipants || "").map((value) => value.toLowerCase());
+  const hasIssuerType = conferenceTypes.some((value) => value === "issuer access conference" || value === "sell-side / corporate access");
+  const hasStructuredFeature = features.some((value) => value === "company presentations" || value === "1x1 meetings");
+  const hasPublicCompanyParticipant = participants.some((value) => value === "public company executives" || value === "public company ir / corporate access");
+  return hasIssuerType || (hasStructuredFeature && hasPublicCompanyParticipant);
 }
 
 function isMixedParticipation(event: WorkspaceEvent) {
-  const haystack = getParticipationText(event);
-  return /(mixed participation|mixed|presentations \+ 1x1 meetings)/i.test(haystack) || (hasIssuerAccess(event) && isInvestorHeavy(event));
+  return hasIssuerAccess(event) && isInvestorHeavy(event);
 }
 
 function getAudienceCounts(events: WorkspaceEvent[]) {
@@ -475,8 +504,8 @@ function getAudienceCounts(events: WorkspaceEvent[]) {
 function getIssuerParticipationCounts(events: WorkspaceEvent[]) {
   return getTopByCount(
     events.flatMap((event) => {
-      const labels = splitCsv(event.issuerParticipation);
-      return labels.length ? labels : event.issuerParticipation ? [event.issuerParticipation] : [];
+      const labels = splitCsv(event.companyParticipants || "");
+      return labels.length ? labels : event.companyParticipants ? [event.companyParticipants] : [];
     })
   );
 }
@@ -484,8 +513,7 @@ function getIssuerParticipationCounts(events: WorkspaceEvent[]) {
 function getMarketFocusCounts(events: WorkspaceEvent[]) {
   return getTopByCount(
     events.flatMap((event) => {
-      const focus = splitCsv(event.marketFocus);
-      return focus.length ? focus : splitCsv(event.sectorThemes);
+      return splitCsv(event.investmentFocus || "");
     })
   );
 }
@@ -629,9 +657,10 @@ function toDateRangeParts(startDate: string, endDate: string) {
 function buildDescription(e: WorkspaceEvent) {
   return [
     e.organizer ? `Organizer: ${e.organizer}` : "",
-    e.primaryCategory ? `Primary Category: ${e.primaryCategory}` : "",
-    e.marketFocus ? `Market Focus: ${e.marketFocus}` : "",
-    e.issuerParticipation ? `Issuer Participation: ${e.issuerParticipation}` : "",
+    e.conferenceType ? `Conference Type: ${e.conferenceType}` : "",
+    e.investmentFocus ? `Investment Focus: ${e.investmentFocus}` : "",
+    e.companyParticipants ? `Company Participants: ${e.companyParticipants}` : "",
+    e.eventFeatures ? `Event Features: ${e.eventFeatures}` : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -708,36 +737,36 @@ function sharedValues(left: string[], right: string[]) {
 }
 
 function getIssuerValues(event: WorkspaceEvent) {
-  return splitCsv(event.issuerParticipation);
+  return splitCsv(event.companyParticipants || "");
 }
 
 function eventHasPresentations(event: WorkspaceEvent) {
-  return /company presentations|public company presentations|presentations/i.test(event.issuerParticipation);
+  return splitCsv(event.eventFeatures || "").some((value) => value.toLowerCase() === "company presentations");
 }
 
 function eventHasOneOnOneAccess(event: WorkspaceEvent) {
-  return /1x1|1×1|one-on-one|one on one/i.test(event.issuerParticipation);
+  return splitCsv(event.eventFeatures || "").some((value) => value.toLowerCase() === "1x1 meetings");
 }
 
 function getDerivedParticipationSignals(event: WorkspaceEvent) {
   const signals: string[] = [];
-  if (eventHasPresentations(event)) signals.push("Public Company Presentations");
-  if (eventHasOneOnOneAccess(event)) signals.push("1x1 Access");
+  if (eventHasPresentations(event)) signals.push("Company Presentations");
+  if (eventHasOneOnOneAccess(event)) signals.push("1x1 Meetings");
   return signals;
 }
 
 function getPrimaryParticipationLabel(event: WorkspaceEvent) {
   const derived = getDerivedParticipationSignals(event);
   if (derived.length) return derived[0];
-  return splitCsv(event.issuerParticipation)[0] || event.issuerParticipation || "";
+  return splitCsv(event.companyParticipants || "")[0] || event.companyParticipants || "";
 }
 
 function buildMatchExplanation(base: WorkspaceEvent, match: Omit<RelatedMatch, "explanation" | "confidence" | "tags" | "evidence">) {
   const clauses: string[] = [];
-  if (match.sharedThemes.length) clauses.push(`Shares ${match.sharedThemes.slice(0, 2).join(" and ")} sector themes`);
-  else if (match.sharedFocus.length) clauses.push(`Targets the same ${match.sharedFocus.slice(0, 2).join(" and ")} market focus`);
-  else if (match.sharedIssuerParticipation.length) clauses.push(`Uses the same ${match.sharedIssuerParticipation.slice(0, 2).join(" and ")} participation model`);
-  else if (match.categoryMatch && base.primaryCategory) clauses.push(`Matches the ${base.primaryCategory} event type`);
+  if (match.sharedThemes.length) clauses.push(`Shares ${match.sharedThemes.slice(0, 2).join(" and ")} industry exposure`);
+  else if (match.sharedFocus.length) clauses.push(`Targets the same ${match.sharedFocus.slice(0, 2).join(" and ")} investment focus`);
+  else if (match.sharedIssuerParticipation.length) clauses.push(`Uses the same ${match.sharedIssuerParticipation.slice(0, 2).join(" and ")} company participant profile`);
+  else if (match.categoryMatch && base.conferenceType) clauses.push(`Matches the ${base.conferenceType} conference type`);
 
   if (match.bothPresentations) clauses.push("both include public-company presentations");
   if (match.bothOneOnOne) clauses.push("both offer one-on-one access");
@@ -809,9 +838,9 @@ function buildRelatedMatch(base: WorkspaceEvent, related: WorkspaceEvent): Relat
     sameRegion ? "same_region" : "",
     sameWeek ? "same_week" : "",
     tripExtension ? "trip_extension" : "",
-    sharedThemes.length ? "similar_sector" : "",
-    sharedFocus.length ? "similar_market_focus" : "",
-    sharedIssuerParticipation.length ? "similar_issuer_participation" : "",
+    sharedThemes.length ? "similar_industry" : "",
+    sharedFocus.length ? "similar_investment_focus" : "",
+    sharedIssuerParticipation.length ? "similar_company_participants" : "",
     sameOrganizer ? "same_organizer" : "",
   ]);
 
@@ -821,9 +850,9 @@ function buildRelatedMatch(base: WorkspaceEvent, related: WorkspaceEvent): Relat
     sameRegion ? "Same Region" : "",
     sameWeek ? "Same Week" : "",
     tripExtension ? "Trip Extension" : "",
-    sharedThemes.length ? "Similar Sector" : "",
-    sharedFocus.length ? "Similar Market Focus" : "",
-    sharedIssuerParticipation.length ? "Similar Issuer Participation" : "",
+    sharedThemes.length ? "Similar Industry" : "",
+    sharedFocus.length ? "Similar Investment Focus" : "",
+    sharedIssuerParticipation.length ? "Similar Company Participants" : "",
     sameOrganizer ? "Same Organizer" : "",
   ].filter(Boolean);
 
@@ -863,10 +892,10 @@ function buildRelatedMatch(base: WorkspaceEvent, related: WorkspaceEvent): Relat
         sameCity || sameState || sameRegion ? "City" : "",
         sameState ? "State / Province" : "",
         sameRegion ? "Region" : "",
-        sharedThemes.length ? "Sector Themes" : "",
-        sharedFocus.length ? "Market Focus" : "",
-        sharedIssuerParticipation.length || bothPresentations || bothOneOnOne ? "Issuer Participation" : "",
-        categoryMatch ? "Primary Category" : "",
+        sharedThemes.length ? "Industry" : "",
+        sharedFocus.length ? "Investment Focus" : "",
+        sharedIssuerParticipation.length || bothPresentations || bothOneOnOne ? "Company Participants / Event Features" : "",
+        categoryMatch ? "Conference Type" : "",
         sameOrganizer ? "Organizer" : "",
       ]),
       relatedEventIds: [related.id],
@@ -1734,16 +1763,21 @@ export default function EventsClient({
     const countryParams = params.getAll("country");
     const regionParams = params.getAll("region");
     const stateParams = params.getAll("state");
-    const sectorThemeParams = params.getAll("sectorTheme");
+    const sectorThemeParams = [...params.getAll("industry"), ...params.getAll("sectorTheme")];
     const publicCompanySectorParams = params.getAll("publicCompanySector");
     const conferenceTypeParams = params.getAll("conferenceType");
     const issuerParticipationParams = params.getAll("issuerParticipation");
+    const targetAudienceParams = params.getAll("targetAudience");
+    const companyParticipantParams = params.getAll("companyParticipants");
+    const eventFeatureParams = params.getAll("eventFeatures");
+    const accessModelParams = params.getAll("accessModel");
+    const marketCapParams = params.getAll("marketCap");
     const organizerParams = params.getAll("organizer");
-    const marketFocusParams = params.getAll("marketFocus");
+    const marketFocusParams = [...params.getAll("investmentFocus"), ...params.getAll("marketFocus")];
     const eventIds = params.getAll("eventId").filter(Boolean);
     const searchParam = params.get("q") || "";
     if (searchParam) setSearchQuery(searchParam);
-    if (cityParams.length || startDateParam || endDateParam || eventIds.length || countryParams.length || regionParams.length || stateParams.length || sectorThemeParams.length || publicCompanySectorParams.length || conferenceTypeParams.length || issuerParticipationParams.length || organizerParams.length || marketFocusParams.length) {
+    if (cityParams.length || startDateParam || endDateParam || eventIds.length || countryParams.length || regionParams.length || stateParams.length || sectorThemeParams.length || publicCompanySectorParams.length || conferenceTypeParams.length || issuerParticipationParams.length || targetAudienceParams.length || companyParticipantParams.length || eventFeatureParams.length || accessModelParams.length || marketCapParams.length || organizerParams.length || marketFocusParams.length) {
       setFilters((prev) => ({
         ...prev,
         country: countryParams.length ? countryParams : prev.country,
@@ -1754,6 +1788,11 @@ export default function EventsClient({
         publicCompanySectors: publicCompanySectorParams.length ? publicCompanySectorParams : prev.publicCompanySectors,
         conferenceType: conferenceTypeParams.length ? conferenceTypeParams : prev.conferenceType,
         issuerParticipation: issuerParticipationParams.length ? issuerParticipationParams : prev.issuerParticipation,
+        targetAudience: targetAudienceParams.length ? targetAudienceParams : prev.targetAudience,
+        companyParticipants: companyParticipantParams.length ? companyParticipantParams : prev.companyParticipants,
+        eventFeatures: eventFeatureParams.length ? eventFeatureParams : prev.eventFeatures,
+        accessModel: accessModelParams.length ? accessModelParams : prev.accessModel,
+        marketCap: marketCapParams.length ? marketCapParams : prev.marketCap,
         organizer: organizerParams.length ? organizerParams : prev.organizer,
         marketFocus: marketFocusParams.length ? marketFocusParams : prev.marketFocus,
       }));
@@ -1808,12 +1847,17 @@ export default function EventsClient({
     filters.region.forEach((value) => params.append("region", value));
     filters.state.forEach((value) => params.append("state", value));
     filters.cities.forEach((value) => params.append("city", value));
-    filters.sectorThemes.forEach((value) => params.append("sectorTheme", value));
-    filters.publicCompanySectors.forEach((value) => params.append("publicCompanySector", value));
+    filters.sectorThemes.forEach((value) => params.append("industry", value));
+    filters.publicCompanySectors.forEach((value) => params.append("industry", value));
     filters.conferenceType.forEach((value) => params.append("conferenceType", value));
     filters.issuerParticipation.forEach((value) => params.append("issuerParticipation", value));
+    filters.targetAudience.forEach((value) => params.append("targetAudience", value));
+    filters.companyParticipants.forEach((value) => params.append("companyParticipants", value));
+    filters.eventFeatures.forEach((value) => params.append("eventFeatures", value));
+    filters.accessModel.forEach((value) => params.append("accessModel", value));
+    filters.marketCap.forEach((value) => params.append("marketCap", value));
     filters.organizer.forEach((value) => params.append("organizer", value));
-    filters.marketFocus.forEach((value) => params.append("marketFocus", value));
+    filters.marketFocus.forEach((value) => params.append("investmentFocus", value));
     activeSavedList?.eventIds.forEach((value) => params.append("eventId", value));
     urlEventIds.forEach((value) => params.append("eventId", value));
     return params;
@@ -1894,9 +1938,12 @@ export default function EventsClient({
   const countries = discoveryPage.filterOptions.countries;
   const states = discoveryPage.filterOptions.states;
   const themes = discoveryPage.filterOptions.themes;
-  const publicCompanySectorOptions = discoveryPage.filterOptions.publicCompanySectors || [];
   const conferenceTypes = discoveryPage.filterOptions.conferenceTypes;
-  const issuers = discoveryPage.filterOptions.issuers;
+  const targetAudienceOptions = discoveryPage.filterOptions.targetAudiences || [];
+  const companyParticipantOptions = discoveryPage.filterOptions.companyParticipants || [];
+  const eventFeatureOptions = discoveryPage.filterOptions.eventFeatures || [];
+  const accessModelOptions = discoveryPage.filterOptions.accessModels || [];
+  const marketCapOptions = discoveryPage.filterOptions.marketCaps || [];
   const organizers = discoveryPage.filterOptions.organizers;
   const marketFocusOptions = discoveryPage.filterOptions.marketFocuses;
 
@@ -1942,11 +1989,14 @@ export default function EventsClient({
     addChips("region");
     addChips("state");
     addChips("cities");
-    addChips("sectorThemes");
-    addChips("publicCompanySectors", "Public Company Sector: ");
-    addChips("conferenceType");
-    addChips("marketFocus");
-    addChips("issuerParticipation");
+    addChips("conferenceType", "Conference Type: ");
+    addChips("sectorThemes", "Industry: ");
+    addChips("marketFocus", "Investment Focus: ");
+    addChips("marketCap", "Market Cap: ");
+    addChips("targetAudience", "Target Audience: ");
+    addChips("companyParticipants", "Company Participants: ");
+    addChips("eventFeatures", "Event Features: ");
+    addChips("accessModel", "Access Model: ");
     addChips("organizer");
     if (filters.dateRange !== "all") chips.push({ key: "dateRange", label: `Date: ${filters.dateRange.replace("next", "Next ").toUpperCase()}`, clear: () => setFilters((p) => ({ ...p, dateRange: "all" })) });
     if (fromDate || toDate) {
@@ -1994,8 +2044,8 @@ useEffect(() => {
   }, [focusedEventId, dashboardMode, workspaceViewMode, filteredEvents]);
 
   const locationActiveCount = filters.country.length + filters.region.length + filters.state.length + filters.cities.length;
-  const marketSegmentsActiveCount = filters.sectorThemes.length + filters.publicCompanySectors.length + filters.conferenceType.length + filters.marketFocus.length;
-  const participationActiveCount = filters.issuerParticipation.length;
+  const marketSegmentsActiveCount = filters.sectorThemes.length + filters.publicCompanySectors.length + filters.conferenceType.length + filters.marketFocus.length + filters.marketCap.length;
+  const participationActiveCount = filters.targetAudience.length + filters.companyParticipants.length + filters.eventFeatures.length + filters.accessModel.length;
   const organizersActiveCount = filters.organizer.length;
 
   const selectedSet = useMemo(() => new Set(selectedEvents), [selectedEvents]);
@@ -3493,12 +3543,15 @@ useEffect(() => {
     appendMany("region", filters.region);
     appendMany("state", filters.state);
     appendMany("city", filters.cities);
-    appendMany("sectorTheme", filters.sectorThemes);
-    appendMany("publicCompanySector", filters.publicCompanySectors);
-    appendMany("category", filters.conferenceType);
-    appendMany("issuerParticipation", filters.issuerParticipation);
+    appendMany("industry", filters.sectorThemes);
+    appendMany("conferenceType", filters.conferenceType);
+    appendMany("targetAudience", filters.targetAudience);
+    appendMany("companyParticipants", filters.companyParticipants);
+    appendMany("eventFeatures", filters.eventFeatures);
+    appendMany("accessModel", filters.accessModel);
+    appendMany("marketCap", filters.marketCap);
     appendMany("organizer", filters.organizer);
-    appendMany("marketFocus", filters.marketFocus);
+    appendMany("investmentFocus", filters.marketFocus);
     params.set("filterMode", filterMode);
     if (computedRangeEnd.from) params.set("from", computedRangeEnd.from);
     if (computedRangeEnd.to) params.set("to", computedRangeEnd.to);
@@ -3697,17 +3750,21 @@ useEffect(() => {
     const q = mobileSearchTerm.trim().toLowerCase();
     if (!q) return filteredEvents;
     return filteredEvents.filter((e) => {
-      const haystack = `${e.title} ${e.organizer} ${e.city} ${e.state} ${e.primaryCategory} ${e.marketFocus} ${e.sectorThemes}`.toLowerCase();
+      const haystack = `${e.title} ${e.organizer} ${e.city} ${e.state} ${e.conferenceType} ${e.industry} ${e.investmentFocus} ${e.targetAudience} ${e.companyParticipants} ${e.eventFeatures} ${e.accessModel} ${e.marketCap}`.toLowerCase();
       return haystack.includes(q);
     });
   }, [filteredEvents, mobileSearchTerm]);
 
   const getMobileTags = (event: WorkspaceEvent) => {
+    const highValueFeatures = splitCsv(event.eventFeatures || "").filter((feature) =>
+      ["Company Presentations", "1x1 Meetings", "Partnering / Deal-Making"].some((allowed) => allowed.toLowerCase() === feature.toLowerCase())
+    );
     return unique([
-      event.primaryCategory,
-      ...splitCsv(event.sectorThemes),
-      ...splitCsv(event.marketFocus),
-      event.issuerParticipation,
+      event.conferenceType || "",
+      ...splitCsv(event.industry || "").slice(0, 2),
+      ...splitCsv(event.investmentFocus || "").slice(0, 2),
+      ...highValueFeatures,
+      event.format,
     ]).filter(Boolean);
   };
 
@@ -3954,11 +4011,14 @@ useEffect(() => {
                   <select aria-label="Region" value="" onChange={(e) => { toggleFilterValue("region", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.region.length ? `${filters.region.length} regions selected` : "All Region"}</option>{regions.map((o, i) => <option key={`m-region-${o}-${i}`} value={o}>{filters.region.includes(o) ? `✓ ${o}` : o}</option>)}</select>
                   <select aria-label="State" value="" onChange={(e) => { toggleFilterValue("state", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.state.length ? `${filters.state.length} states selected` : "All State"}</option>{states.map((o, i) => <option key={`m-state-${o}-${i}`} value={o}>{filters.state.includes(o) ? `✓ ${o}` : o}</option>)}</select>
                   <select aria-label="Cities" value="" onChange={(e) => { toggleFilterValue("cities", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.cities.length ? `${filters.cities.length} cities selected` : "All Cities"}</option>{cities.map((o, i) => <option key={`m-city-${o}-${i}`} value={o}>{filters.cities.includes(o) ? `✓ ${o}` : o}</option>)}</select>
-                  <select aria-label="Conference types" value="" onChange={(e) => { toggleFilterValue("conferenceType", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.conferenceType.length ? `${filters.conferenceType.length} types selected` : "All Types"}</option>{conferenceTypes.map((o, i) => <option key={`m-type-${o}-${i}`} value={o}>{filters.conferenceType.includes(o) ? `✓ ${o}` : o}</option>)}</select>
-                  <select aria-label="Issuer participation" value="" onChange={(e) => { toggleFilterValue("issuerParticipation", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.issuerParticipation.length ? `${filters.issuerParticipation.length} selected` : "All Issuer Participation"}</option>{issuers.map((o, i) => <option key={`m-issuer-${o}-${i}`} value={o}>{filters.issuerParticipation.includes(o) ? `✓ ${o}` : o}</option>)}</select>
-                  <select aria-label="Sectors and themes" value="" onChange={(e) => { toggleFilterValue("sectorThemes", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.sectorThemes.length ? `${filters.sectorThemes.length} themes selected` : "All Sectors / Themes"}</option>{themes.map((o, i) => <option key={`m-theme-${o}-${i}`} value={o}>{filters.sectorThemes.includes(o) ? `✓ ${o}` : o}</option>)}</select>
-                  <select aria-label="Public company sectors" value="" onChange={(e) => { toggleFilterValue("publicCompanySectors", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.publicCompanySectors.length ? `${filters.publicCompanySectors.length} public sectors selected` : "All Public Company Sectors"}</option>{publicCompanySectorOptions.map((o, i) => <option key={`m-public-sector-${o}-${i}`} value={o}>{filters.publicCompanySectors.includes(o) ? `✓ ${o}` : o}</option>)}</select>
-                  <select aria-label="Market focus" value="" onChange={(e) => { toggleFilterValue("marketFocus", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.marketFocus.length ? `${filters.marketFocus.length} focus areas selected` : "All Market Focus"}</option>{marketFocusOptions.map((o, i) => <option key={`m-focus-${o}-${i}`} value={o}>{filters.marketFocus.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                  <select aria-label="Conference Type" value="" onChange={(e) => { toggleFilterValue("conferenceType", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.conferenceType.length ? `${filters.conferenceType.length} types selected` : "All Conference Types"}</option>{conferenceTypes.map((o, i) => <option key={`m-type-${o}-${i}`} value={o}>{filters.conferenceType.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                  <select aria-label="Industry" value="" onChange={(e) => { toggleFilterValue("sectorThemes", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.sectorThemes.length ? `${filters.sectorThemes.length} industries selected` : "All Industries"}</option>{themes.map((o, i) => <option key={`m-theme-${o}-${i}`} value={o}>{filters.sectorThemes.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                  <select aria-label="Investment Focus" value="" onChange={(e) => { toggleFilterValue("marketFocus", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.marketFocus.length ? `${filters.marketFocus.length} investment focuses selected` : "All Investment Focuses"}</option>{marketFocusOptions.map((o, i) => <option key={`m-focus-${o}-${i}`} value={o}>{filters.marketFocus.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                  <select aria-label="Market Cap" value="" onChange={(e) => { toggleFilterValue("marketCap", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.marketCap.length ? `${filters.marketCap.length} market caps selected` : "All Market Caps"}</option>{marketCapOptions.map((o, i) => <option key={`m-market-cap-${o}-${i}`} value={o}>{filters.marketCap.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                  <select aria-label="Target Audience" value="" onChange={(e) => { toggleFilterValue("targetAudience", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.targetAudience.length ? `${filters.targetAudience.length} target audiences selected` : "All Target Audiences"}</option>{targetAudienceOptions.map((o, i) => <option key={`m-target-audience-${o}-${i}`} value={o}>{filters.targetAudience.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                  <select aria-label="Company Participants" value="" onChange={(e) => { toggleFilterValue("companyParticipants", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.companyParticipants.length ? `${filters.companyParticipants.length} company participants selected` : "All Company Participants"}</option>{companyParticipantOptions.map((o, i) => <option key={`m-company-participants-${o}-${i}`} value={o}>{filters.companyParticipants.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                  <select aria-label="Event Features" value="" onChange={(e) => { toggleFilterValue("eventFeatures", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.eventFeatures.length ? `${filters.eventFeatures.length} event features selected` : "All Event Features"}</option>{eventFeatureOptions.map((o, i) => <option key={`m-event-features-${o}-${i}`} value={o}>{filters.eventFeatures.includes(o) ? `✓ ${o}` : o}</option>)}</select>
+                  <select aria-label="Access Model" value="" onChange={(e) => { toggleFilterValue("accessModel", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.accessModel.length ? `${filters.accessModel.length} access models selected` : "All Access Models"}</option>{accessModelOptions.map((o, i) => <option key={`m-access-model-${o}-${i}`} value={o}>{filters.accessModel.includes(o) ? `✓ ${o}` : o}</option>)}</select>
                   <select aria-label="Organizers" value="" onChange={(e) => { toggleFilterValue("organizer", e.target.value); e.currentTarget.value = ""; }} style={controlStyle}><option value="">{filters.organizer.length ? `${filters.organizer.length} organizers selected` : "All Organizers"}</option>{organizers.map((o, i) => <option key={`m-org-${o}-${i}`} value={o}>{filters.organizer.includes(o) ? `✓ ${o}` : o}</option>)}</select>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", position: "sticky", bottom: 0, background: "linear-gradient(180deg, rgba(4,14,30,0), rgba(4,14,30,0.96) 26%)", paddingTop: "8px" }}>
                     <button type="button" onClick={clearWorkspaceView} style={{ height: "36px", borderRadius: "9px", border: "1px solid rgba(147,197,253,0.26)", background: "rgba(8,22,48,0.7)", color: "#dbeafe", fontWeight: 700 }}>Reset</button>
@@ -5804,9 +5864,9 @@ useEffect(() => {
                       ? "date"
                       : chipKey === "country" || chipKey === "region" || chipKey === "state" || chipKey === "cities"
                         ? "location"
-                        : chipKey === "sectorThemes" || chipKey === "publicCompanySectors" || chipKey === "conferenceType" || chipKey === "marketFocus"
-                          ? "segments"
-                          : chipKey === "issuerParticipation"
+	                        : chipKey === "sectorThemes" || chipKey === "publicCompanySectors" || chipKey === "conferenceType" || chipKey === "marketFocus" || chipKey === "marketCap"
+	                          ? "segments"
+	                          : chipKey === "issuerParticipation" || chipKey === "targetAudience" || chipKey === "companyParticipants" || chipKey === "eventFeatures" || chipKey === "accessModel"
                             ? "participation"
                             : "organizers";
                   return (
@@ -6053,10 +6113,10 @@ useEffect(() => {
                     {
                       color: "#3b82f6",
                       icon: "tag" as const,
-                      title: "Primary Category Lead",
+	                      title: "Conference Type Lead",
                       text: topPrimaryCategory
                         ? `${topPrimaryCategory[0]} is the leading event type with ${topPrimaryCategory[1]} conferences in the current view.`
-                        : "Primary category labeling is still building out.",
+	                        : "Conference type labeling is still building out.",
                       action: topPrimaryCategory ? ({ type: "conferenceType", value: topPrimaryCategory[0] } as AnalysisAction) : null,
                     },
                     {
@@ -6481,7 +6541,7 @@ useEffect(() => {
                                       <div style={{ color: "#b8cce4", fontSize: "12px", whiteSpace: "nowrap" }}>{item.count} · {percentage}%</div>
                                     </div>
                                     <div style={{ height: "7px", borderRadius: "999px", background: "rgba(11,42,70,0.82)" }}>
-                                      <div style={{ width: `${Math.max(item.count ? 8 : 0, Math.round((item.count / max) * 100))}%`, height: "100%", borderRadius: "999px", background: item.label === "Deal-Making and Partnering" ? "#f59e0b" : item.label === "No Issuer Participation" ? "#64748b" : "linear-gradient(90deg, #2dd4bf, #60a5fa)" }} />
+	                                      <div style={{ width: `${Math.max(item.count ? 8 : 0, Math.round((item.count / max) * 100))}%`, height: "100%", borderRadius: "999px", background: item.label === "Partnering / Deal-Making" ? "#f59e0b" : item.label === "No Corporate Access Signal" ? "#64748b" : "linear-gradient(90deg, #2dd4bf, #60a5fa)" }} />
                                     </div>
                                   </div>
                                 );
@@ -6551,8 +6611,8 @@ useEffect(() => {
                         <div style={{ ...cardBase, gridColumn: splitSpan }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", marginBottom: "14px" }}>
                             <div>
-                              <div style={{ color: "#f4f8ff", fontSize: "20px", lineHeight: 1.1, fontWeight: 900 }}>Market Focus / Sector Intelligence</div>
-                              <div style={{ color: "#b8cce4", fontSize: "14px", lineHeight: 1.35 }}>Which market themes dominate the current view.</div>
+	                              <div style={{ color: "#f4f8ff", fontSize: "20px", lineHeight: 1.1, fontWeight: 900 }}>Investment Focus / Industry Intelligence</div>
+	                              <div style={{ color: "#b8cce4", fontSize: "14px", lineHeight: 1.35 }}>Which investment and industry themes dominate the current view.</div>
                             </div>
                             <button
                               type="button"
@@ -6563,7 +6623,7 @@ useEffect(() => {
                               }}
                               style={ctaStyle}
                             >
-                              View All Market Focus Areas →
+	                              View All Investment Focuses →
                             </button>
                           </div>
                           <div style={{ display: "grid", gridTemplateColumns: donutColumns, gap: "18px", alignItems: "center" }}>
@@ -6778,7 +6838,7 @@ useEffect(() => {
                             {[
                               { label: "Issuer Access Events", value: issuerAccessCount, detail: `${Math.round((issuerAccessCount / Math.max(1, sourceTotal)) * 100)}% of current view` },
                               { label: "Investor-heavy Events", value: institutionalCount, detail: `${institutionalWindow.bestWeek.count} in best investor window` },
-                              { label: "No Issuer Participation", value: noIssuerCount, detail: `${Math.round((noIssuerCount / Math.max(1, sourceTotal)) * 100)}% explicitly marked` },
+	                              { label: "No Corporate Access Signal", value: noIssuerCount, detail: `${Math.round((noIssuerCount / Math.max(1, sourceTotal)) * 100)}% without access signal` },
                             ].map((item) => (
                               <div key={item.label} style={{ height: "96px", background: "rgba(9,36,61,0.62)", borderRadius: "14px", padding: "14px", display: "grid", alignContent: "space-between", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
                                 <div style={{ color: "#7f99b8", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>{item.label}</div>
@@ -6788,7 +6848,7 @@ useEffect(() => {
                             ))}
                           </div>
                           <div>
-                            <div style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "10px" }}>Issuer Access vs. Audience Balance</div>
+	                            <div style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "10px" }}>Corporate Access vs. Audience Balance</div>
                             <div style={{ display: "flex", height: "18px", borderRadius: "999px", overflow: "hidden", background: "rgba(11,42,70,0.82)" }}>
                               {participationBuckets.map((bucket) => (
                                 <div key={bucket.label} style={{ width: `${(bucket.count / participationTotal) * 100}%`, background: bucket.color }} />
@@ -6805,7 +6865,7 @@ useEffect(() => {
                             </div>
                           </div>
                           <div style={{ display: "grid", gap: "10px" }}>
-                            <div style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>Top Participation Labels</div>
+	                            <div style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>Top Company Participant Labels</div>
                             <div style={{ display: "grid", gap: "8px" }}>
                               {participationTrendCounts.slice(0, 4).map(([label, count]) => (
                                 <div key={label} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "10px", alignItems: "center" }}>
@@ -6923,10 +6983,10 @@ useEffect(() => {
                           </div>
                           <div style={{ display: "grid", gridTemplateColumns: metricColumns, gap: "10px" }}>
                             {[
-                              { label: "Deal-Making + Partnering", value: dealPulse.dealMakingEvents, detail: "Event Character classification" },
-                              { label: "Structured Access", value: dealPulse.structuredAccessEvents, detail: "three approved access labels" },
+	                              { label: "Partnering / Deal-Making", value: dealPulse.dealMakingEvents, detail: "Event Features classification" },
+	                              { label: "Structured Access", value: dealPulse.structuredAccessEvents, detail: "Event Features labels" },
                               { label: "Deal + Access", value: dealPulse.dealMakingWithAccess, detail: "both classifications present" },
-                              ...dealPulse.accessBreakdown.map((item) => ({ label: item.label, value: item.count, detail: "Issuer Participation" })),
+	                              ...dealPulse.accessBreakdown.map((item) => ({ label: item.label, value: item.count, detail: "Event Features" })),
                             ].map((item) => (
                               <div key={item.label} style={{ background: "rgba(9,36,61,0.62)", borderRadius: "14px", padding: "14px", display: "grid", gap: "6px", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
                                 <div style={{ color: "#7f99b8", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>{item.label}</div>
@@ -7174,30 +7234,32 @@ useEffect(() => {
                                   const detailWeekSignals = calendarDetailDataset === "all" ? allCalendarWeekSignals : calendarWeekSignals;
                                   const detailHotWeekKeys = calendarDetailDataset === "all" ? allCalendarHotWeekKeys : calendarHotWeekKeys;
                                   const detailScopeLabel = calendarDetailDataset === "all" ? "All Conferences" : "Current Filtered View";
-                                  const barGradient = /private/i.test(event.marketFocus)
-                                    ? "linear-gradient(90deg, rgba(86,99,240,0.88), rgba(92,71,173,0.84))"
-                                    : /industry|thematic/i.test(event.primaryCategory)
-                                      ? "linear-gradient(90deg, rgba(18,156,184,0.86), rgba(22,115,132,0.82))"
-                                      : /investor/i.test(`${event.primaryCategory} ${event.marketFocus} ${event.issuerParticipation}`)
-                                        ? "linear-gradient(90deg, rgba(37,99,235,0.82), rgba(14,116,144,0.76))"
-                                      : /issuer|public company|company presentations|1x1/i.test(event.issuerParticipation)
+	                                  const barGradient = /private/i.test(event.investmentFocus || "")
+	                                    ? "linear-gradient(90deg, rgba(86,99,240,0.88), rgba(92,71,173,0.84))"
+	                                    : /industry|thematic/i.test(event.conferenceType || "")
+	                                      ? "linear-gradient(90deg, rgba(18,156,184,0.86), rgba(22,115,132,0.82))"
+	                                      : /investor|allocator/i.test(`${event.conferenceType} ${event.investmentFocus} ${event.targetAudience}`)
+	                                        ? "linear-gradient(90deg, rgba(37,99,235,0.82), rgba(14,116,144,0.76))"
+	                                      : /issuer|public company|company presentations|1x1/i.test(`${event.companyParticipants} ${event.eventFeatures}`)
                                           ? "linear-gradient(90deg, rgba(126,79,216,0.82), rgba(83,78,187,0.78))"
                                           : "linear-gradient(90deg, rgba(58,131,226,0.78), rgba(26,90,146,0.76))";
                                   const organizerCount = detailSourceEvents.filter((item) => item.organizer && item.organizer === event.organizer).length;
                                   const sameWeekEvents = detailSourceEvents.filter((item) => item.id !== event.id && getWeekStart(item.startDate) === week.weekStart).slice(0, 4);
                                   const sameCityEvents = detailSourceEvents.filter((item) => item.id !== event.id && [item.city, item.state].filter(Boolean).join(", ") === cityLabel).slice(0, 4);
                                   const sameOrganizerEvents = detailSourceEvents.filter((item) => item.id !== event.id && item.organizer && item.organizer === event.organizer).slice(0, 4);
-                                  const sameFocusEvents = detailSourceEvents.filter((item) => item.id !== event.id && splitCsv(item.marketFocus).some((focus) => splitCsv(event.marketFocus).includes(focus))).slice(0, 4);
-                                  const sameAudienceEvents = detailSourceEvents.filter((item) => item.id !== event.id && item.issuerParticipation && item.issuerParticipation === event.issuerParticipation).slice(0, 4);
+                                  const sameFocusEvents = detailSourceEvents.filter((item) => item.id !== event.id && splitCsv(item.investmentFocus || "").some((focus) => splitCsv(event.investmentFocus || "").includes(focus))).slice(0, 4);
+                                  const sameAudienceEvents = detailSourceEvents.filter((item) => item.id !== event.id && item.targetAudience && item.targetAudience === event.targetAudience).slice(0, 4);
                                   const weekSignalDetail = detailWeekSignals.get(week.weekStart);
+                                  const highValueFeatureTags = splitCsv(event.eventFeatures || "").filter((feature) =>
+                                    ["Company Presentations", "1x1 Meetings", "Partnering / Deal-Making"].some((allowed) => allowed.toLowerCase() === feature.toLowerCase())
+                                  );
                                   const detailTags = unique([
-                                    event.primaryCategory,
-                                    ...splitCsv(event.marketFocus),
-                                    ...splitCsv(event.sectorThemes),
-                                    ...getDerivedParticipationSignals(event),
-                                    event.issuerParticipation,
+                                    event.conferenceType || "",
+                                    ...splitCsv(event.industry || "").slice(0, 2),
+                                    ...splitCsv(event.investmentFocus || "").slice(0, 2),
+                                    ...highValueFeatureTags,
                                     event.format,
-                                  ].filter(Boolean)).slice(0, 8);
+                                  ].filter(Boolean)).slice(0, 7);
                                   const relatedKeyBase = `${week.weekStart}:${event.id}`;
                                   const eventHoverId = `calendar:${week.weekStart}:${event.id}`;
                                   const isHovered = hoveredCardId === eventHoverId;
@@ -7280,24 +7342,24 @@ useEffect(() => {
                                     || bestMatches.find((match) => match.sharedIssuerParticipation.length > 0 || match.bothPresentations || match.bothOneOnOne);
                                   if (topFitMatch) {
                                     pushInsight({
-                                      type: topFitMatch.sharedThemes.length
-                                        ? "shared_sector_theme"
-                                        : topFitMatch.sharedFocus.length
-                                          ? "shared_market_focus"
-                                          : topFitMatch.sharedIssuerParticipation.length
-                                            ? "shared_issuer_participation"
+	                                      type: topFitMatch.sharedThemes.length
+	                                        ? "shared_industry"
+	                                        : topFitMatch.sharedFocus.length
+	                                          ? "shared_investment_focus"
+	                                          : topFitMatch.sharedIssuerParticipation.length
+	                                            ? "shared_company_participants"
                                             : topFitMatch.bothPresentations
                                               ? "public_company_presentation_cluster"
                                               : "one_on_one_access_match",
                                       title: topFitMatch.sharedThemes.length
-                                        ? "Shared Sector Theme Match"
-                                        : topFitMatch.sharedFocus.length
-                                          ? "Shared Market Focus"
-                                          : topFitMatch.sharedIssuerParticipation.length
-                                            ? "Same Participation Model"
-                                            : topFitMatch.bothPresentations
-                                              ? "Public-Company Presentation Match"
-                                              : "One-on-One Access Match",
+	                                        ? "Shared Industry Match"
+	                                        : topFitMatch.sharedFocus.length
+	                                          ? "Shared Investment Focus"
+	                                          : topFitMatch.sharedIssuerParticipation.length
+	                                            ? "Same Company Participants"
+	                                            : topFitMatch.bothPresentations
+	                                              ? "Company Presentation Match"
+	                                              : "1x1 Meeting Match",
                                       explanation: topFitMatch.explanation,
                                       priority: 90,
                                       confidence: topFitMatch.confidence,
@@ -7309,14 +7371,14 @@ useEffect(() => {
                                     const leadTheme = sharedThemeMonthMatches.flatMap((match) => match.sharedThemes)[0];
                                     pushInsight({
                                       type: "sector_activity_cluster",
-                                      title: leadTheme ? `${sharedThemeMonthMatches.length + 1} ${leadTheme} Events This Month` : "Sector Activity Cluster",
+	                                      title: leadTheme ? `${sharedThemeMonthMatches.length + 1} ${leadTheme} Events This Month` : "Industry Activity Cluster",
                                       explanation: leadTheme
-                                        ? `${sharedThemeMonthMatches.length + 1} ${leadTheme} events are scheduled in the same month, pointing to a concentrated period for sector-specific meetings and outreach.`
-                                        : `${sharedThemeMonthMatches.length + 1} related events are scheduled in the same month, creating a stronger sector activity window.`,
+	                                        ? `${sharedThemeMonthMatches.length + 1} ${leadTheme} events are scheduled in the same month, pointing to a concentrated period for industry-specific meetings and outreach.`
+	                                        : `${sharedThemeMonthMatches.length + 1} related events are scheduled in the same month, creating a stronger industry activity window.`,
                                       priority: 80,
                                       confidence: "high",
                                       evidence: {
-                                        fieldsUsed: ["Start Date", "Sector Themes"],
+	                                        fieldsUsed: ["Start Date", "Industry"],
                                         relatedEventIds: sharedThemeMonthMatches.slice(0, 4).map((match) => match.related.id),
                                         sharedSectorThemes: leadTheme ? [leadTheme] : [],
                                       },
@@ -7329,7 +7391,7 @@ useEffect(() => {
                                       priority: 80,
                                       confidence: "medium",
                                       evidence: {
-                                        fieldsUsed: ["Start Date", "Issuer Participation"],
+	                                        fieldsUsed: ["Start Date", "Company Participants", "Event Features"],
                                         relatedEventIds: issuerAccessMonthMatches.slice(0, 4).map((match) => match.related.id),
                                       },
                                     });
@@ -7389,9 +7451,9 @@ useEffect(() => {
                                     { label: "Same State", items: allRelatedMatches.filter((match) => match.sameState).sort((a, b) => b.score - a.score) },
                                     { label: "Same Region", items: allRelatedMatches.filter((match) => match.sameRegion).sort((a, b) => b.score - a.score) },
                                     { label: "Same Week", items: allRelatedMatches.filter((match) => match.sameWeek).sort((a, b) => b.score - a.score) },
-                                    { label: "Similar Sector", items: allRelatedMatches.filter((match) => match.sharedThemes.length > 0).sort((a, b) => b.score - a.score) },
-                                    { label: "Similar Market Focus", items: allRelatedMatches.filter((match) => match.sharedFocus.length > 0).sort((a, b) => b.score - a.score) },
-                                    { label: "Similar Issuer Participation", items: allRelatedMatches.filter((match) => match.sharedIssuerParticipation.length > 0 || match.bothPresentations || match.bothOneOnOne).sort((a, b) => b.score - a.score) },
+	                                    { label: "Similar Industry", items: allRelatedMatches.filter((match) => match.sharedThemes.length > 0).sort((a, b) => b.score - a.score) },
+	                                    { label: "Similar Investment Focus", items: allRelatedMatches.filter((match) => match.sharedFocus.length > 0).sort((a, b) => b.score - a.score) },
+	                                    { label: "Similar Company Participants", items: allRelatedMatches.filter((match) => match.sharedIssuerParticipation.length > 0 || match.bothPresentations || match.bothOneOnOne).sort((a, b) => b.score - a.score) },
                                     { label: "Same Organizer", items: allRelatedMatches.filter((match) => match.sameOrganizer).sort((a, b) => b.score - a.score) },
                                   ]
                                     .map((group) => ({ ...group, items: group.items.slice(0, 4) }))
@@ -7421,7 +7483,7 @@ useEffect(() => {
                                         priority: 95,
                                         confidence: "high",
                                         evidence: {
-                                          fieldsUsed: ["City", "Start Date", "End Date", "Sector Themes", "Market Focus", "Issuer Participation"],
+	                                          fieldsUsed: ["City", "Start Date", "End Date", "Industry", "Investment Focus", "Company Participants", "Event Features"],
                                           relatedEventIds: [beforeEvent.related.id, afterEvent.related.id],
                                           sharedSectorThemes: sharedSignals,
                                           daysApart: gapDays,
@@ -7440,7 +7502,7 @@ useEffect(() => {
                                       priority: 70,
                                       confidence: "medium",
                                       evidence: {
-                                        fieldsUsed: ["City", "Start Date", "Sector Themes", "Market Focus", "Issuer Participation"],
+	                                        fieldsUsed: ["City", "Start Date", "Industry", "Investment Focus", "Company Participants", "Event Features"],
                                         sameCity: Boolean(event.city),
                                         sameState: Boolean(event.state),
                                         sameRegion: Boolean(event.region),
@@ -7454,7 +7516,7 @@ useEffect(() => {
                                       priority: 65,
                                       confidence: "medium",
                                       evidence: {
-                                        fieldsUsed: ["City", "Start Date", "Sector Themes", "Market Focus", "Issuer Participation"],
+	                                        fieldsUsed: ["City", "Start Date", "Industry", "Investment Focus", "Company Participants", "Event Features"],
                                         relatedEventIds: next21Similar.slice(0, 4).map((match) => match.related.id),
                                       },
                                     });
@@ -7792,9 +7854,9 @@ useEffect(() => {
                                               <span title={`${event.title} · ${formatMonthDay(event.startDate)}${event.endDate && event.endDate !== event.startDate ? ` - ${formatMonthDay(event.endDate)}` : ""} · ${cityLabel || "Location TBD"} · ${event.organizer || ""}`} style={{ fontSize: "11.5px", fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{event.title}</span>
                                             </div>
                                             <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
-                                              <div title={event.marketFocus || getPrimaryParticipationLabel(event) || event.issuerParticipation || cityLabel || "Location TBD"} style={{ fontSize: "10.5px", color: "#e6f3ff", opacity: 0.9, overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
-                                                {cityLabel || "Location TBD"} {(event.marketFocus || event.issuerParticipation) ? `· ${(splitCsv(event.marketFocus)[0] || getPrimaryParticipationLabel(event))}` : ""}
-                                              </div>
+	                                              <div title={event.investmentFocus || getPrimaryParticipationLabel(event) || event.companyParticipants || cityLabel || "Location TBD"} style={{ fontSize: "10.5px", color: "#e6f3ff", opacity: 0.9, overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
+	                                                {cityLabel || "Location TBD"} {(event.investmentFocus || event.companyParticipants) ? `· ${(splitCsv(event.investmentFocus || "")[0] || getPrimaryParticipationLabel(event))}` : ""}
+	                                              </div>
                                             </div>
                                           </button>
                                   );
@@ -7868,22 +7930,18 @@ useEffect(() => {
             });
             const matchedHotWeek = viewTopWeeks.find((window) => window.weekStart === weekStart);
 
-            const themeTags = splitCsv(e.sectorThemes);
-            const focusTags = splitCsv(e.marketFocus);
-            const focusTagConferenceType = (e.primaryCategory || "").trim();
-            const focusTagSectorTheme = (themeTags[0] || "").trim();
-            const focusTagMarketFocus = (focusTags[0] || "").trim();
-            const focusTagIssuer = (e.issuerParticipation || "").trim();
-            const derivedAudienceTag = /investor/i.test(`${e.primaryCategory} ${e.marketFocus} ${e.issuerParticipation}`)
-              ? "Investor Heavy"
-              : "";
+            const themeTags = splitCsv(e.industry || "");
+            const focusTags = splitCsv(e.investmentFocus || "");
+            const highValueFeatureTags = splitCsv(e.eventFeatures || "").filter((feature) =>
+              ["Company Presentations", "1x1 Meetings", "Partnering / Deal-Making"].some((allowed) => allowed.toLowerCase() === feature.toLowerCase())
+            );
             const orderedFocusTags = unique([
-              focusTagConferenceType,
-              focusTagSectorTheme,
-              focusTagMarketFocus,
-              focusTagIssuer,
-              derivedAudienceTag,
-            ].filter(Boolean)).slice(0, 4);
+              (e.conferenceType || "").trim(),
+              ...themeTags.slice(0, 2),
+              ...focusTags.slice(0, 2),
+              ...highValueFeatureTags,
+              e.format,
+            ].filter(Boolean)).slice(0, 6);
             const classificationTags = orderedFocusTags;
             const classificationDisplayTags = classificationTags.slice(0, 4);
 
@@ -7901,14 +7959,14 @@ useEffect(() => {
 
             const marketSignal = (() => {
               if (isHot && isCluster) return "Clustered activity inside a peak conference window";
-              if (isHot && /health|biotech/i.test(e.sectorThemes)) return "Peak healthcare scheduling window";
-              if (isHot && /investor/i.test(`${e.primaryCategory} ${e.marketFocus}`)) return "Investor participation elevated this week";
-              if (isCluster && /public/i.test(e.marketFocus)) return "Public markets overlap detected";
-              if (isCluster && /private/i.test(e.marketFocus)) return "Private markets concentration window";
+              if (isHot && /health|biotech/i.test(e.industry || "")) return "Peak healthcare scheduling window";
+              if (isHot && /investor|allocator/i.test(`${e.conferenceType} ${e.targetAudience}`)) return "Investor participation elevated this week";
+              if (isCluster && /public/i.test(e.investmentFocus || "")) return "Public markets overlap detected";
+              if (isCluster && /private/i.test(e.investmentFocus || "")) return "Private markets concentration window";
               if (isCluster) return "Same-city overlap across a five-day window";
-              if (/investor/i.test(`${e.primaryCategory} ${e.marketFocus} ${e.issuerParticipation}`)) return "Institutional attendance trend";
-              if (/health|biotech/i.test(e.sectorThemes)) return "Healthcare participation elevated";
-              if (/private/i.test(e.marketFocus)) return "Private markets participation elevated";
+              if (/investor|allocator/i.test(`${e.conferenceType} ${e.investmentFocus} ${e.targetAudience}`)) return "Institutional attendance trend";
+              if (/health|biotech/i.test(e.industry || "")) return "Healthcare participation elevated";
+              if (/private/i.test(e.investmentFocus || "")) return "Private markets participation elevated";
               if (/canada/i.test(e.country)) return "Cross-border conference lane active";
               if (/west|california|seattle|vancouver|san diego|san francisco|los angeles/i.test(`${e.region} ${e.city} ${e.state}`)) return "West Coast activity remains elevated";
               return "Conference activity remains above baseline";
@@ -7920,11 +7978,11 @@ useEffect(() => {
                 ? "cluster"
                 : isHot
                   ? "hot"
-                  : /investor/i.test(`${marketSignal} ${e.primaryCategory} ${e.marketFocus} ${e.issuerParticipation}`)
-                    ? "investor"
-                    : /health|biotech/i.test(e.sectorThemes)
-                      ? "health"
-                      : /private/i.test(e.marketFocus)
+	                  : /investor|allocator/i.test(`${marketSignal} ${e.conferenceType} ${e.investmentFocus} ${e.targetAudience}`)
+	                    ? "investor"
+	                    : /health|biotech/i.test(e.industry || "")
+	                      ? "health"
+	                      : /private/i.test(e.investmentFocus || "")
                         ? "private"
                         : "default";
 
@@ -7946,7 +8004,7 @@ useEffect(() => {
             const relatedLine = sameCityWeekCount > 0
               ? `${sameCityWeekCount} overlapping conferences nearby this week`
               : sameThemeWeekCount > 0
-                ? `${sameThemeWeekCount} related ${themeTags[0] || "market"} events in the same week`
+	                ? `${sameThemeWeekCount} related ${themeTags[0] || "market"} events in the same week`
                 : "Concentration signal remains elevated in this city window";
             const hasRelatedMarketView = sameCityWeekCount > 0 || sameThemeWeekCount > 0;
             const eventYear = new Date(`${e.startDate}T00:00:00Z`).getUTCFullYear();
@@ -7954,7 +8012,7 @@ useEffect(() => {
             const dowRangeDisplay = isMultiDay ? parts.dowRange.replace("–", " – ") : parts.dowRange;
 
             const organizerCount = filteredEvents.filter((x) => x.organizer && x.organizer === e.organizer).length;
-            const isFeatured = isHot || isCluster || /investor/i.test(`${e.primaryCategory} ${e.marketFocus} ${e.issuerParticipation}`) || organizerCount >= 3;
+            const isFeatured = isHot || isCluster || /investor|allocator/i.test(`${e.conferenceType} ${e.investmentFocus} ${e.targetAudience}`) || organizerCount >= 3;
             const normalizedVenue = (e.venue || "").trim();
             const normalizeLocationText = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
             const cityNorm = normalizeLocationText((cityLabel || "").trim());
@@ -8175,7 +8233,7 @@ useEffect(() => {
                             ? "radial-gradient(circle, rgba(154,77,96,0.38) 0%, rgba(154,77,96,0) 72%)"
                             : /canada/i.test(e.country)
                               ? "radial-gradient(circle, rgba(62,154,145,0.34) 0%, rgba(62,154,145,0) 72%)"
-                              : /investor/i.test(`${e.primaryCategory} ${e.marketFocus} ${e.issuerParticipation}`)
+	                              : /investor|allocator/i.test(`${e.conferenceType} ${e.investmentFocus} ${e.targetAudience}`)
                                 ? "radial-gradient(circle, rgba(92,132,189,0.34) 0%, rgba(92,132,189,0) 72%)"
                                 : "radial-gradient(circle, rgba(101,130,172,0.28) 0%, rgba(101,130,172,0) 72%)",
                     }}

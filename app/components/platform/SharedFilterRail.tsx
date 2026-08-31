@@ -12,6 +12,11 @@ export type PlatformFiltersState = {
   publicCompanySectors: string[];
   conferenceType: string[];
   issuerParticipation: string[];
+  targetAudience: string[];
+  companyParticipants: string[];
+  eventFeatures: string[];
+  accessModel: string[];
+  marketCap: string[];
   organizer: string[];
   marketFocus: string[];
 };
@@ -25,6 +30,11 @@ export type PlatformFilterOptions = {
   publicCompanySectors?: string[];
   conferenceTypes: string[];
   issuers: string[];
+  targetAudiences?: string[];
+  companyParticipants?: string[];
+  eventFeatures?: string[];
+  accessModels?: string[];
+  marketCaps?: string[];
   organizers: string[];
   marketFocuses: string[];
 };
@@ -73,8 +83,8 @@ const controlStyle: CSSProperties = {
 const sections: { key: PlatformFilterSection; label: string; icon: FilterIconKind }[] = [
   { key: "dateTiming", label: "DATE & TIMING", icon: "date" },
   { key: "location", label: "LOCATION", icon: "location" },
-  { key: "marketSegments", label: "MARKET SEGMENTS", icon: "segments" },
-  { key: "participation", label: "PARTICIPATION", icon: "participation" },
+  { key: "marketSegments", label: "EVENT PROFILE", icon: "segments" },
+  { key: "participation", label: "AUDIENCE & ACCESS", icon: "participation" },
   { key: "organizers", label: "ORGANIZERS", icon: "organizers" },
 ];
 
@@ -156,8 +166,8 @@ export default function SharedFilterRail({
   const activeCounts: Record<PlatformFilterSection, number> = {
     dateTiming: 0,
     location: filters.country.length + filters.region.length + filters.state.length + filters.cities.length,
-    marketSegments: filters.sectorThemes.length + filters.publicCompanySectors.length + filters.conferenceType.length + filters.marketFocus.length,
-    participation: filters.issuerParticipation.length,
+    marketSegments: filters.conferenceType.length + filters.sectorThemes.length + filters.marketFocus.length + filters.marketCap.length,
+    participation: filters.targetAudience.length + filters.companyParticipants.length + filters.eventFeatures.length + filters.accessModel.length,
     organizers: filters.organizer.length,
   };
 
@@ -165,7 +175,7 @@ export default function SharedFilterRail({
     <div style={{ width: "100%", maxWidth: "100%", overflow: "visible", padding: "10px 0" }}>
       <div style={{ marginBottom: "10px" }}>
         <div style={{ fontWeight: 900, color: "#dbeafe", fontSize: "20px", lineHeight: 1.05, marginBottom: "6px", textAlign: "center" }}>Refine Your Market View</div>
-        <div style={{ color: "#93aeca", fontSize: "12px", lineHeight: 1.35, marginBottom: "8px" }}>Filter conferences by date, location, theme, and participation.</div>
+        <div style={{ color: "#93aeca", fontSize: "12px", lineHeight: 1.35, marginBottom: "8px" }}>Filter conferences by date, location, event type, investment focus, audience, and access.</div>
         <button type="button" onClick={onClear} style={{ height: "36px", width: "100%", borderRadius: "10px", border: "1px solid rgba(120,160,220,0.2)", background: "rgba(8,26,46,0.42)", color: "#c9dff7", cursor: "pointer", fontSize: "12px", fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
           <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#9ec2e8" }}><ClearIcon /></span>
           Clear Filters
@@ -202,12 +212,17 @@ export default function SharedFilterRail({
                 <FilterDropdown label="Cities" emptyLabel="All Cities" values={filters.cities} options={filterOptions.cities} onToggle={(value) => onToggleFilter("cities", value)} isLoading={isLoading} />
               </> : null}
               {section.key === "marketSegments" ? <>
-                <FilterDropdown label="Sectors and themes" emptyLabel="All Sectors / Themes" values={filters.sectorThemes} options={filterOptions.themes} onToggle={(value) => onToggleFilter("sectorThemes", value)} isLoading={isLoading} />
-                <FilterDropdown label="Public company sectors" emptyLabel="All Public Company Sectors" values={filters.publicCompanySectors} options={filterOptions.publicCompanySectors || []} onToggle={(value) => onToggleFilter("publicCompanySectors", value)} isLoading={isLoading} />
-                <FilterDropdown label="Conference types" emptyLabel="All Types" values={filters.conferenceType} options={filterOptions.conferenceTypes} onToggle={(value) => onToggleFilter("conferenceType", value)} isLoading={isLoading} />
-                <FilterDropdown label="Market focus" emptyLabel="All Market Focus" values={filters.marketFocus} options={filterOptions.marketFocuses} onToggle={(value) => onToggleFilter("marketFocus", value)} isLoading={isLoading} />
+                <FilterDropdown label="Conference Type" emptyLabel="All Conference Types" values={filters.conferenceType} options={filterOptions.conferenceTypes} onToggle={(value) => onToggleFilter("conferenceType", value)} isLoading={isLoading} />
+                <FilterDropdown label="Industry" emptyLabel="All Industries" values={filters.sectorThemes} options={filterOptions.themes} onToggle={(value) => onToggleFilter("sectorThemes", value)} isLoading={isLoading} />
+                <FilterDropdown label="Investment Focus" emptyLabel="All Investment Focuses" values={filters.marketFocus} options={filterOptions.marketFocuses} onToggle={(value) => onToggleFilter("marketFocus", value)} isLoading={isLoading} />
+                <FilterDropdown label="Market Cap" emptyLabel="All Market Caps" values={filters.marketCap} options={filterOptions.marketCaps || []} onToggle={(value) => onToggleFilter("marketCap", value)} isLoading={isLoading} />
               </> : null}
-              {section.key === "participation" ? <FilterDropdown label="Issuer participation" emptyLabel="All Issuer Participation" values={filters.issuerParticipation} options={filterOptions.issuers} onToggle={(value) => onToggleFilter("issuerParticipation", value)} isLoading={isLoading} /> : null}
+              {section.key === "participation" ? <>
+                <FilterDropdown label="Target Audience" emptyLabel="All Target Audiences" values={filters.targetAudience} options={filterOptions.targetAudiences || []} onToggle={(value) => onToggleFilter("targetAudience", value)} isLoading={isLoading} />
+                <FilterDropdown label="Company Participants" emptyLabel="All Company Participants" values={filters.companyParticipants} options={filterOptions.companyParticipants || []} onToggle={(value) => onToggleFilter("companyParticipants", value)} isLoading={isLoading} />
+                <FilterDropdown label="Event Features" emptyLabel="All Event Features" values={filters.eventFeatures} options={filterOptions.eventFeatures || []} onToggle={(value) => onToggleFilter("eventFeatures", value)} isLoading={isLoading} />
+                <FilterDropdown label="Access Model" emptyLabel="All Access Models" values={filters.accessModel} options={filterOptions.accessModels || []} onToggle={(value) => onToggleFilter("accessModel", value)} isLoading={isLoading} />
+              </> : null}
               {section.key === "organizers" ? <FilterDropdown label="Organizers" emptyLabel="All Organizers" values={filters.organizer} options={filterOptions.organizers} onToggle={(value) => onToggleFilter("organizer", value)} isLoading={isLoading} /> : null}
             </div> : null}
           </div>
