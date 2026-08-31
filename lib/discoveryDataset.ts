@@ -249,13 +249,64 @@ export type DiscoveryQuery = {
   filterMode?: "and" | "or";
 };
 
-type AirtableRecord = { id: string; fields: Record<string, unknown> };
+type AirtableRecord = {
+  id: string;
+  fields?: Record<string, unknown>;
+  cellValuesByFieldId?: Record<string, unknown>;
+};
+
+const EVENTS_2_TABLE_ID = "tblHIRpnJtYoxuavI";
+const EVENTS_2_FIELDS = {
+  eventName: "fldy8rJpqxTX0G9Yo",
+  organizerName: "fldVJ2BVaJz7zkbS6",
+  startDate: "fldfbCxuvgWNE25s1",
+  endDate: "fldGfgdWQ9FyZEhs2",
+  format: "fldz5UYpueuVJn9OK",
+  venueName: "fldqLJdzKuArBRW0O",
+  city: "fldT8yuLQknEQhNFP",
+  state: "fldXrWpcMRXgH9Cy2",
+  country: "fld27vgEbRyK7GqJk",
+  region: "fldbc3ysFHX6DeZ4c",
+  eventWebsite: "fld3MAzPbVUPd6OdD",
+  sourcePage: "fldrgPjz0FmDElmF9",
+  verificationStatus: "fld6pKru0id1AXI5q",
+  websiteApproval: "fldd3GA3YQ5lu2Uzp",
+  classificationEvidence: "fld9um4kpHeIkNM1k",
+  eventIntelligenceProfile: "fldQS8lnbM8VcQN7q",
+  organizerPositioningSummary: "flduTn4KuFcuwRdaY",
+  promotionalClaims: "fldu3cETGpl1Ri3yp",
+  notes: "fldjdRS6mtNAEdrHH",
+  createdAt: "fld33nekgxDo94wAx",
+  lastModifiedAt: "fldMgIj2Ukefk9HB0",
+  conferenceType: "fldIZERGXRiF1Bj8U",
+  industry: "fldDO1Zwqfeq1n2ZB",
+  investmentFocus: "fldBvbn7q8IkJddzl",
+  targetAudience: "fldrNvJvDpCNrpn59",
+  companyParticipants: "fldbGMj5uNASq3dF5",
+  eventActivities: "fldA0TvvcnwEFPtQB",
+  accessModel: "fldkKfvYJMQPOzHmZ",
+  marketCap: "fld4dwlngajokiB2n",
+} as const;
 
 function toText(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "string") return value.trim();
   if (typeof value === "number" || typeof value === "boolean") return String(value).trim();
   if (Array.isArray(value)) return value.map(toText).filter(Boolean).join(", ");
+  if (typeof value === "object") {
+    const record = value as {
+      name?: unknown;
+      valuesByLinkedRecordId?: Record<string, unknown>;
+      linkedRecordIds?: string[];
+    };
+    if (record.name) return toText(record.name);
+    if (record.valuesByLinkedRecordId) {
+      const linkedValues = record.linkedRecordIds?.length
+        ? record.linkedRecordIds.flatMap((id) => record.valuesByLinkedRecordId?.[id] || [])
+        : Object.values(record.valuesByLinkedRecordId).flat();
+      return linkedValues.map(toText).filter(Boolean).join(", ");
+    }
+  }
   return "";
 }
 
@@ -283,35 +334,35 @@ function isWebsiteApproved(fields: Record<string, unknown>) {
   const approvalKey = Object.keys(fields).find(
     (key) => key.replace(/[^a-z]/gi, "").toLowerCase() === "websiteapproval"
   ) || "Website Approval";
-  const normalized = toText(fields[approvalKey]).toLowerCase().replace(/\s+/g, "");
+  const normalized = toText(fields[EVENTS_2_FIELDS.websiteApproval] || fields[approvalKey]).toLowerCase().replace(/\s+/g, "");
   return (normalized.includes("approved") || normalized.includes("appoved")) &&
     !/(notapproved|unapproved|pending|rejected)/.test(normalized);
 }
 
 function mapRecord(record: AirtableRecord): InternalDiscoveryEvent {
-  const fields = record.fields || {};
-  const startDate = cleanDateOnly(fields["Start Date"]);
-  const conferenceType = toText(fields["Conference Type"]);
-  const industry = toText(fields["Industry"]);
-  const investmentFocus = toText(fields["Investment Focus"]);
-  const targetAudience = toText(fields["Target Audience"]);
-  const companyParticipants = toText(fields["Company Participants"]);
-  const eventFeatures = toText(fields["Event Activities"]);
-  const accessModel = toText(fields["Access Model"]);
-  const marketCap = toText(fields["Market Cap"]);
+  const fields = record.cellValuesByFieldId || record.fields || {};
+  const startDate = cleanDateOnly(fields[EVENTS_2_FIELDS.startDate]);
+  const conferenceType = toText(fields[EVENTS_2_FIELDS.conferenceType]);
+  const industry = toText(fields[EVENTS_2_FIELDS.industry]);
+  const investmentFocus = toText(fields[EVENTS_2_FIELDS.investmentFocus]);
+  const targetAudience = toText(fields[EVENTS_2_FIELDS.targetAudience]);
+  const companyParticipants = toText(fields[EVENTS_2_FIELDS.companyParticipants]);
+  const eventFeatures = toText(fields[EVENTS_2_FIELDS.eventActivities]);
+  const accessModel = toText(fields[EVENTS_2_FIELDS.accessModel]);
+  const marketCap = toText(fields[EVENTS_2_FIELDS.marketCap]);
   return {
     id: record.id,
-    title: toText(fields["Event Name"]) || "Untitled Event",
-    eventSeries: toText(fields["Event Series"]),
+    title: toText(fields[EVENTS_2_FIELDS.eventName]) || "Untitled Event",
+    eventSeries: "",
     startDate,
-    endDate: cleanDateOnly(fields["End Date"] || fields["Start Date"]),
-    city: toText(fields["City"]),
-    state: toText(fields["State/Province"]),
-    country: toText(fields["Country"]),
-    venue: toText(fields["Venue Name"]),
-    website: firstText(fields, ["Event Website", "Website", "Event Link", "Conference URL"]),
-    sourcePage: firstText(fields, ["Source Page (event-specific)", "Source Page", "Source URL"]),
-    organizer: toText(fields["Organizer Name (from Organizer)"]),
+    endDate: cleanDateOnly(fields[EVENTS_2_FIELDS.endDate] || fields[EVENTS_2_FIELDS.startDate]),
+    city: toText(fields[EVENTS_2_FIELDS.city]),
+    state: toText(fields[EVENTS_2_FIELDS.state]),
+    country: toText(fields[EVENTS_2_FIELDS.country]),
+    venue: toText(fields[EVENTS_2_FIELDS.venueName]),
+    website: toText(fields[EVENTS_2_FIELDS.eventWebsite]),
+    sourcePage: toText(fields[EVENTS_2_FIELDS.sourcePage]),
+    organizer: toText(fields[EVENTS_2_FIELDS.organizerName]),
     primaryCategory: conferenceType,
     marketFocus: investmentFocus,
     sectorThemes: industry,
@@ -325,31 +376,30 @@ function mapRecord(record: AirtableRecord): InternalDiscoveryEvent {
     accessModel,
     marketCap,
     audience: targetAudience,
-    region: toText(fields["Region"]),
-    format: toText(fields["Event Format"]) || toText(fields["Format"]),
+    region: toText(fields[EVENTS_2_FIELDS.region]),
+    format: toText(fields[EVENTS_2_FIELDS.format]),
     publicCompanySector: industry,
     additionalPublicCompanySectors: "",
     eventCharacter: eventFeatures,
-    organizerType: toText(fields["Organizer Type / Type from Organizer"]) || toText(fields["Type from Organizer"]),
-    verificationStatus: toText(fields["Verification Status"]),
-    dataCompletenessScore: toText(fields["Data Completeness Score copy"]) || toText(fields["Data Completeness Score"]),
-    websiteApproval: toText(fields["Website Approval"]),
-    verificationStamp: firstText(fields, ["Latest Verification Date", "Last Verified", "Verification Date", "Verified At", "Reviewed At"]),
-    classificationEvidence: toText(fields["Classification Evidence"]),
-    eventIntelligenceProfile: toText(fields["Event Intelligence Profile"]),
-    organizerPositioningSummary: toText(fields["Organizer Positioning Summary"]),
-    promotionalClaims: toText(fields["Promotional Claims"]),
-    notes: toText(fields["Notes"]),
-    createdAt: firstText(fields, ["Created", "Created Time", "Created At"]),
-    lastModifiedAt: firstText(fields, ["Last Modified", "Last Modified Time", "Modified At"]),
+    organizerType: "",
+    verificationStatus: toText(fields[EVENTS_2_FIELDS.verificationStatus]),
+    dataCompletenessScore: "",
+    websiteApproval: toText(fields[EVENTS_2_FIELDS.websiteApproval]),
+    verificationStamp: "",
+    classificationEvidence: toText(fields[EVENTS_2_FIELDS.classificationEvidence]),
+    eventIntelligenceProfile: toText(fields[EVENTS_2_FIELDS.eventIntelligenceProfile]),
+    organizerPositioningSummary: toText(fields[EVENTS_2_FIELDS.organizerPositioningSummary]),
+    promotionalClaims: toText(fields[EVENTS_2_FIELDS.promotionalClaims]),
+    notes: toText(fields[EVENTS_2_FIELDS.notes]),
+    createdAt: toText(fields[EVENTS_2_FIELDS.createdAt]),
+    lastModifiedAt: toText(fields[EVENTS_2_FIELDS.lastModifiedAt]),
   };
 }
 
 async function fetchApprovedEvents(): Promise<InternalDiscoveryEvent[]> {
   const baseId = process.env.AIRTABLE_BASE_ID;
-  const tableName = process.env.AIRTABLE_TABLE_NAME;
   const token = process.env.AIRTABLE_TOKEN;
-  if (!baseId || !tableName || !token) throw new Error("Missing Airtable environment variables.");
+  if (!baseId || !token) throw new Error("Missing Airtable environment variables.");
 
   // Airtable cursors can be invalidated while a table is being updated. Restart
   // the read-only collection once instead of letting that transient 422 take the
@@ -361,8 +411,9 @@ async function fetchApprovedEvents(): Promise<InternalDiscoveryEvent[]> {
     let offset: string | undefined;
     try {
       do {
-        const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`);
+        const url = new URL(`https://api.airtable.com/v0/${baseId}/${EVENTS_2_TABLE_ID}`);
         url.searchParams.set("pageSize", "100");
+        url.searchParams.set("returnFieldsByFieldId", "true");
         if (offset) url.searchParams.set("offset", offset);
         let response: Response | undefined;
         let pageError: unknown;
