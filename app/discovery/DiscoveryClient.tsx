@@ -80,7 +80,7 @@ type AnalysisAction =
   | { type: "organizer"; value: string }
   | { type: "week"; from: string; to: string };
 
-type MarketSignalType = "hotweek" | "cluster" | "participation" | "theme" | "organizer";
+type MarketSignalType = "hotweek" | "cluster" | "issuerAccess" | "allocator" | "dealMaking" | "investmentFocus" | "industry" | "organizer";
 
 type MarketSignalAction =
   | { kind: "analysis"; action: AnalysisAction }
@@ -89,6 +89,9 @@ type MarketSignalAction =
 type MarketSignalStrip = {
   id: string;
   type: MarketSignalType;
+  family: MarketSignalType;
+  score: number;
+  eventIds: string[];
   label: string;
   badge?: string;
   headline: string;
@@ -1092,7 +1095,7 @@ function MarketSignalIcon({ kind, color }: { kind: MarketSignalType; color: stri
       </svg>
     );
   }
-  if (kind === "participation") {
+  if (kind === "issuerAccess" || kind === "allocator" || kind === "dealMaking") {
     return (
       <svg {...common} aria-hidden="true">
         <path d="M4 18v-5M10 18V8M16 18v-8M22 18v-3" />
@@ -1100,7 +1103,7 @@ function MarketSignalIcon({ kind, color }: { kind: MarketSignalType; color: stri
       </svg>
     );
   }
-  if (kind === "theme") {
+  if (kind === "investmentFocus" || kind === "industry") {
     return (
       <svg {...common} aria-hidden="true">
         <path d="M4 16l4-4 3 3 7-7" />
@@ -3068,160 +3071,315 @@ useEffect(() => {
   const allMarketAnalytics = useMemo(() => computeMarketViewAnalytics(events), [events, computeMarketViewAnalytics]);
   const filteredMarketAnalytics = useMemo(() => computeMarketViewAnalytics(filteredEvents), [filteredEvents, computeMarketViewAnalytics]);
   const marketSignalStrips = useMemo(() => {
-    if (filteredEvents.length < 4) return [] as MarketSignalStrip[];
+    const resultCount = filteredEvents.length;
+    const maxSignals = resultCount < 4 ? 0 : resultCount < 10 ? 1 : resultCount < 25 ? 2 : resultCount < 50 ? 3 : 4;
+    if (!maxSignals) return [] as MarketSignalStrip[];
 
     const now = new Date();
     const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
     const in90Utc = todayUtc + 90 * 86400000;
-    const futureEvents = filteredEvents.filter((event) => {
+    const publicEvents = filteredEvents.filter((event) => {
       const start = new Date(`${event.startDate}T00:00:00Z`).getTime();
-      return !Number.isNaN(start) && start >= todayUtc && start <= in90Utc;
+      const approval = (event.websiteApproval || "").trim().toLowerCase();
+      const evidence = `${event.verificationStatus || ""} ${event.dataCompletenessScore || ""}`.toLowerCase();
+      return !Number.isNaN(start) && start >= todayUtc && start <= in90Utc && (!approval || approval === "approved") && !evidence.includes("incomplete");
     });
-    const source = futureEvents.length ? futureEvents : filteredEvents;
+    const source = publicEvents.length ? publicEvents : filteredEvents.filter((event) => {
+      const approval = (event.websiteApproval || "").trim().toLowerCase();
+      return !approval || approval === "approved";
+    });
+    if (source.length < 4) return [] as MarketSignalStrip[];
 
-    const countRanked = (items: string[]) =>
+    const eventSet = (items: WorkspaceEvent[]) => Array.from(new Set(items.map((event) => event.id)));
+    const percent = (count: number) => Math.round((count / Math.max(source.length, 1)) * 100);
+    const countRanked = (items: { label: string; event: WorkspaceEvent }[]) =>
       Array.from(
         items.reduce((map, item) => {
-          const key = item.trim();
+          const key = item.label.trim();
           if (!key) return map;
-          map.set(key, (map.get(key) || 0) + 1);
+          const current = map.get(key) || { label: key, events: [] as WorkspaceEvent[] };
+          current.events.push(item.event);
+          map.set(key, current);
           return map;
-        }, new Map<string, number>())
-      ).sort((a, b) => b[1] - a[1]);
+        }, new Map<string, { label: string; events: WorkspaceEvent[] }>())
+      )
+        .map(([, value]) => value)
+        .sort((a, b) => b.events.length - a.events.length || a.label.localeCompare(b.label));
 
-    const participationCounts = countRanked(source.flatMap((event) => splitCsv(event.issuerParticipation)));
-    const focusCounts = countRanked(source.flatMap((event) => splitCsv(event.marketFocus)));
-    const organizerCounts = countRanked(source.map((event) => event.organizer));
-    const themeCounts = countRanked(source.flatMap((event) => splitCsv(event.sectorThemes)));
+    const eventHas = (event: WorkspaceEvent, field: keyof WorkspaceEvent, labels: string[]) => {
+      const values = splitCsv(String(event[field] || "")).map((value) => value.toLowerCase());
+      return values.some((value) => labels.some((label) => value === label.toLowerCase()));
+    };
+    const eventHasPattern = (event: WorkspaceEvent, field: keyof WorkspaceEvent, patterns: RegExp[]) =>
+      splitCsv(String(event[field] || "")).some((value) => patterns.some((pattern) => pattern.test(value.toLowerCase())));
+    const isIssuerAccessEvent = (event: WorkspaceEvent) =>
+      eventHas(event, "conferenceType", ["Issuer Access Conference", "Sell-Side / Corporate Access"]) ||
+      (eventHas(event, "eventFeatures", ["Company Presentations", "1x1 Meetings"]) &&
+        eventHas(event, "companyParticipants", ["Public Company Executives", "Public Company IR / Corporate Access"]));
+    const isAllocatorEvent = (event: WorkspaceEvent) =>
+      eventHas(event, "conferenceType", ["Allocator / Manager Forum"]) ||
+      eventHas(event, "targetAudience", ["Institutional Investors / Asset Managers", "Family Offices", "Allocators / Pensions / Endowments"]);
+    const hasInstitutionalAudience = (event: WorkspaceEvent) =>
+      eventHas(event, "targetAudience", ["Institutional Investors / Asset Managers", "Family Offices", "Allocators / Pensions / Endowments"]);
+    const hasCuratedAccess = (event: WorkspaceEvent) =>
+      eventHas(event, "accessModel", ["Invitation Only", "Curated / Application Required"]);
+    const isDealEvent = (event: WorkspaceEvent) =>
+      eventHas(event, "conferenceType", ["Private Markets / Deal-Making"]) ||
+      eventHas(event, "eventFeatures", ["Partnering / Deal-Making"]) ||
+      (eventHas(event, "eventFeatures", ["1x1 Meetings"]) &&
+        eventHas(event, "companyParticipants", ["Private Company Founders / Executives", "Private / Portfolio Company Management", "Project Developers / Sponsors"]));
+    const hasStructuredMeetings = (event: WorkspaceEvent) => eventHas(event, "eventFeatures", ["1x1 Meetings", "Company Presentations"]);
+    const actionability = (items: WorkspaceEvent[]) =>
+      items.filter((event) => isIssuerAccessEvent(event) || isAllocatorEvent(event) || isDealEvent(event) || hasStructuredMeetings(event)).length;
+    const confidenceBoost = (items: WorkspaceEvent[]) =>
+      items.filter((event) => splitCsv(`${event.conferenceType},${event.industry},${event.investmentFocus},${event.targetAudience},${event.eventFeatures}`).length >= 3).length;
+    const scoreSignal = (items: WorkspaceEvent[], distinctiveness = 0, extraActionability = 0) =>
+      items.length * 10 + distinctiveness * 4 + actionability(items) * 6 + confidenceBoost(items) * 2 + extraActionability;
 
-    const candidatesByType: Record<MarketSignalType, MarketSignalStrip[]> = {
-      hotweek: [],
-      cluster: [],
-      participation: [],
-      theme: [],
-      organizer: [],
+    const candidates: MarketSignalStrip[] = [];
+    const pushSignal = (signal: MarketSignalStrip) => {
+      if (signal.eventIds.length < 3 && signal.family !== "hotweek") return;
+      candidates.push(signal);
+    };
+    const sentenceList = (parts: string[]) => {
+      if (parts.length <= 1) return parts[0] || "";
+      if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
+      return `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
     };
 
-    viewTopWeeks.slice(0, 3).forEach((week) => {
+    const issuerEvents = source.filter(isIssuerAccessEvent);
+    if (issuerEvents.length >= 3) {
+      const institutionalIssuer = issuerEvents.filter(hasInstitutionalAudience).length;
+      const issuerBodyBase = `${issuerEvents.length} upcoming events show issuer-access characteristics, including company presentations, 1x1 meetings, or public-company participation.`;
+      const issuerBody = institutionalIssuer === issuerEvents.length
+        ? `${issuerBodyBase} The same group also targets institutional, allocator, or family-office audiences.`
+        : institutionalIssuer > 0
+          ? `${issuerBodyBase} ${institutionalIssuer} also target institutional, allocator, or family-office audiences.`
+          : issuerBodyBase;
+      pushSignal({
+        id: "issuer-access-window",
+        type: "issuerAccess",
+        family: "issuerAccess",
+        score: scoreSignal(issuerEvents, percent(issuerEvents.length), 18),
+        eventIds: eventSet(issuerEvents),
+        label: "ISSUER ACCESS SIGNAL",
+        badge: `${issuerEvents.length} events`,
+        headline: "Issuer Access Window",
+        body: issuerBody,
+        cta: "Explore issuer-access events →",
+        action: { kind: "analysis", action: { type: "conferenceType", value: "Issuer Access Conference" } },
+      });
+    }
+
+    const allocatorEvents = source.filter(isAllocatorEvent);
+    if (allocatorEvents.length >= 3) {
+      const curatedAccessCount = allocatorEvents.filter(hasCuratedAccess).length;
+      const allocatorBody = curatedAccessCount
+        ? `${allocatorEvents.length} upcoming conferences target institutional, allocator, pension, endowment, or family-office audiences; ${curatedAccessCount} use invitation-only, curated, or application-based access.`
+        : `${allocatorEvents.length} upcoming conferences explicitly target institutional, allocator, pension, endowment, or family-office audiences.`;
+      pushSignal({
+        id: "allocator-activity",
+        type: "allocator",
+        family: "allocator",
+        score: scoreSignal(allocatorEvents, percent(allocatorEvents.length), 14),
+        eventIds: eventSet(allocatorEvents),
+        label: "ALLOCATOR SIGNAL",
+        badge: `${allocatorEvents.length} events`,
+        headline: "Allocator Activity Is Building",
+        body: allocatorBody,
+        cta: "See allocator-focused events →",
+        action: { kind: "analysis", action: { type: "conferenceType", value: "Allocator / Manager Forum" } },
+      });
+    }
+
+    const dealEvents = source.filter(isDealEvent);
+    if (dealEvents.length >= 3) {
+      const topDealFocus = countRanked(dealEvents.flatMap((event) => splitCsv(event.investmentFocus || "").map((label) => ({ label, event }))))[0]?.label || "";
+      pushSignal({
+        id: "private-market-deal-flow",
+        type: "dealMaking",
+        family: "dealMaking",
+        score: scoreSignal(dealEvents, percent(dealEvents.length), 16),
+        eventIds: eventSet(dealEvents),
+        label: "DEAL-MAKING SIGNAL",
+        badge: `${dealEvents.length} events`,
+        headline: "Private Markets Deal Flow",
+        body: `${dealEvents.length} upcoming conferences feature explicit partnering, deal-making, 1x1, or private-company meeting activity${topDealFocus ? `, led by ${topDealFocus}.` : "."}`,
+        cta: "Explore private-market activity →",
+        action: { kind: "analysis", action: { type: "conferenceType", value: "Private Markets / Deal-Making" } },
+      });
+    }
+
+    countRanked(source.flatMap((event) => splitCsv(event.investmentFocus || "").map((label) => ({ label, event })))).slice(0, 4).forEach(({ label, events: focusEvents }) => {
+      if (focusEvents.length < 4) return;
+      const sortedFocusEvents = [...focusEvents].sort((a, b) => a.startDate.localeCompare(b.startDate));
+      const peakWindowCount = sortedFocusEvents.reduce((best, anchor) => {
+        const anchorTime = new Date(`${anchor.startDate}T00:00:00Z`).getTime();
+        if (Number.isNaN(anchorTime)) return best;
+        const endTime = anchorTime + 20 * 86400000;
+        const count = sortedFocusEvents.filter((event) => {
+          const eventTime = new Date(`${event.startDate}T00:00:00Z`).getTime();
+          return !Number.isNaN(eventTime) && eventTime >= anchorTime && eventTime <= endTime;
+        }).length;
+        return Math.max(best, count);
+      }, 0);
+      pushSignal({
+        id: `focus-${label}`,
+        type: "investmentFocus",
+        family: "investmentFocus",
+        score: scoreSignal(focusEvents, percent(focusEvents.length), label.toLowerCase().includes("private") ? 8 : 4),
+        eventIds: eventSet(focusEvents),
+        label: "INVESTMENT FOCUS",
+        badge: `${percent(focusEvents.length)}% share`,
+        headline: `${label} Concentration`,
+        body: `${focusEvents.length} upcoming events carry a ${label} focus${peakWindowCount >= 3 ? `, with ${peakWindowCount} clustered inside a three-week window.` : "."}`,
+        cta: `See ${label} activity →`,
+        action: { kind: "analysis", action: { type: "marketFocus", value: label } },
+      });
+    });
+
+    countRanked(source.flatMap((event) => splitCsv(event.industry || "").map((label) => ({ label, event })))).slice(0, 4).forEach(({ label, events: industryEvents }) => {
+      if (industryEvents.length < 4) return;
+      const publicAccess = industryEvents.filter(isIssuerAccessEvent).length;
+      pushSignal({
+        id: `industry-${label}`,
+        type: "industry",
+        family: "industry",
+        score: scoreSignal(industryEvents, percent(industryEvents.length), publicAccess ? 8 : 2),
+        eventIds: eventSet(industryEvents),
+        label: "INDUSTRY SIGNAL",
+        badge: `${industryEvents.length} events`,
+        headline: `${label} Activity`,
+        body: `${industryEvents.length} upcoming events are tied to ${label}${publicAccess ? `, including ${publicAccess} with issuer-access characteristics.` : "."}`,
+        cta: `Explore ${label} events →`,
+        action: { kind: "analysis", action: { type: "sectorTheme", value: label } },
+      });
+    });
+
+    viewClusters.slice(0, 5).forEach((cluster) => {
+      const members = source.filter((event) => {
+        const cityLabel = [event.city, event.state].filter(Boolean).join(", ").trim();
+        const start = event.startDate;
+        return cityLabel === cluster.label && start >= cluster.weekStart && start <= cluster.weekEnd;
+      });
+      if (members.length < 3) return;
+      const issuerCount = members.filter(isIssuerAccessEvent).length;
+      const allocatorCount = members.filter(isAllocatorEvent).length;
+      const dealCount = members.filter(isDealEvent).length;
+      const topIndustry = countRanked(members.flatMap((event) => splitCsv(event.industry || "").map((label) => ({ label, event }))))[0]?.label || "capital markets";
+      const descriptionParts = [
+        issuerCount ? `${issuerCount} issuer-access` : "",
+        allocatorCount ? `${allocatorCount} allocator/institutional` : "",
+        dealCount ? `${dealCount} private-market/deal-making` : "",
+      ].filter(Boolean);
+      const leadCategory = issuerCount >= allocatorCount && issuerCount >= dealCount ? "issuer-access" : allocatorCount >= dealCount ? "allocator/institutional" : "private-market/deal-making";
+      pushSignal({
+        id: `cluster-${cluster.label}-${cluster.weekStart}`,
+        type: "cluster",
+        family: "cluster",
+        score: scoreSignal(members, issuerCount + allocatorCount + dealCount, 12),
+        eventIds: eventSet(members),
+        label: "CITY OPPORTUNITY",
+        badge: `${members.length} events`,
+        headline: `${cluster.label} ${topIndustry} Cluster`,
+        body: descriptionParts.length > 1
+          ? `${members.length} events are clustered in ${cluster.label}, including ${sentenceList(descriptionParts)} events.`
+          : `${members.length} events are clustered in ${cluster.label}, led by ${leadCategory} activity.`,
+        cta: `Explore the ${cluster.label.split(",")[0]} cluster →`,
+        action: { kind: "cluster", item: cluster },
+      });
+    });
+
+    viewTopWeeks.slice(0, 5).forEach((week) => {
       const weekEvents = source.filter((event) => {
         const start = event.startDate;
         const end = event.endDate || event.startDate;
         return start <= week.weekEnd && end >= week.weekStart;
       });
-      const weekCities = new Set(weekEvents.map((event) => [event.city, event.state].filter(Boolean).join(", ")).filter(Boolean)).size;
-      const weekThemes = new Set(weekEvents.flatMap((event) => splitCsv(event.sectorThemes))).size;
-      candidatesByType.hotweek.push({
+      if (weekEvents.length < 4) return;
+      const issuerCount = weekEvents.filter(isIssuerAccessEvent).length;
+      const allocatorCount = weekEvents.filter(isAllocatorEvent).length;
+      const meetingCount = weekEvents.filter(hasStructuredMeetings).length;
+      const dealCount = weekEvents.filter(isDealEvent).length;
+      const distinctCities = new Set(weekEvents.map((event) => [event.city, event.state].filter(Boolean).join(", ")).filter(Boolean)).size;
+      const distinctOrganizers = new Set(weekEvents.map((event) => event.organizer).filter(Boolean)).size;
+      const hotWeekParts = [
+        issuerCount ? `${issuerCount} issuer-access` : "",
+        allocatorCount ? `${allocatorCount} allocator/institutional` : "",
+        dealCount ? `${dealCount} private-market/deal-making` : "",
+        meetingCount ? `${meetingCount} structured-meeting programs` : "",
+      ].filter(Boolean);
+      pushSignal({
         id: `hot-${week.weekStart}`,
         type: "hotweek",
-        label: "HOT WEEK",
-        badge: `${week.count} conferences`,
-        headline: `${formatWeekLabel(week.weekStart)}`,
-        body: `Upcoming activity is concentrated across ${Math.max(weekCities, 1)} cities and ${Math.max(weekThemes, 1)} themes in this market view.`,
-        cta: "View Hot Week",
+        family: "hotweek",
+        score: scoreSignal(weekEvents, distinctCities + distinctOrganizers, issuerCount * 4 + allocatorCount * 3 + dealCount * 3 + meetingCount * 2),
+        eventIds: eventSet(weekEvents),
+        label: "CAPITAL MARKETS WINDOW",
+        badge: `${weekEvents.length} events`,
+        headline: `Hot Week — ${formatWeekLabel(week.weekStart)}`,
+        body: hotWeekParts.length
+          ? `${weekEvents.length} events fall in this activity window, including ${sentenceList(hotWeekParts)}.`
+          : `${weekEvents.length} events fall in this activity window across ${distinctCities} cities and ${distinctOrganizers} organizers.`,
+        cta: "View this activity window →",
         action: { kind: "analysis", action: { type: "week", from: week.weekStart, to: week.weekEnd } },
       });
     });
 
-    viewClusters.slice(0, 3).forEach((cluster) => {
-      candidatesByType.cluster.push({
-        id: `cluster-${cluster.label}-${cluster.weekStart}`,
-        type: "cluster",
-        label: "CITY CLUSTER",
-        badge: `${cluster.count} overlap`,
-        headline: `${cluster.label || "Upcoming cluster"}`,
-        body: `${cluster.count} conferences overlap within a 7-day window around ${formatWeekLabel(cluster.weekStart)} in this filtered view.`,
-        cta: "Analyze Cluster",
-        action: { kind: "cluster", item: cluster },
-      });
-    });
-
-    participationCounts.slice(0, 2).forEach(([participationLabel, count], index) => {
-      const participationShare = Math.round((count / Math.max(source.length, 1)) * 100);
-      candidatesByType.participation.push({
-        id: `participation-${participationLabel}`,
-        type: "participation",
-        label: "PARTICIPATION TREND",
-        badge: `${participationShare}% share`,
-        headline: participationLabel,
-        body:
-          index === 0
-            ? `${participationLabel} is the dominant participation pattern across the current filtered conference set.`
-            : `${participationLabel} is surfacing repeatedly in the upcoming filtered conference mix.`,
-        cta: "View Trend",
-        action: { kind: "analysis", action: { type: "issuerParticipation", value: participationLabel } },
-      });
-    });
-
-    const rankedThemes = themeCounts.length
-      ? themeCounts.slice(0, 2).map(([label, count]) => ({
-          label,
-          count,
-          action: { type: "sectorTheme", value: label } as AnalysisAction,
-        }))
-      : focusCounts.slice(0, 2).map(([label, count]) => ({
-          label,
-          count,
-          action: { type: "marketFocus", value: label } as AnalysisAction,
-        }));
-
-    rankedThemes.forEach(({ label, count, action }, index) => {
-      const themeShare = Math.round((count / Math.max(source.length, 1)) * 100);
-      candidatesByType.theme.push({
-        id: `theme-${label}`,
-        type: "theme",
-        label: "MARKET TREND",
-        badge: `${themeShare}% share`,
-        headline: label,
-        body:
-          index === 0
-            ? `${label} conferences account for the largest visible share of this filtered market view.`
-            : `${label} is the next strongest driver in the current market slice and upcoming view.`,
-        cta: "Explore Theme",
-        action: { kind: "analysis", action },
-      });
-    });
-
-    organizerCounts.slice(0, 2).forEach(([organizerLabel, count], index) => {
-      candidatesByType.organizer.push({
-        id: `organizer-${organizerLabel}`,
+    countRanked(source.map((event) => ({ label: event.organizer || "", event }))).slice(0, 4).forEach(({ label, events: organizerEvents }) => {
+      if (organizerEvents.length < 3 || organizerEvents.length / Math.max(source.length, 1) < 0.08) return;
+      const issuerCount = organizerEvents.filter(isIssuerAccessEvent).length;
+      const allocatorCount = organizerEvents.filter(isAllocatorEvent).length;
+      const dealCount = organizerEvents.filter(isDealEvent).length;
+      if (issuerCount + allocatorCount + dealCount < 2) return;
+      const focus = issuerCount >= allocatorCount && issuerCount >= dealCount ? "issuer-access" : allocatorCount >= dealCount ? "institutional-investor" : "private-market";
+      pushSignal({
+        id: `organizer-${label}`,
         type: "organizer",
-        label: "ORGANIZER ACTIVITY",
-        badge: `${count} events`,
-        headline: organizerLabel,
-        body:
-          index === 0
-            ? `This organizer appears repeatedly across the current filtered conference set and upcoming planning window.`
-            : `This organizer is also showing repeated activity across the filtered pipeline ahead.`,
-        cta: "View Organizer",
-        action: { kind: "analysis", action: { type: "organizer", value: organizerLabel } },
+        family: "organizer",
+        score: scoreSignal(organizerEvents, percent(organizerEvents.length), 4),
+        eventIds: eventSet(organizerEvents),
+        label: "ORGANIZER MOMENTUM",
+        badge: `${organizerEvents.length} events`,
+        headline: label,
+        body: `${organizerEvents.length} upcoming events from ${label} are concentrated in ${focus} programming within this market view.`,
+        cta: "View organizer activity →",
+        action: { kind: "analysis", action: { type: "organizer", value: label } },
       });
     });
 
-    const typeOrder: MarketSignalType[] = ["hotweek", "cluster", "participation", "theme", "organizer"];
-    const maxSignals = Math.min(
-      typeOrder.reduce((count, type) => count + candidatesByType[type].length, 0),
-      Math.max(1, Math.floor(filteredEvents.length / 4))
-    );
-    const usedIds = new Set<string>();
-    const usedTypes: MarketSignalType[] = [];
-    const ordered: MarketSignalStrip[] = [];
-
-    while (ordered.length < maxSignals) {
-      let addedThisRound = false;
-      typeOrder.forEach((type) => {
-        if (ordered.length >= maxSignals) return;
-        const candidate = candidatesByType[type].find((item) => !usedIds.has(item.id));
-        if (!candidate) return;
-        if (usedTypes[usedTypes.length - 1] === type) return;
-        usedIds.add(candidate.id);
-        usedTypes.push(type);
-        ordered.push(candidate);
-        addedThisRound = true;
+    const sorted = candidates.sort((a, b) => b.score - a.score);
+    const selected: MarketSignalStrip[] = [];
+    const usedFamilies = new Set<MarketSignalType>();
+    const usedEventSets: string[] = [];
+    const isRedundant = (candidate: MarketSignalStrip) => {
+      const candidateIds = new Set(candidate.eventIds);
+      return usedEventSets.some((serialized) => {
+        const ids = serialized.split("|").filter(Boolean);
+        const overlap = ids.filter((id) => candidateIds.has(id)).length;
+        return overlap / Math.max(Math.min(ids.length, candidateIds.size), 1) >= 0.75;
       });
-      if (!addedThisRound) break;
+    };
+
+    sorted.forEach((candidate) => {
+      if (selected.length >= maxSignals) return;
+      if (usedFamilies.has(candidate.family)) return;
+      if (isRedundant(candidate)) return;
+      selected.push(candidate);
+      usedFamilies.add(candidate.family);
+      usedEventSets.push(candidate.eventIds.sort().join("|"));
+    });
+
+    if (selected.length < maxSignals) {
+      sorted.forEach((candidate) => {
+        if (selected.length >= maxSignals) return;
+        if (selected.some((item) => item.id === candidate.id)) return;
+        if (isRedundant(candidate)) return;
+        selected.push(candidate);
+      });
     }
 
-    return ordered;
+    return selected;
   }, [filteredEvents, viewTopWeeks, viewClusters]);
 
   const marketSignalInsertMap = useMemo(() => {
@@ -8075,7 +8233,7 @@ useEffect(() => {
                     iconBg: "linear-gradient(180deg, rgba(137,92,39,0.68), rgba(79,51,23,0.5))",
                     ctaColor: "#f6c27d",
                   }
-                : insertedSignal?.type === "participation"
+              : insertedSignal?.type === "issuerAccess" || insertedSignal?.type === "allocator"
                   ? {
                       accent: "#66b7ff",
                       border: "rgba(96,168,246,0.38)",
@@ -8083,7 +8241,15 @@ useEffect(() => {
                       iconBg: "linear-gradient(180deg, rgba(54,102,172,0.68), rgba(27,52,108,0.5))",
                       ctaColor: "#95d1ff",
                     }
-                  : insertedSignal?.type === "theme"
+                  : insertedSignal?.type === "dealMaking"
+                    ? {
+                        accent: "#d4a15b",
+                        border: "rgba(196,146,74,0.38)",
+                        glow: "rgba(184,128,58,0.16)",
+                        iconBg: "linear-gradient(180deg, rgba(137,92,39,0.68), rgba(79,51,23,0.5))",
+                        ctaColor: "#f6c27d",
+                      }
+                    : insertedSignal?.type === "investmentFocus" || insertedSignal?.type === "industry"
                     ? {
                         accent: "#4fd7d0",
                         border: "rgba(63,191,183,0.36)",
