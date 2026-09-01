@@ -2274,7 +2274,7 @@ useEffect(() => {
       const week = getWeekStart(event.startDate);
       const cityLabel = [event.city, event.state].filter(Boolean).join(", ");
       const cityWeekKey = cityLabel && week ? `${cityLabel}||${week}` : "";
-      const themeWeekKeys = splitCsv(event.sectorThemes).map((theme) => `${week}||${theme}`);
+      const themeWeekKeys = splitCsv(event.industry || "").map((theme) => `${week}||${theme}`);
 
       if (cityWeekKey) cityWeekCounts.set(cityWeekKey, (cityWeekCounts.get(cityWeekKey) || 0) + 1);
       themeWeekKeys.forEach((key) => {
@@ -7958,15 +7958,54 @@ useEffect(() => {
             const sameThemeWeekCount = relatedEventCounts?.sameThemeWeekCount || 0;
 
             const marketSignal = (() => {
-              if (isHot && isCluster) return "Clustered activity inside a peak conference window";
-              if (isHot && /health|biotech/i.test(e.industry || "")) return "Peak healthcare scheduling window";
-              if (isHot && /investor|allocator/i.test(`${e.conferenceType} ${e.targetAudience}`)) return "Investor participation elevated this week";
-              if (isCluster && /public/i.test(e.investmentFocus || "")) return "Public markets overlap detected";
-              if (isCluster && /private/i.test(e.investmentFocus || "")) return "Private markets concentration window";
-              if (isCluster) return "Same-city overlap across a five-day window";
-              if (/investor|allocator/i.test(`${e.conferenceType} ${e.investmentFocus} ${e.targetAudience}`)) return "Institutional attendance trend";
-              if (/health|biotech/i.test(e.industry || "")) return "Healthcare participation elevated";
-              if (/private/i.test(e.investmentFocus || "")) return "Private markets participation elevated";
+              const conferenceTypes = splitCsv(e.conferenceType || "").map((value) => value.toLowerCase());
+              const industries = splitCsv(e.industry || "").map((value) => value.toLowerCase());
+              const investmentFocuses = splitCsv(e.investmentFocus || "").map((value) => value.toLowerCase());
+              const targetAudiences = splitCsv(e.targetAudience || "").map((value) => value.toLowerCase());
+              const companyParticipants = splitCsv(e.companyParticipants || "").map((value) => value.toLowerCase());
+              const eventFeatures = splitCsv(e.eventFeatures || "").map((value) => value.toLowerCase());
+              const accessModels = splitCsv(e.accessModel || "").map((value) => value.toLowerCase());
+              const marketCaps = splitCsv(e.marketCap || "").map((value) => value.toLowerCase());
+              const eventFormats = splitCsv(e.format || "").map((value) => value.toLowerCase());
+
+              const hasConferenceType = (...labels: string[]) => conferenceTypes.some((value) => labels.includes(value));
+              const hasIndustry = (...patterns: RegExp[]) => industries.some((value) => patterns.some((pattern) => pattern.test(value)));
+              const hasInvestmentFocus = (...patterns: RegExp[]) => investmentFocuses.some((value) => patterns.some((pattern) => pattern.test(value)));
+              const hasTargetAudience = (...labels: string[]) => targetAudiences.some((value) => labels.includes(value));
+              const hasCompanyParticipant = (...labels: string[]) => companyParticipants.some((value) => labels.includes(value));
+              const hasEventFeature = (...labels: string[]) => eventFeatures.some((value) => labels.includes(value));
+              const hasAccessModel = accessModels.length > 0;
+              const hasMarketCap = marketCaps.length > 0;
+              const hasIssuerAccessSignal =
+                hasConferenceType("issuer access conference", "sell-side / corporate access") ||
+                (hasEventFeature("company presentations", "1x1 meetings") && hasCompanyParticipant("public company executives", "public company ir / corporate access"));
+              const hasDealSignal =
+                hasConferenceType("private markets / deal-making") ||
+                hasEventFeature("partnering / deal-making") ||
+                (hasEventFeature("1x1 meetings") && hasCompanyParticipant("private company founders / executives", "private / portfolio company management", "project developers / sponsors"));
+              const hasAllocatorSignal =
+                hasConferenceType("allocator / manager forum") ||
+                hasTargetAudience("institutional investors / asset managers", "family offices", "allocators / pensions / endowments");
+
+              if (isHot && isCluster && hasIssuerAccessSignal) return "Issuer access signal inside clustered hot week";
+              if (isHot && isCluster) return "Clustered activity inside a hot conference week";
+              if (isHot && hasIssuerAccessSignal) return "Issuer access signal elevated this week";
+              if (isHot && hasAllocatorSignal) return "Target Audience shows institutional concentration";
+              if (isHot && hasIndustry(/health|biotech/)) return "Industry signal concentrated in healthcare";
+              if (isCluster && hasDealSignal) return "Deal-making signal clustered by timing and location";
+              if (isCluster && hasIssuerAccessSignal) return "Issuer access cluster forming in this market";
+              if (isCluster && hasInvestmentFocus(/public/)) return "Investment Focus points to public-market overlap";
+              if (isCluster && hasInvestmentFocus(/private/)) return "Investment Focus points to private-market overlap";
+              if (isCluster) return "City and timing cluster detected";
+              if (hasIssuerAccessSignal) return "Conference Type and Event Features indicate issuer access";
+              if (hasDealSignal) return "Event Features indicate deal-making activity";
+              if (hasAllocatorSignal) return "Target Audience indicates institutional relevance";
+              if (hasIndustry(/health|biotech/)) return "Industry signal concentrated in healthcare";
+              if (hasInvestmentFocus(/private/)) return "Investment Focus indicates private-market relevance";
+              if (hasInvestmentFocus(/public/)) return "Investment Focus indicates public-market relevance";
+              if (hasAccessModel && hasEventFeature("1x1 meetings", "company presentations")) return "Access Model and Event Features indicate structured access";
+              if (hasMarketCap) return "Market Cap classification supports coverage targeting";
+              if (eventFormats.some((value) => /virtual|hybrid/.test(value))) return "Event Format supports remote or hybrid access";
               if (/canada/i.test(e.country)) return "Cross-border conference lane active";
               if (/west|california|seattle|vancouver|san diego|san francisco|los angeles/i.test(`${e.region} ${e.city} ${e.state}`)) return "West Coast activity remains elevated";
               return "Conference activity remains above baseline";
@@ -7978,7 +8017,7 @@ useEffect(() => {
                 ? "cluster"
                 : isHot
                   ? "hot"
-	                  : /investor|allocator/i.test(`${marketSignal} ${e.conferenceType} ${e.investmentFocus} ${e.targetAudience}`)
+	                    : /institutional|allocator|target audience/i.test(`${marketSignal} ${e.conferenceType} ${e.investmentFocus} ${e.targetAudience}`)
 	                    ? "investor"
 	                    : /health|biotech/i.test(e.industry || "")
 	                      ? "health"
@@ -8004,7 +8043,7 @@ useEffect(() => {
             const relatedLine = sameCityWeekCount > 0
               ? `${sameCityWeekCount} overlapping conferences nearby this week`
               : sameThemeWeekCount > 0
-	                ? `${sameThemeWeekCount} related ${themeTags[0] || "market"} events in the same week`
+	                ? `${sameThemeWeekCount} related ${themeTags[0] || "industry"} events in the same week`
                 : "Concentration signal remains elevated in this city window";
             const hasRelatedMarketView = sameCityWeekCount > 0 || sameThemeWeekCount > 0;
             const eventYear = new Date(`${e.startDate}T00:00:00Z`).getUTCFullYear();
