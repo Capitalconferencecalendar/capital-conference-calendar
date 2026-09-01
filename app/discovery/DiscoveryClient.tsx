@@ -7932,23 +7932,18 @@ useEffect(() => {
 
             const themeTags = splitCsv(e.industry || "");
             const focusTags = splitCsv(e.investmentFocus || "");
-            const formatClassificationValues = (value: string | undefined, limit: number) => {
-              const values = unique(splitCsv(value || ""));
-              const visible = values.slice(0, limit);
-              const hiddenCount = values.length - visible.length;
-              return hiddenCount > 0 ? [...visible, `+${hiddenCount}`] : visible;
-            };
-            const classificationRows = [
-              { label: "Type", values: formatClassificationValues(e.conferenceType, 1) },
-              { label: "Industry", values: formatClassificationValues(e.industry, 2) },
-              { label: "Investment Focus", values: formatClassificationValues(e.investmentFocus, 2) },
-              { label: "Audience", values: formatClassificationValues(e.targetAudience, 2) },
-              { label: "Company Participants", values: formatClassificationValues(e.companyParticipants, 2) },
-              { label: "Features", values: formatClassificationValues(e.eventFeatures, 3) },
-              { label: "Access", values: formatClassificationValues(e.accessModel, 1) },
-              { label: "Market Cap", values: formatClassificationValues(e.marketCap, 1) },
-              { label: "Format", values: formatClassificationValues(e.format, 1) },
-            ].filter((row) => row.values.length > 0);
+            const highValueFeatureTags = splitCsv(e.eventFeatures || "").filter((feature) =>
+              ["Company Presentations", "1x1 Meetings", "Partnering / Deal-Making"].some((allowed) => allowed.toLowerCase() === feature.toLowerCase())
+            );
+            const orderedFocusTags = unique([
+              (e.conferenceType || "").trim(),
+              ...themeTags.slice(0, 2),
+              ...focusTags.slice(0, 2),
+              ...highValueFeatureTags,
+              e.format,
+            ].filter(Boolean)).slice(0, 6);
+            const classificationTags = orderedFocusTags;
+            const classificationDisplayTags = classificationTags.slice(0, 4);
 
             const signalBadges: { label: string; tone: "hot" | "cluster" | "theme" }[] = [];
             if (isHot) signalBadges.push({ label: "HOT WEEK", tone: "hot" });
@@ -8535,7 +8530,7 @@ useEffect(() => {
                     style={{
                       display: "grid",
                       gridTemplateRows: "auto auto",
-                      rowGap: "7px",
+                      rowGap: "6px",
                       minHeight: "24px",
                       marginTop: "8px",
                       marginBottom: "0",
@@ -8546,55 +8541,64 @@ useEffect(() => {
                     <div style={{ width: "100%", fontSize: "10px", lineHeight: 1, textTransform: "uppercase", letterSpacing: "0.08em", color: "#bddcff", fontWeight: 800 }}>
                       Conference Classification
                     </div>
-                    {classificationRows.length ? (
-                      <div style={{ display: "grid", gap: "5px", width: "100%" }}>
-                        {classificationRows.map((row) => (
-                          <div
-                            key={`classification-row-${e.id}-${row.label}`}
-                            style={{
-                              display: "grid",
-                              gridTemplateColumns: "84px minmax(0, 1fr)",
-                              gap: "7px",
-                              alignItems: "start",
-                              padding: "4px 0",
-                              borderTop: "1px solid rgba(111,136,166,0.08)",
-                            }}
-                          >
-                            <span style={{ color: "rgba(157,180,207,0.78)", fontSize: "10px", lineHeight: 1.15, fontWeight: 760 }}>
-                              {row.label}
-                            </span>
-                            <span style={{ display: "flex", gap: "4px", flexWrap: "wrap", minWidth: 0 }}>
-                              {row.values.map((value) => (
-                                <span
-                                  key={`classification-value-${e.id}-${row.label}-${value}`}
-                                  style={{
-                                    maxWidth: "100%",
-                                    minHeight: "18px",
-                                    borderRadius: "999px",
-                                    border: value.startsWith("+") ? "1px solid rgba(105,132,164,0.24)" : "1px solid rgba(101,139,184,0.28)",
-                                    background: value.startsWith("+") ? "rgba(16,31,48,0.28)" : "rgba(23,48,76,0.3)",
-                                    color: value.startsWith("+") ? "#8fa8c6" : "#d7e7f8",
-                                    padding: "2px 6px",
-                                    fontSize: "10px",
-                                    lineHeight: 1.15,
-                                    fontWeight: value.startsWith("+") ? 760 : 560,
-                                    whiteSpace: "nowrap",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                  }}
-                                >
-                                  {value}
-                                </span>
-                              ))}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div style={{ color: "rgba(157,180,207,0.66)", fontSize: "11px", lineHeight: 1.35 }}>
-                        Not classified
-                      </div>
-                    )}
+                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "flex-start", alignContent: "flex-start" }}>
+                      {classificationDisplayTags.map((t) => (
+                        <span
+                          key={`cc-${t}`}
+                          onMouseEnter={(event) => {
+                            event.currentTarget.style.transform = "translateY(-1px)";
+                            event.currentTarget.style.filter = "brightness(1.08)";
+                            event.currentTarget.style.borderColor = "rgba(138,157,182,0.4)";
+                          }}
+                          onMouseLeave={(event) => {
+                            event.currentTarget.style.transform = "translateY(0)";
+                            event.currentTarget.style.filter = "none";
+                            event.currentTarget.style.borderColor = "rgba(111,128,149,0.32)";
+                          }}
+                          style={{
+                            fontSize: "10px",
+                            borderRadius: "999px",
+                            border:
+                              /institutional investors/i.test(t)
+                                ? "1px solid rgba(108,145,192,0.38)"
+                                : /mixed participation/i.test(t)
+                                  ? "1px solid rgba(122,122,165,0.38)"
+                                  : /family offices/i.test(t)
+                                    ? "1px solid rgba(156,128,96,0.38)"
+                                    : /private markets/i.test(t)
+                                      ? "1px solid rgba(111,112,178,0.38)"
+                                      : /industry networking/i.test(t)
+                                        ? "1px solid rgba(88,146,146,0.36)"
+                                        : /health/i.test(t)
+                                          ? "1px solid rgba(96,158,122,0.36)"
+                                          : "1px solid rgba(114,130,150,0.34)",
+                            background:
+                              classificationDisplayTags.indexOf(t) < 2
+                                ? /institutional investors/i.test(t)
+                                  ? "rgba(68,106,155,0.24)"
+                                  : /mixed participation/i.test(t)
+                                    ? "rgba(96,96,140,0.24)"
+                                    : /family offices/i.test(t)
+                                      ? "rgba(132,102,72,0.24)"
+                                      : /private markets/i.test(t)
+                                        ? "rgba(90,90,148,0.24)"
+                                        : /industry networking/i.test(t)
+                                          ? "rgba(64,122,122,0.24)"
+                                          : /health/i.test(t)
+                                            ? "rgba(72,132,98,0.24)"
+                                            : "rgba(72,98,126,0.22)"
+                                : "rgba(18,32,48,0.18)",
+                            color: classificationDisplayTags.indexOf(t) < 2 ? "#c4d6eb" : "#adc2d9",
+                            padding: "3px 9px",
+                            fontWeight: 460,
+                            whiteSpace: "nowrap",
+                            transition: "all 150ms ease",
+                          }}
+                        >
+                          {t}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </article>
