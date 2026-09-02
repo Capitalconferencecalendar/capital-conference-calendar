@@ -149,7 +149,89 @@ export default function LandingPageClient() {
         overflowX: "hidden",
       }}
     >
+      <style>{`
+        @media (max-width: 640px) {
+          .landing-nav {
+            padding: 24px 16px 0 !important;
+            gap: 12px !important;
+          }
+
+          .landing-brand-logo {
+            height: 64px !important;
+            width: auto !important;
+            max-width: calc(100vw - 170px);
+            object-fit: contain;
+          }
+
+          .landing-nav-access {
+            height: 40px !important;
+            padding: 0 12px !important;
+            font-size: 12px !important;
+          }
+
+          .landing-audience-list {
+            gap: 8px !important;
+          }
+
+          .landing-audience-pill {
+            max-width: 100%;
+            min-height: 40px;
+            padding: 9px 12px 9px 10px !important;
+            line-height: 1.35;
+            white-space: normal;
+          }
+
+          .landing-request-section {
+            padding: 0 16px 54px !important;
+          }
+
+          .landing-request-panel {
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 22px !important;
+            padding: 22px 18px !important;
+            border-radius: 18px !important;
+          }
+
+          .landing-request-panel h2 {
+            font-size: 30px !important;
+          }
+
+          .landing-request-form {
+            gap: 14px !important;
+          }
+
+          .landing-form-row {
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 14px !important;
+          }
+
+          .landing-field-label {
+            gap: 7px !important;
+          }
+
+          .landing-request-actions {
+            gap: 10px !important;
+            align-items: stretch !important;
+          }
+
+          .landing-request-submit {
+            width: 100%;
+          }
+        }
+
+        @media (max-width: 380px) {
+          .landing-brand-logo {
+            height: 54px !important;
+            max-width: calc(100vw - 158px);
+          }
+
+          .landing-nav-access {
+            padding: 0 10px !important;
+          }
+        }
+      `}</style>
       <nav
+        className="landing-nav"
         style={{
           position: "relative",
           zIndex: 2,
@@ -164,12 +246,14 @@ export default function LandingPageClient() {
       >
         <a href="/" aria-label="Capital Conference Calendar home" style={{ display: "inline-flex", alignItems: "center" }}>
           <img
+            className="landing-brand-logo"
             src="/landing-database-logo-white.png"
             alt="Capital Conference Calendar"
-            style={{ height: "126px", width: "auto", display: "block", filter: "drop-shadow(0 10px 22px rgba(0,0,0,0.24))" }}
+            style={{ height: "126px", width: "auto", display: "block", objectFit: "contain", filter: "drop-shadow(0 10px 22px rgba(0,0,0,0.24))" }}
           />
         </a>
         <a
+          className="landing-nav-access"
           href="#request-access"
           style={{
             height: "42px",
@@ -419,10 +503,11 @@ export default function LandingPageClient() {
             Private beta access is being reserved for market participants who can help evaluate how conference intelligence supports capital access, coverage planning, relationship strategy, and market signal identification.
           </h2>
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+        <div className="landing-audience-list" style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
           {audiences.map((audience, index) => (
             <span
               key={audience}
+              className="landing-audience-pill"
               style={{
                 padding: "10px 13px 10px 11px",
                 borderRadius: "999px",
@@ -459,8 +544,9 @@ export default function LandingPageClient() {
         </div>
       </section>
 
-      <section id="request-access" style={{ maxWidth: "1180px", margin: "0 auto", padding: "0 20px 70px" }}>
+      <section id="request-access" className="landing-request-section" style={{ maxWidth: "1180px", margin: "0 auto", padding: "0 20px 70px" }}>
         <div
+          className="landing-request-panel"
           style={{
             borderRadius: "24px",
             border: "1px solid rgba(125,211,252,0.18)",
@@ -502,17 +588,17 @@ export default function LandingPageClient() {
               </p>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} style={{ display: "grid", gap: "12px" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <form className="landing-request-form" onSubmit={handleSubmit} style={{ display: "grid", gap: "12px" }}>
+              <div className="landing-form-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 <LandingInput label="First Name" name="firstName" required />
                 <LandingInput label="Last Name" name="lastName" required />
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <div className="landing-form-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 <LandingInput label="Company" name="company" required />
                 <LandingInput label="Title" name="title" required />
               </div>
               <LandingInput label="Email" name="email" type="email" required />
-              <label style={{ display: "grid", gap: "6px" }}>
+              <label className="landing-field-label" style={{ display: "grid", gap: "6px" }}>
                 <span style={labelStyle}>How did you hear about us?</span>
                 <textarea
                   name="howHeard"
@@ -521,8 +607,9 @@ export default function LandingPageClient() {
                   placeholder="Optional"
                 />
               </label>
-              <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+              <div className="landing-request-actions" style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
                 <button
+                  className="landing-request-submit"
                   type="submit"
                   disabled={submitState === "submitting"}
                   style={{
@@ -815,7 +902,7 @@ function LandingInput({
   required?: boolean;
 }) {
   return (
-    <label style={{ display: "grid", gap: "6px" }}>
+    <label className="landing-field-label" style={{ display: "grid", gap: "6px" }}>
       <span style={labelStyle}>{label}</span>
       <input name={name} type={type} required={required} style={fieldStyle} />
     </label>
