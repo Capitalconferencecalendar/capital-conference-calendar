@@ -8786,10 +8786,10 @@ useEffect(() => {
                       ariaLabel="Help: using event cards"
                       placement="top"
                       items={[
-                        "Select one or more event cards.",
-                        "Then use the right control panel to choose what to do next.",
-                        "Choose Save Selected to add cards to a list, Share Selected to email links, or Add to Calendar for one event.",
-                        "Open Event Link to verify details on the official event page.",
+                        { label: "Select events", description: "Select one or more event cards first." },
+                        { label: "Use the right control panel", description: "Choose Save Selected, Share Selected, or another available action from the right control panel." },
+                        { label: "Verify details", description: "Use Event Link to open the official event page." },
+                        { label: "Add to calendar", description: "Use Add to Calendar to add one event at a time." },
                       ]}
                     />
                   </div>
@@ -8852,10 +8852,9 @@ useEffect(() => {
             title="Calendar Sync"
             ariaLabel="Help: Calendar Sync"
             items={[
-              "Calendar Sync turns the current filtered view into a live calendar feed.",
-              "Add the feed to Google Calendar, Apple Calendar, or Outlook.",
-              "Matching events can appear after your calendar app refreshes.",
-              "Calendar refresh timing is controlled by your calendar provider.",
+              { label: "Current filtered view", description: "Calendar Sync turns the current filtered view into a live calendar feed." },
+              { label: "Add to your calendar", description: "Add the feed to Google Calendar, Apple Calendar, or Outlook." },
+              { label: "Refresh timing", description: "Matching events appear when your calendar app refreshes the feed. Refresh timing is controlled by your calendar provider." },
             ]}
           />
         }
@@ -8864,10 +8863,10 @@ useEffect(() => {
             title="Quick Actions"
             ariaLabel="Help: Quick Actions"
             items={[
-              "Select event cards first, then choose an action from this panel.",
-              "Save Selected adds selected cards to a new or existing local list; Share Selected opens an email draft with event links.",
-              "Save Market View stores the current filtered view in this browser.",
-              "Clear resets selected cards, filters, and quick views.",
+              { label: "Save Selected", description: "Save selected event cards into a new or existing list." },
+              { label: "Share Selected", description: "Open an email draft with links to the selected events." },
+              { label: "Save Market View", description: "Save the current filtered view locally so you can return to it later." },
+              { label: "Clear", description: "Clear selected cards, filters, and quick views." },
             ]}
           />
         }

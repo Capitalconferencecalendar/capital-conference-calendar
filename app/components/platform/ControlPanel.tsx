@@ -114,7 +114,7 @@ export default function ControlPanel({
           </div>
 
           <div style={{ padding: 0, overflow: "visible", position: "sticky", top: 0, zIndex: 8, background: "linear-gradient(180deg, rgba(13,35,62,0.98) 0%, rgba(8,25,46,0.96) 100%)", border: "1px solid rgba(88, 145, 230, 0.34)", borderRadius: "10px", boxShadow: "0 0 0 1px rgba(70,120,220,0.12), 0 12px 24px rgba(0,0,0,0.18)" }}>
-            <div style={{ width: "100%", minHeight: "42px", padding: "0 14px", color: "#dbeafe", display: "flex", alignItems: "center" }}>
+            <div style={{ width: "100%", minHeight: "42px", padding: "0 14px", color: "#dbeafe", display: "flex", alignItems: "center", gap: "10px" }}>
               <span style={{ fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", display: "inline-flex", alignItems: "center", gap: "9px", textTransform: "uppercase" }}>
                 <span style={{ width: "18px", height: "18px", color: "#8fc2ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind="sync" /></span>
                 SYNC CALENDAR
