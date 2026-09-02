@@ -3072,8 +3072,7 @@ useEffect(() => {
   const filteredMarketAnalytics = useMemo(() => computeMarketViewAnalytics(filteredEvents), [filteredEvents, computeMarketViewAnalytics]);
   const marketSignalStrips = useMemo(() => {
     const resultCount = filteredEvents.length;
-    const maxSignals = resultCount < 4 ? 0 : resultCount < 10 ? 1 : resultCount < 25 ? 2 : resultCount < 50 ? 3 : 4;
-    if (!maxSignals) return [] as MarketSignalStrip[];
+    if (resultCount < 4) return [] as MarketSignalStrip[];
 
     const now = new Date();
     const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
@@ -3348,38 +3347,7 @@ useEffect(() => {
       });
     });
 
-    const sorted = candidates.sort((a, b) => b.score - a.score);
-    const selected: MarketSignalStrip[] = [];
-    const usedFamilies = new Set<MarketSignalType>();
-    const usedEventSets: string[] = [];
-    const isRedundant = (candidate: MarketSignalStrip) => {
-      const candidateIds = new Set(candidate.eventIds);
-      return usedEventSets.some((serialized) => {
-        const ids = serialized.split("|").filter(Boolean);
-        const overlap = ids.filter((id) => candidateIds.has(id)).length;
-        return overlap / Math.max(Math.min(ids.length, candidateIds.size), 1) >= 0.75;
-      });
-    };
-
-    sorted.forEach((candidate) => {
-      if (selected.length >= maxSignals) return;
-      if (usedFamilies.has(candidate.family)) return;
-      if (isRedundant(candidate)) return;
-      selected.push(candidate);
-      usedFamilies.add(candidate.family);
-      usedEventSets.push(candidate.eventIds.sort().join("|"));
-    });
-
-    if (selected.length < maxSignals) {
-      sorted.forEach((candidate) => {
-        if (selected.length >= maxSignals) return;
-        if (selected.some((item) => item.id === candidate.id)) return;
-        if (isRedundant(candidate)) return;
-        selected.push(candidate);
-      });
-    }
-
-    return selected;
+    return candidates.sort((a, b) => b.score - a.score);
   }, [filteredEvents, viewTopWeeks, viewClusters]);
 
   const marketSignalInsertMap = useMemo(() => {
