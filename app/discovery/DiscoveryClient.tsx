@@ -3397,11 +3397,13 @@ useEffect(() => {
 
     // Stable variation keeps banners from shifting during ordinary re-renders.
     let targetIndex = gapFor(marketSignalStrips[0], 0);
-    marketSignalStrips.forEach((signal, index) => {
-      if (targetIndex >= filteredEvents.length) return;
+    let sequence = 0;
+    while (targetIndex < filteredEvents.length) {
+      const signal = marketSignalStrips[sequence % marketSignalStrips.length];
       insertMap.set(targetIndex, signal);
-      targetIndex += gapFor(signal, index + 1) + 1;
-    });
+      sequence += 1;
+      targetIndex += gapFor(signal, sequence) + 1;
+    }
     return insertMap;
   }, [filteredEvents, marketSignalStrips]);
 
@@ -8271,7 +8273,7 @@ useEffect(() => {
 
             return [
               insertedSignal ? (
-                <div key={`signal-strip-${insertedSignal.id}`}>
+                <div key={`signal-strip-${insertedSignal.id}-${index}`}>
                   {index === firstMarketSignalInsertIndex ? (
                     <div
                       style={{
