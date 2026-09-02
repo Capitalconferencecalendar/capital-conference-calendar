@@ -153,20 +153,19 @@ export default function LandingPageClient() {
         @media (max-width: 640px) {
           .landing-nav {
             padding: 24px 16px 0 !important;
+            justify-content: center !important;
             gap: 12px !important;
           }
 
           .landing-brand-logo {
-            height: 64px !important;
-            width: auto !important;
-            max-width: calc(100vw - 170px);
+            height: auto !important;
+            width: calc(100vw - 32px) !important;
+            max-width: 430px;
             object-fit: contain;
           }
 
           .landing-nav-access {
-            height: 40px !important;
-            padding: 0 12px !important;
-            font-size: 12px !important;
+            display: none !important;
           }
 
           .landing-audience-list {
@@ -216,17 +215,6 @@ export default function LandingPageClient() {
 
           .landing-request-submit {
             width: 100%;
-          }
-        }
-
-        @media (max-width: 380px) {
-          .landing-brand-logo {
-            height: 54px !important;
-            max-width: calc(100vw - 158px);
-          }
-
-          .landing-nav-access {
-            padding: 0 10px !important;
           }
         }
       `}</style>
