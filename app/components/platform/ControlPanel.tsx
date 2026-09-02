@@ -20,6 +20,7 @@ type QuickAction = {
   onClick?: () => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
+  description?: string;
   active?: boolean;
   containerRef?: RefObject<HTMLDivElement | null>;
   menu?: ReactNode;
@@ -38,6 +39,8 @@ type ControlPanelProps = {
   description: string;
   syncDescription: string;
   selectedCount: number;
+  calendarSyncHelp?: ReactNode;
+  quickActionsHelp?: ReactNode;
   calendarPlatforms?: CalendarPlatform[];
   quickActions: QuickAction[];
   savedSections: SavedSection[];
@@ -83,6 +86,8 @@ export default function ControlPanel({
   description,
   syncDescription,
   selectedCount,
+  calendarSyncHelp,
+  quickActionsHelp,
   calendarPlatforms = [
     { label: "Google", brand: "google" },
     { label: "Apple", brand: "apple" },
@@ -114,6 +119,7 @@ export default function ControlPanel({
                 <span style={{ width: "18px", height: "18px", color: "#8fc2ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind="sync" /></span>
                 SYNC CALENDAR
               </span>
+              {calendarSyncHelp}
             </div>
             <div style={{ padding: "0 14px 14px" }}>
               <div style={{ color: "#c6d7ee", fontSize: 13, marginBottom: 12, lineHeight: 1.4 }}>{syncDescription}</div>
@@ -141,7 +147,10 @@ export default function ControlPanel({
                 <span style={{ width: "18px", height: "18px", color: "#9ec5ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind="actions" /></span>
                 QUICK ACTIONS
               </span>
-              <span style={{ fontSize: "12px", color: "#8fb3df", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "5px" }}>{selectedCount > 0 ? <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: "#60a5fa", display: "inline-block" }} /> : null}{selectedCount} selected</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "7px" }}>
+                {quickActionsHelp}
+                <span style={{ fontSize: "12px", color: "#8fb3df", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "5px" }}>{selectedCount > 0 ? <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: "#60a5fa", display: "inline-block" }} /> : null}{selectedCount} selected</span>
+              </span>
             </div>
             <div style={{ display: "grid", gap: 8, padding: "0 4px 8px" }}>
               {quickActions.map((action) => {
@@ -152,6 +161,8 @@ export default function ControlPanel({
                     onClick={action.onClick}
                     onMouseEnter={action.onMouseEnter}
                     onMouseLeave={action.onMouseLeave}
+                    aria-label={action.description || action.label}
+                    title={action.description}
                     style={{ width: "100%", height: "38px", borderRadius: "10px", border: action.active ? "1px solid rgba(125,182,255,0.58)" : "1px solid rgba(92,136,184,0.28)", background: action.active ? "linear-gradient(180deg, rgba(24,58,100,0.98), rgba(17,42,78,0.96))" : "rgba(17,38,67,0.9)", color: "#e7f2ff", fontSize: "13px", fontWeight: 800, cursor: action.onClick ? "pointer" : "default", boxShadow: action.active ? "0 0 0 1px rgba(96,165,250,0.28), 0 0 14px rgba(59,130,246,0.24), inset 0 1px 0 rgba(255,255,255,0.08)" : "0 0 10px rgba(59,130,246,0.12), inset 0 1px 0 rgba(255,255,255,0.06)", transition: "all 140ms ease", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 10px 0 12px" }}
                   >
                     <span>{action.label}</span>

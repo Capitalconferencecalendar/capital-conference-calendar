@@ -8,6 +8,7 @@ import type { ConcentrationItem } from "../components/ConcentrationStrip";
 import SharedFilterRail from "../components/platform/SharedFilterRail";
 import FilterMatchingControl, { type FilterMatchMode } from "../components/platform/FilterMatchingControl";
 import ControlPanel from "../components/platform/ControlPanel";
+import ContextHelpIcon from "../components/platform/ContextHelpIcon";
 import { getCachedEventPage, getOrFetchEventPage, seedEventPage } from "../components/platform/eventDataCache";
 
 export type WorkspaceEvent = {
@@ -8779,6 +8780,19 @@ useEffect(() => {
                       ))}
                     </div>
                   </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "end", marginTop: "8px" }}>
+                    <ContextHelpIcon
+                      title="How to use event cards"
+                      ariaLabel="Help: using event cards"
+                      placement="top"
+                      items={[
+                        "Select one or more event cards.",
+                        "Then use the right control panel to choose what to do next.",
+                        "Choose Save Selected to add cards to a list, Share Selected to email links, or Add to Calendar for one event.",
+                        "Open Event Link to verify details on the official event page.",
+                      ]}
+                    />
+                  </div>
                 </div>
               </article>
               ),
@@ -8833,6 +8847,30 @@ useEffect(() => {
         description="Export, save, sync, and manage selected conferences."
         syncDescription="Turn this conference view into a live calendar workflow."
         selectedCount={selectedEvents.length}
+        calendarSyncHelp={
+          <ContextHelpIcon
+            title="Calendar Sync"
+            ariaLabel="Help: Calendar Sync"
+            items={[
+              "Calendar Sync turns the current filtered view into a live calendar feed.",
+              "Add the feed to Google Calendar, Apple Calendar, or Outlook.",
+              "Matching events can appear after your calendar app refreshes.",
+              "Calendar refresh timing is controlled by your calendar provider.",
+            ]}
+          />
+        }
+        quickActionsHelp={
+          <ContextHelpIcon
+            title="Quick Actions"
+            ariaLabel="Help: Quick Actions"
+            items={[
+              "Select event cards first, then choose an action from this panel.",
+              "Save Selected adds selected cards to a new or existing local list; Share Selected opens an email draft with event links.",
+              "Save Market View stores the current filtered view in this browser.",
+              "Clear resets selected cards, filters, and quick views.",
+            ]}
+          />
+        }
         panelHeight={PANEL_HEIGHT}
         calendarPlatforms={[
           { label: "Google", brand: "google", platform: "Google Calendar", onClick: () => openCalendarSync("Google Calendar") },
@@ -8844,6 +8882,7 @@ useEffect(() => {
             label: "Clear",
             kind: "clear",
             accent: "#9fc3ff",
+            description: "Clear selected event cards, filters, and quick views.",
             active: activeToolbarAction === "clear",
             onClick: () => {
               markToolbarAction("clear");
@@ -8856,6 +8895,7 @@ useEffect(() => {
             label: "Share Selected",
             kind: "share",
             accent: "#8fd0ff",
+            description: "Open an email draft with up to 20 selected event links.",
             active: activeToolbarAction === "share",
             onClick: () => {
               markToolbarAction("share");
@@ -8868,6 +8908,7 @@ useEffect(() => {
             label: "Save Market View",
             kind: "saveView",
             accent: "#7ad6c8",
+            description: "Save the current filtered market view in this browser.",
             active: activeToolbarAction === "view",
             onClick: () => {
               markToolbarAction("view");
@@ -8880,6 +8921,7 @@ useEffect(() => {
             label: "Save Selected",
             kind: "saveSelected",
             accent: "#ffbf66",
+            description: "Add selected event cards to a new or existing local list.",
             active: activeToolbarAction === "save" || saveMenuOpen,
             containerRef: saveMenuRef,
             onClick: () => {
