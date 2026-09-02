@@ -3385,21 +3385,25 @@ useEffect(() => {
   const marketSignalInsertMap = useMemo(() => {
     const insertMap = new Map<number, MarketSignalStrip>();
     if (!marketSignalStrips.length) return insertMap;
-    const usableLength = Math.max(filteredEvents.length - 1, 1);
-    const minIndex = Math.min(3, Math.max(filteredEvents.length - 1, 0));
+    const eventSeed = filteredEvents.map((event) => event.id).join("|");
+    const gapFor = (signal: MarketSignalStrip, sequence: number) => {
+      let hash = 0;
+      const value = `${eventSeed}:${signal.id}:${sequence}`;
+      for (let index = 0; index < value.length; index += 1) {
+        hash = (hash * 31 + value.charCodeAt(index)) | 0;
+      }
+      return 4 + ((hash >>> 0) % 6);
+    };
+
+    // Stable variation keeps banners from shifting during ordinary re-renders.
+    let targetIndex = gapFor(marketSignalStrips[0], 0);
     marketSignalStrips.forEach((signal, index) => {
-      const ratio = (index + 1) / (marketSignalStrips.length + 1);
-      let targetIndex = Math.round(ratio * usableLength);
-      targetIndex = Math.max(minIndex, Math.min(filteredEvents.length - 1, targetIndex));
-      while (insertMap.has(targetIndex) && targetIndex < filteredEvents.length - 1) {
-        targetIndex += 1;
-      }
-      if (targetIndex < filteredEvents.length) {
-        insertMap.set(targetIndex, signal);
-      }
+      if (targetIndex >= filteredEvents.length) return;
+      insertMap.set(targetIndex, signal);
+      targetIndex += gapFor(signal, index + 1) + 1;
     });
     return insertMap;
-  }, [filteredEvents.length, marketSignalStrips]);
+  }, [filteredEvents, marketSignalStrips]);
 
   const firstMarketSignalInsertIndex = useMemo(() => {
     const first = marketSignalInsertMap.keys().next();
