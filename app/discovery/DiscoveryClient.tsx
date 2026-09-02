@@ -3402,7 +3402,7 @@ useEffect(() => {
       const signal = marketSignalStrips[sequence % marketSignalStrips.length];
       insertMap.set(targetIndex, signal);
       sequence += 1;
-      targetIndex += gapFor(signal, sequence) + 1;
+      targetIndex += gapFor(signal, sequence);
     }
     return insertMap;
   }, [filteredEvents, marketSignalStrips]);
