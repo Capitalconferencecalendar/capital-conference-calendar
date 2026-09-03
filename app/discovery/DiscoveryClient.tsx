@@ -1603,6 +1603,15 @@ export default function EventsClient({
     }));
   }, []);
 
+  const addFilterValue = useCallback((key: MultiFilterKey, value: string) => {
+    if (!value) return;
+    setFilters((previous) => (
+      previous[key].includes(value)
+        ? previous
+        : { ...previous, [key]: [...previous[key], value] }
+    ));
+  }, []);
+
   useEffect(() => {
     const mobileMq = window.matchMedia("(max-width: 767px)");
     const tabletMq = window.matchMedia("(min-width: 768px) and (max-width: 1023px)");
@@ -8068,15 +8077,19 @@ useEffect(() => {
             const highValueFeatureTags = splitCsv(e.eventFeatures || "").filter((feature) =>
               ["Company Presentations", "1x1 Meetings", "Partnering / Deal-Making"].some((allowed) => allowed.toLowerCase() === feature.toLowerCase())
             );
-            const orderedFocusTags = unique([
-              (e.conferenceType || "").trim(),
-              ...themeTags.slice(0, 2),
-              ...focusTags.slice(0, 2),
-              ...highValueFeatureTags,
-              e.format,
-            ].filter(Boolean)).slice(0, 6);
-            const classificationTags = orderedFocusTags;
-            const classificationDisplayTags = classificationTags.slice(0, 4);
+            const classificationTags = [
+              { label: (e.conferenceType || "").trim(), filterKey: "conferenceType" as const, filterLabel: "Conference Type" },
+              ...themeTags.slice(0, 2).map((label) => ({ label, filterKey: "sectorThemes" as const, filterLabel: "Industry" })),
+              ...focusTags.slice(0, 2).map((label) => ({ label, filterKey: "marketFocus" as const, filterLabel: "Investment Focus" })),
+              ...highValueFeatureTags.map((label) => ({ label, filterKey: "eventFeatures" as const, filterLabel: "Event Features" })),
+            ].filter((tag) => tag.label);
+            const seenClassificationTags = new Set<string>();
+            const classificationDisplayTags = classificationTags.filter((tag) => {
+              const normalizedLabel = tag.label.toLowerCase();
+              if (seenClassificationTags.has(normalizedLabel)) return false;
+              seenClassificationTags.add(normalizedLabel);
+              return true;
+            }).slice(0, 4);
 
             const signalBadges: { label: string; tone: "hot" | "cluster" | "theme" }[] = [];
             if (isHot) signalBadges.push({ label: "HOT WEEK", tone: "hot" });
@@ -8722,9 +8735,19 @@ useEffect(() => {
                       Conference Classification
                     </div>
                     <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "flex-start", alignContent: "flex-start" }}>
-                      {classificationDisplayTags.map((t) => (
-                        <span
-                          key={`cc-${t}`}
+                      {classificationDisplayTags.map((tag, index) => {
+                        const t = tag.label;
+                        const isActive = filters[tag.filterKey].includes(t);
+                        return (
+                        <button
+                          type="button"
+                          key={`cc-${tag.filterKey}-${t}`}
+                          aria-label={`Filter by ${tag.filterLabel}: ${t}`}
+                          onMouseDown={(event) => event.stopPropagation()}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            addFilterValue(tag.filterKey, t);
+                          }}
                           onMouseEnter={(event) => {
                             event.currentTarget.style.transform = "translateY(-1px)";
                             event.currentTarget.style.filter = "brightness(1.08)";
@@ -8733,13 +8756,23 @@ useEffect(() => {
                           onMouseLeave={(event) => {
                             event.currentTarget.style.transform = "translateY(0)";
                             event.currentTarget.style.filter = "none";
-                            event.currentTarget.style.borderColor = "rgba(111,128,149,0.32)";
+                            event.currentTarget.style.borderColor = isActive ? "rgba(147,197,253,0.68)" : "rgba(111,128,149,0.32)";
+                          }}
+                          onFocus={(event) => {
+                            event.currentTarget.style.transform = "translateY(-1px)";
+                            event.currentTarget.style.boxShadow = "0 0 0 2px rgba(147,197,253,0.32)";
+                          }}
+                          onBlur={(event) => {
+                            event.currentTarget.style.transform = "translateY(0)";
+                            event.currentTarget.style.boxShadow = isActive ? "0 0 0 1px rgba(147,197,253,0.22)" : "none";
                           }}
                           style={{
                             fontSize: "10px",
                             borderRadius: "999px",
                             border:
-                              /institutional investors/i.test(t)
+                              isActive
+                                ? "1px solid rgba(147,197,253,0.68)"
+                                : /institutional investors/i.test(t)
                                 ? "1px solid rgba(108,145,192,0.38)"
                                 : /mixed participation/i.test(t)
                                   ? "1px solid rgba(122,122,165,0.38)"
@@ -8753,7 +8786,7 @@ useEffect(() => {
                                           ? "1px solid rgba(96,158,122,0.36)"
                                           : "1px solid rgba(114,130,150,0.34)",
                             background:
-                              classificationDisplayTags.indexOf(t) < 2
+                              index < 2
                                 ? /institutional investors/i.test(t)
                                   ? "rgba(68,106,155,0.24)"
                                   : /mixed participation/i.test(t)
@@ -8768,16 +8801,21 @@ useEffect(() => {
                                             ? "rgba(72,132,98,0.24)"
                                             : "rgba(72,98,126,0.22)"
                                 : "rgba(18,32,48,0.18)",
-                            color: classificationDisplayTags.indexOf(t) < 2 ? "#c4d6eb" : "#adc2d9",
+                            color: index < 2 ? "#c4d6eb" : "#adc2d9",
                             padding: "3px 9px",
                             fontWeight: 460,
                             whiteSpace: "nowrap",
                             transition: "all 150ms ease",
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                            lineHeight: 1.2,
+                            boxShadow: isActive ? "0 0 0 1px rgba(147,197,253,0.22)" : "none",
                           }}
                         >
                           {t}
-                        </span>
-                      ))}
+                        </button>
+                        );
+                      })}
                     </div>
                   </div>
                   <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "end", marginTop: "8px" }}>
