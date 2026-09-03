@@ -1433,8 +1433,8 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         </main>
 
         <ControlPanel
-          description="Export, save, sync, and manage this market view."
-          syncDescription="Turn this market view into a live calendar workflow."
+          description="Export, save, sync, and manage selected conferences."
+          syncDescription="Turn this conference view into a live calendar workflow."
           selectedCount={0}
           quickActions={quickActions.map((action, index) => ({
             label: action,
