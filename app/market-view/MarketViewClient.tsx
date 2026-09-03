@@ -5,6 +5,7 @@ import type { CSSProperties, ReactNode } from "react";
 import SharedFilterRail from "../components/platform/SharedFilterRail";
 import FilterMatchingControl, { type FilterMatchMode } from "../components/platform/FilterMatchingControl";
 import ControlPanel from "../components/platform/ControlPanel";
+import ContextHelpIcon from "../components/platform/ContextHelpIcon";
 import { getCachedEventPage, getOrFetchEventPage, seedEventPage } from "../components/platform/eventDataCache";
 
 const quickActions = ["Clear", "Share Selected", "Save Market View", "Save Selected"];
@@ -1436,6 +1437,29 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
           description="Export, save, sync, and manage selected conferences."
           syncDescription="Turn this conference view into a live calendar workflow."
           selectedCount={0}
+          calendarSyncHelp={
+            <ContextHelpIcon
+              title="Calendar Sync"
+              ariaLabel="Help: Calendar Sync"
+              items={[
+                { label: "Current filtered view", description: "Calendar Sync turns the current filtered view into a live calendar feed." },
+                { label: "Add to your calendar", description: "Add the feed to Google Calendar, Apple Calendar, or Outlook." },
+                { label: "Refresh timing", description: "Matching events appear when your calendar app refreshes the feed. Refresh timing is controlled by your calendar provider." },
+              ]}
+            />
+          }
+          quickActionsHelp={
+            <ContextHelpIcon
+              title="Quick Actions"
+              ariaLabel="Help: Quick Actions"
+              items={[
+                { label: "Save Selected", description: "Save selected event cards into a new or existing list." },
+                { label: "Share Selected", description: "Open an email draft with links to the selected events." },
+                { label: "Save Market View", description: "Save the current filtered view locally so you can return to it later." },
+                { label: "Clear", description: "Clear selected cards, filters, and quick views." },
+              ]}
+            />
+          }
           quickActions={quickActions.map((action, index) => ({
             label: action,
             kind: ["clear", "share", "saveView", "saveSelected"][index] as "clear" | "share" | "saveView" | "saveSelected",
