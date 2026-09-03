@@ -118,8 +118,8 @@ export default function ControlPanel({
               <span style={{ fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", display: "inline-flex", alignItems: "center", gap: "9px", textTransform: "uppercase" }}>
                 <span style={{ width: "18px", height: "18px", color: "#8fc2ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind="sync" /></span>
                 SYNC CALENDAR
+                {calendarSyncHelp}
               </span>
-              {calendarSyncHelp}
             </div>
             <div style={{ padding: "0 14px 14px" }}>
               <div style={{ color: "#c6d7ee", fontSize: 13, marginBottom: 12, lineHeight: 1.4 }}>{syncDescription}</div>
@@ -146,9 +146,9 @@ export default function ControlPanel({
               <span style={{ fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", display: "inline-flex", alignItems: "center", gap: "9px", textTransform: "uppercase" }}>
                 <span style={{ width: "18px", height: "18px", color: "#9ec5ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind="actions" /></span>
                 QUICK ACTIONS
+                {quickActionsHelp}
               </span>
               <span style={{ display: "inline-flex", alignItems: "center", gap: "7px" }}>
-                {quickActionsHelp}
                 <span style={{ fontSize: "12px", color: "#8fb3df", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "5px" }}>{selectedCount > 0 ? <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: "#60a5fa", display: "inline-block" }} /> : null}{selectedCount} selected</span>
               </span>
             </div>
