@@ -168,6 +168,10 @@ export default function LandingPageClient() {
             display: none !important;
           }
 
+          .landing-hero {
+            padding-top: 46.5px !important;
+          }
+
           .landing-audience-list {
             gap: 8px !important;
           }
@@ -265,6 +269,7 @@ export default function LandingPageClient() {
       </nav>
 
       <section
+        className="landing-hero"
         style={{
           maxWidth: "1280px",
           margin: "0 auto",
