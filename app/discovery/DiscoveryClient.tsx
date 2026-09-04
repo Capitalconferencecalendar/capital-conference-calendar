@@ -3584,6 +3584,7 @@ useEffect(() => {
     if (!name) return;
     setSavedLists((prev) => [{ id: `${Date.now()}`, name, eventIds, createdAt: new Date().toISOString() }, ...prev]);
     setActiveSavedListId(null);
+    setSelectedEvents([]);
     recordActivity("view", `Saved list: ${name}`, `${eventIds.length} events`);
     scrollToResultsAnchor();
   };
@@ -3610,6 +3611,7 @@ useEffect(() => {
       )
     );
     setActiveSavedListId(listId);
+    setSelectedEvents([]);
     const target = savedLists.find((l) => l.id === listId);
     recordActivity("view", `Updated list: ${target?.name || "Saved list"}`, `${eventIds.length} events added`);
     scrollToResultsAnchor();
@@ -4043,7 +4045,7 @@ useEffect(() => {
                   overflow: "hidden",
                 }}
               >
-                {scheduled ? <span aria-hidden="true" style={{ position: "absolute", left: "1px", top: "12px", bottom: "12px", width: "13px", color: "#bff8ff", fontSize: "8px", fontWeight: 900, letterSpacing: "0.08em", writingMode: "vertical-rl", transform: "rotate(180deg)", textAlign: "center", zIndex: 2 }}>SCHEDULED</span> : null}
+                {scheduled ? <span aria-hidden="true" style={{ position: "absolute", left: "1px", top: "10px", bottom: "10px", width: "14px", color: "#d7fcff", fontSize: "9px", fontWeight: 950, letterSpacing: "0.1em", writingMode: "vertical-rl", transform: "rotate(180deg)", textAlign: "center", textShadow: "0 1px 6px rgba(8,63,77,0.82)", zIndex: 2 }}>SCHEDULED</span> : null}
                 <div style={{ display: "grid", gridTemplateColumns: "66px minmax(0,1fr) auto", gap: "8px", alignItems: "start" }}>
                   <div style={{ height: "66px", borderRadius: "12px", border: "1px solid rgba(147,197,253,0.24)", background: isHot ? "linear-gradient(180deg, rgba(141,99,59,0.45), rgba(68,42,26,0.6))" : isCluster ? "linear-gradient(180deg, rgba(127,53,69,0.44), rgba(58,22,34,0.62))" : "linear-gradient(180deg, rgba(56,88,138,0.52), rgba(22,37,69,0.64))", display: "grid", alignContent: "center", justifyItems: "center", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
                     <div style={{ color: "#dbeafe", fontSize: "11px", fontWeight: 800, lineHeight: 1, letterSpacing: "0.04em", minHeight: "11px" }}>{parts.month}</div>
@@ -8494,7 +8496,7 @@ useEffect(() => {
                       : "inset 0 1px 0 rgba(255,255,255,0.03), inset 0 -7px 12px rgba(3,11,20,0.22), 0 5px 10px rgba(4,15,29,0.2)",
                 }}
               >
-                {scheduled ? <span aria-hidden="true" style={{ position: "absolute", left: "1px", top: "18px", bottom: "18px", width: "14px", color: "#bff8ff", fontSize: "8px", fontWeight: 900, letterSpacing: "0.1em", writingMode: "vertical-rl", transform: "rotate(180deg)", textAlign: "center", zIndex: 2 }}>SCHEDULED</span> : null}
+                {scheduled ? <span aria-hidden="true" style={{ position: "absolute", left: "1px", top: "14px", bottom: "14px", width: "15px", color: "#d7fcff", fontSize: "9px", fontWeight: 950, letterSpacing: "0.11em", writingMode: "vertical-rl", transform: "rotate(180deg)", textAlign: "center", textShadow: "0 1px 6px rgba(8,63,77,0.82)", zIndex: 2 }}>SCHEDULED</span> : null}
                 <div style={{ borderRight: "1px solid rgba(108,128,152,0.013)", paddingRight: "8px", display: "grid", alignContent: "start", gap: "4px", minHeight: 0 }}>
                   <div
                     style={{
