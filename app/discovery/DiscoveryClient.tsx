@@ -8031,6 +8031,42 @@ useEffect(() => {
                             </section>
                           );
                         })}
+                        {discoveryPage.nextCursor ? (
+                          <div
+                            style={{
+                              display: "grid",
+                              justifyItems: "center",
+                              gap: "9px",
+                              padding: "6px 0 2px",
+                            }}
+                          >
+                            <div style={{ color: "#9fb5cf", fontSize: "12px", fontWeight: 700 }}>
+                              Showing {filteredEvents.length} of {discoveryPage.total} matching events
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void loadDiscoveryPage(discoveryPage.nextCursor, true)}
+                              disabled={isLoadingEvents}
+                              style={{
+                                height: "36px",
+                                padding: "0 16px",
+                                borderRadius: "10px",
+                                border: "1px solid rgba(96,165,250,0.35)",
+                                background: "rgba(17,48,84,0.72)",
+                                color: "#dbeafe",
+                                fontSize: "12px",
+                                fontWeight: 800,
+                                cursor: isLoadingEvents ? "wait" : "pointer",
+                              }}
+                            >
+                              {isLoadingEvents ? "Loading..." : "Show more events"}
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ color: "#9fb5cf", fontSize: "12px", fontWeight: 700, textAlign: "center", padding: "6px 0 2px" }}>
+                            All matching events shown
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
