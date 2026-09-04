@@ -43,6 +43,7 @@ type ControlPanelProps = {
   selectedCount: number;
   calendarSyncHelp?: ReactNode;
   quickActionsHelp?: ReactNode;
+  quickActionsMessage?: ReactNode;
   calendarPlatforms?: CalendarPlatform[];
   quickActions: QuickAction[];
   savedSections: SavedSection[];
@@ -90,6 +91,7 @@ export default function ControlPanel({
   selectedCount,
   calendarSyncHelp,
   quickActionsHelp,
+  quickActionsMessage,
   calendarPlatforms = [
     { label: "Google", brand: "google" },
     { label: "Apple", brand: "apple" },
@@ -177,6 +179,11 @@ export default function ControlPanel({
                 return action.menu ? <div key={action.label} ref={action.containerRef} style={{ position: "relative" }}>{button}{action.menu}</div> : button;
               })}
             </div>
+            {quickActionsMessage ? (
+              <div style={{ margin: "0 4px 8px", padding: "8px 10px", borderRadius: "8px", border: "1px solid rgba(96,165,250,0.22)", background: "rgba(15,42,71,0.5)", color: "#bcd5ee", fontSize: "11.5px", fontWeight: 650, lineHeight: 1.35 }}>
+                {quickActionsMessage}
+              </div>
+            ) : null}
           </div>
 
           {savedSections.map((section) => (

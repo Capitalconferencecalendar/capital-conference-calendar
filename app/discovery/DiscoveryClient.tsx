@@ -1467,6 +1467,7 @@ export default function EventsClient({
   const [urlSeeded, setUrlSeeded] = useState(false);
   const [activeToolbarAction, setActiveToolbarAction] = useState<string>("");
   const [toolbarHelpText, setToolbarHelpText] = useState<string>("");
+  const [scheduleActionMessage, setScheduleActionMessage] = useState<string>("");
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(true);
   const [eventScheduleOpen, setEventScheduleOpen] = useState(false);
@@ -2068,6 +2069,10 @@ useEffect(() => {
 
   const selectedSet = useMemo(() => new Set(selectedEvents), [selectedEvents]);
   const scheduledEventSet = useMemo(() => new Set(scheduledEventIds), [scheduledEventIds]);
+  const scheduledEvents = useMemo(
+    () => scheduledEventIds.map((id) => events.find((event) => event.id === id)).filter((event): event is WorkspaceEvent => Boolean(event)),
+    [events, scheduledEventIds]
+  );
   const buildCalendarWeeks = useCallback((source: WorkspaceEvent[]) => {
     const weeks = new Map<
       string,
@@ -3541,16 +3546,24 @@ useEffect(() => {
 
   const addSelectedToSchedule = () => {
     const eventIds = getSavableEventIds();
-    if (!eventIds.length) return;
+    if (!eventIds.length) {
+      setScheduleActionMessage("Select one or more event cards to add them to your schedule.");
+      return;
+    }
     setScheduledEventIds((previous) => unique([...previous, ...eventIds]));
+    setScheduleActionMessage("");
     recordActivity("view", "Added events to My Event Schedule", `${eventIds.length} events selected`);
   };
 
-  const removeSelectedFromSchedule = () => {
-    const eventIds = new Set(getSavableEventIds());
-    if (!eventIds.size) return;
-    setScheduledEventIds((previous) => previous.filter((id) => !eventIds.has(id)));
-    recordActivity("view", "Removed events from My Event Schedule", `${eventIds.size} events selected`);
+  const removeScheduledEvent = (eventId: string) => {
+    setScheduledEventIds((previous) => previous.filter((id) => id !== eventId));
+    recordActivity("view", "Removed event from My Event Schedule", "1 event removed");
+  };
+
+  const clearEventSchedule = () => {
+    setScheduledEventIds([]);
+    setScheduleActionMessage("");
+    recordActivity("view", "Cleared My Event Schedule");
   };
 
   const addSelectedToNewList = () => {
@@ -4011,6 +4024,7 @@ useEffect(() => {
                 style={{
                   position: "relative",
                   border: selected ? "1px solid rgba(96,165,250,0.8)" : "1px solid rgba(96,165,250,0.22)",
+                  borderLeft: scheduled ? "4px solid rgba(45,212,191,0.88)" : undefined,
                   borderRadius: "14px",
                   background: "linear-gradient(145deg, rgba(8,28,52,0.95) 0%, rgba(4,14,30,0.98) 100%)",
                   padding: isCompact ? "10px" : "12px",
@@ -4020,11 +4034,6 @@ useEffect(() => {
                   overflow: "hidden",
                 }}
               >
-                {scheduled ? (
-                  <span style={{ position: "absolute", top: "10px", right: "42px", borderRadius: "999px", padding: "3px 7px", border: "1px solid rgba(94,234,212,0.62)", background: "rgba(16,104,99,0.28)", color: "#c9fff4", fontSize: "8px", fontWeight: 900, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-                    Scheduled
-                  </span>
-                ) : null}
                 <div style={{ display: "grid", gridTemplateColumns: "66px minmax(0,1fr) auto", gap: "8px", alignItems: "start" }}>
                   <div style={{ height: "66px", borderRadius: "12px", border: "1px solid rgba(147,197,253,0.24)", background: isHot ? "linear-gradient(180deg, rgba(141,99,59,0.45), rgba(68,42,26,0.6))" : isCluster ? "linear-gradient(180deg, rgba(127,53,69,0.44), rgba(58,22,34,0.62))" : "linear-gradient(180deg, rgba(56,88,138,0.52), rgba(22,37,69,0.64))", display: "grid", alignContent: "center", justifyItems: "center", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
                     <div style={{ color: "#dbeafe", fontSize: "11px", fontWeight: 800, lineHeight: 1, letterSpacing: "0.04em", minHeight: "11px" }}>{parts.month}</div>
@@ -8445,7 +8454,7 @@ useEffect(() => {
                   borderTop: selected ? "1px solid rgba(144,178,218,0.56)" : "1px solid rgba(118,142,170,0.2)",
                   borderRight: selected ? "1px solid rgba(144,178,218,0.56)" : "1px solid rgba(118,142,170,0.2)",
                   borderBottom: selected ? "1px solid rgba(144,178,218,0.56)" : "1px solid rgba(118,142,170,0.2)",
-                  borderLeft: isHot ? "3px solid rgba(182,132,84,0.68)" : isCluster ? "3px solid rgba(160,86,104,0.64)" : "3px solid rgba(90,110,132,0.42)",
+                  borderLeft: scheduled ? "4px solid rgba(45,212,191,0.88)" : isHot ? "3px solid rgba(182,132,84,0.68)" : isCluster ? "3px solid rgba(160,86,104,0.64)" : "3px solid rgba(90,110,132,0.42)",
                   borderRadius: "14px",
                   background: `radial-gradient(78% 64% at 46% 50%, rgba(90,136,192,0.1) 0%, rgba(90,136,192,0.02) 54%, rgba(90,136,192,0) 82%), radial-gradient(90% 88% at 26% 18%, rgba(110,156,208,0.09) 0%, rgba(110,156,208,0.02) 42%, rgba(110,156,208,0) 70%), radial-gradient(110% 90% at 92% 92%, rgba(6,14,26,0.24) 0%, rgba(6,14,26,0.06) 52%, rgba(6,14,26,0) 74%), radial-gradient(85% 85% at 15% 10%, ${
                     isHot
@@ -8709,11 +8718,6 @@ useEffect(() => {
                   )}
                 </div>
 
-                {scheduled ? (
-                  <span style={{ position: "absolute", top: "12px", right: "48px", zIndex: 3, borderRadius: "999px", padding: "4px 8px", border: "1px solid rgba(94,234,212,0.62)", background: "rgba(16,104,99,0.28)", color: "#c9fff4", fontSize: "9px", fontWeight: 900, letterSpacing: "0.07em", textTransform: "uppercase" }}>
-                    Scheduled
-                  </span>
-                ) : null}
                 <button
                   type="button"
                   aria-label={selected ? "Deselect event" : "Select event"}
@@ -8975,12 +8979,12 @@ useEffect(() => {
               { label: "Save Selected", description: "Save selected event cards into a new or existing list." },
               { label: "Share Selected", description: "Open an email draft with links to the selected events." },
               { label: "Save Market View", description: "Save the current filtered view locally so you can return to it later." },
-              { label: "Add to Schedule", description: "Add selected event cards to My Event Schedule." },
-              { label: "Remove from Schedule", description: "Remove selected event cards from My Event Schedule." },
+              { label: "Add to Schedule", description: "Select event cards first, then add them to My Event Schedule." },
               { label: "Clear", description: "Clear selected cards, filters, and quick views." },
             ]}
           />
         }
+        quickActionsMessage={scheduleActionMessage || undefined}
         panelHeight={PANEL_HEIGHT}
         calendarPlatforms={[
           { label: "Google", brand: "google", platform: "Google Calendar", onClick: () => openCalendarSync("Google Calendar") },
@@ -9071,8 +9075,7 @@ useEffect(() => {
             label: "Add to Schedule",
             kind: "schedule",
             accent: "#6ee7d4",
-            description: "Add selected event cards to My Event Schedule.",
-            disabled: selectedEvents.length === 0,
+            description: "Select event cards first, then add them to My Event Schedule.",
             active: activeToolbarAction === "schedule",
             onClick: () => {
               markToolbarAction("schedule");
@@ -9081,21 +9084,6 @@ useEffect(() => {
             onMouseEnter: () => setToolbarHelpText("Add selected event cards to My Event Schedule."),
             onMouseLeave: () => setToolbarHelpText(""),
           },
-          ...(selectedEvents.some((id) => scheduledEventSet.has(id))
-            ? [{
-                label: "Remove from Schedule",
-                kind: "clear" as const,
-                accent: "#f0b6c4",
-                description: "Remove selected event cards from My Event Schedule.",
-                active: activeToolbarAction === "removeSchedule",
-                onClick: () => {
-                  markToolbarAction("removeSchedule");
-                  removeSelectedFromSchedule();
-                },
-                onMouseEnter: () => setToolbarHelpText("Remove selected event cards from My Event Schedule."),
-                onMouseLeave: () => setToolbarHelpText(""),
-              }]
-            : []),
         ]}
         savedSections={[
           {
@@ -9106,10 +9094,25 @@ useEffect(() => {
             isOpen: eventScheduleOpen,
             onToggle: () => setEventScheduleOpen((value) => !value),
             children: (
-              <div style={{ color: "#9fb6d4", fontSize: "12.5px", lineHeight: 1.4, padding: "0 14px 14px" }}>
-                {scheduledEventIds.length
-                  ? "Select scheduled event cards, then use Remove from Schedule to update this list."
-                  : "Select event cards, then use Add to Schedule."}
+              <div style={{ display: "grid", gap: "8px", padding: "0 14px 14px" }}>
+                {scheduledEvents.map((event) => (
+                  <div key={event.id} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: "8px", minHeight: "30px", padding: "6px 0", borderBottom: "1px solid rgba(147,197,253,0.10)" }}>
+                    <span title={event.title} style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.title}</span>
+                    <button type="button" onClick={() => removeScheduledEvent(event.id)} aria-label={`Remove ${event.title} from My Event Schedule`} title={`Remove ${event.title} from My Event Schedule`} style={{ width: "22px", height: "22px", borderRadius: "6px", border: "1px solid rgba(190,102,122,0.36)", background: "rgba(118,46,63,0.18)", color: "#f2b7c4", fontSize: "14px", lineHeight: 1, cursor: "pointer", padding: 0 }}>×</button>
+                  </div>
+                ))}
+                {scheduledEventIds.length > scheduledEvents.length ? (
+                  <div style={{ color: "#8fa9c7", fontSize: "11px", lineHeight: 1.35 }}>
+                    {scheduledEventIds.length - scheduledEvents.length} scheduled event{scheduledEventIds.length - scheduledEvents.length === 1 ? " is" : "s are"} not currently loaded.
+                  </div>
+                ) : null}
+                {scheduledEventIds.length ? (
+                  <button type="button" onClick={clearEventSchedule} style={{ justifySelf: "start", border: "none", background: "transparent", color: "#9fc3e7", fontSize: "11px", fontWeight: 800, cursor: "pointer", padding: "3px 0" }}>Clear schedule</button>
+                ) : (
+                  <div style={{ color: "#9fb6d4", fontSize: "12.5px", lineHeight: 1.4 }}>
+                    Select event cards, then use Add to Schedule.
+                  </div>
+                )}
               </div>
             ),
           },
