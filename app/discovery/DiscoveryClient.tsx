@@ -1471,6 +1471,7 @@ export default function EventsClient({
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(true);
   const [eventScheduleOpen, setEventScheduleOpen] = useState(false);
+  const [scheduleManageOpen, setScheduleManageOpen] = useState(false);
   const [scheduledOnly, setScheduledOnly] = useState(false);
   const [savedConferenceListsOpen, setSavedConferenceListsOpen] = useState(false);
   const [savedMarketViewsOpen, setSavedMarketViewsOpen] = useState(false);
@@ -3558,6 +3559,7 @@ useEffect(() => {
       return;
     }
     setScheduledEventIds((previous) => unique([...previous, ...eventIds]));
+    setSelectedEvents([]);
     setScheduleActionMessage("");
     recordActivity("view", "Added events to My Event Schedule", `${eventIds.length} events selected`);
   };
@@ -3569,8 +3571,18 @@ useEffect(() => {
 
   const clearEventSchedule = () => {
     setScheduledEventIds([]);
+    setScheduleManageOpen(false);
+    setScheduledOnly(false);
     setScheduleActionMessage("");
     recordActivity("view", "Cleared My Event Schedule");
+  };
+
+  const loadEventSchedule = () => {
+    if (!scheduledEventIds.length) return;
+    setScheduledOnly(true);
+    setDashboardMode("market");
+    setWorkspaceViewMode("database");
+    scrollToResultsAnchor();
   };
 
   const addSelectedToNewList = () => {
@@ -3805,6 +3817,7 @@ useEffect(() => {
 
   const shareSelected = () => {
     const selected = filteredEvents.filter((e) => selectedSet.has(e.id)).slice(0, 20);
+    if (!selected.length) return;
     const lines = selected
       .map((e) => {
         const location = [e.city, e.state].filter(Boolean).join(", ") || "Location TBD";
@@ -3829,6 +3842,7 @@ useEffect(() => {
 
     const body = encodeURIComponent(`${intro}${lines}`);
     window.location.href = `mailto:?subject=${encodeURIComponent("Selected conferences")}&body=${body}`;
+    setSelectedEvents([]);
   };
 
   const clearWorkspaceView = () => {
@@ -9105,28 +9119,33 @@ useEffect(() => {
             count: scheduledEventIds.length,
             countLabel: `${scheduledEventIds.length} events`,
             isOpen: eventScheduleOpen,
-            onToggle: () => {
-              setEventScheduleOpen((value) => !value);
-              setScheduledOnly(true);
-              setDashboardMode("market");
-              setWorkspaceViewMode("database");
-              scrollToResultsAnchor();
-            },
+            onToggle: () => setEventScheduleOpen((value) => !value),
             children: (
               <div style={{ display: "grid", gap: "8px", padding: "0 14px 14px" }}>
-                {scheduledEvents.map((event) => (
-                  <div key={event.id} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: "8px", minHeight: "30px", padding: "6px 0", borderBottom: "1px solid rgba(147,197,253,0.10)" }}>
-                    <span title={event.title} style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.title}</span>
-                    <button type="button" onClick={() => removeScheduledEvent(event.id)} aria-label={`Remove ${event.title} from My Event Schedule`} title={`Remove ${event.title} from My Event Schedule`} style={{ width: "22px", height: "22px", borderRadius: "6px", border: "1px solid rgba(190,102,122,0.36)", background: "rgba(118,46,63,0.18)", color: "#f2b7c4", fontSize: "14px", lineHeight: 1, cursor: "pointer", padding: 0 }}>×</button>
-                  </div>
-                ))}
-                {scheduledEventIds.length > scheduledEvents.length ? (
-                  <div style={{ color: "#8fa9c7", fontSize: "11px", lineHeight: 1.35 }}>
-                    {scheduledEventIds.length - scheduledEvents.length} scheduled event{scheduledEventIds.length - scheduledEvents.length === 1 ? " is" : "s are"} not currently loaded.
-                  </div>
-                ) : null}
                 {scheduledEventIds.length ? (
-                  <button type="button" onClick={clearEventSchedule} style={{ justifySelf: "start", border: "none", background: "transparent", color: "#9fc3e7", fontSize: "11px", fontWeight: 800, cursor: "pointer", padding: "3px 0" }}>Clear schedule</button>
+                  <>
+                    <div style={{ color: "#9fb6d4", fontSize: "12px", lineHeight: 1.35 }}>{scheduledEventIds.length} event{scheduledEventIds.length === 1 ? "" : "s"} saved locally.</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                      <button type="button" onClick={loadEventSchedule} style={{ height: "28px", borderRadius: "8px", border: "1px solid rgba(96,165,250,0.42)", background: "rgba(37,99,235,0.22)", color: "#dbeafe", fontSize: "11px", fontWeight: 800, cursor: "pointer", padding: "0 12px" }}>Load</button>
+                      <button type="button" onClick={() => setScheduleManageOpen((value) => !value)} style={{ height: "28px", borderRadius: "8px", border: "1px solid rgba(147,197,253,0.24)", background: "rgba(8,28,49,0.5)", color: "#bcd5ee", fontSize: "11px", fontWeight: 800, cursor: "pointer", padding: "0 10px" }}>{scheduleManageOpen ? "Hide" : "Manage"}</button>
+                      <button type="button" onClick={clearEventSchedule} style={{ border: "none", background: "transparent", color: "#9fc3e7", fontSize: "11px", fontWeight: 800, cursor: "pointer", padding: "3px 0" }}>Clear schedule</button>
+                    </div>
+                    {scheduleManageOpen ? (
+                      <div style={{ display: "grid", gap: "2px", maxHeight: "150px", overflowY: "auto", overflowX: "hidden", paddingRight: "2px" }}>
+                        {scheduledEvents.map((event) => (
+                          <div key={event.id} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: "8px", minHeight: "30px", padding: "6px 0", borderBottom: "1px solid rgba(147,197,253,0.10)" }}>
+                            <span title={event.title} style={{ color: "#dbeafe", fontSize: "11.5px", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.title}</span>
+                            <button type="button" onClick={() => removeScheduledEvent(event.id)} aria-label={`Remove ${event.title} from My Event Schedule`} title={`Remove ${event.title} from My Event Schedule`} style={{ width: "22px", height: "22px", borderRadius: "6px", border: "1px solid rgba(190,102,122,0.36)", background: "rgba(118,46,63,0.18)", color: "#f2b7c4", fontSize: "14px", lineHeight: 1, cursor: "pointer", padding: 0 }}>×</button>
+                          </div>
+                        ))}
+                        {scheduledEventIds.length > scheduledEvents.length ? (
+                          <div style={{ color: "#8fa9c7", fontSize: "11px", lineHeight: 1.35, paddingTop: "4px" }}>
+                            {scheduledEventIds.length - scheduledEvents.length} scheduled event{scheduledEventIds.length - scheduledEvents.length === 1 ? " is" : "s are"} not currently loaded.
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </>
                 ) : (
                   <div style={{ color: "#9fb6d4", fontSize: "12.5px", lineHeight: 1.4 }}>
                     Select event cards, then use Add to Schedule.
