@@ -1453,6 +1453,7 @@ export default function EventsClient({
   const dataIsBootstrapping = shouldLoadInitialDiscovery && isLoadingEvents && events.length === 0;
   const [eventLoadError, setEventLoadError] = useState<string | null>(null);
   const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
+  const [scheduledEventIds, setScheduledEventIds] = useState<string[]>([]);
   const [savedLists, setSavedLists] = useState<SavedList[]>([]);
   const [activeSavedListId, setActiveSavedListId] = useState<string | null>(null);
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
@@ -1468,6 +1469,7 @@ export default function EventsClient({
   const [toolbarHelpText, setToolbarHelpText] = useState<string>("");
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(true);
+  const [eventScheduleOpen, setEventScheduleOpen] = useState(false);
   const [savedConferenceListsOpen, setSavedConferenceListsOpen] = useState(false);
   const [savedMarketViewsOpen, setSavedMarketViewsOpen] = useState(false);
   const [dashboardMode, setDashboardMode] = useState<"getstarted" | "market" | "marketview" | "about" | "contact" | "legal" | "subscribe" | "submit">(initialMode);
@@ -1558,11 +1560,13 @@ export default function EventsClient({
       const lists = localStorage.getItem("ccc_saved_lists");
       const views = localStorage.getItem("ccc_saved_views");
       const selected = localStorage.getItem("ccc_selected_events");
+      const scheduled = localStorage.getItem("ccc_my_event_schedule");
       const recentFilters = localStorage.getItem("ccc_recent_filters");
       const recentActivityRaw = localStorage.getItem("ccc_recent_activity");
       if (lists) setSavedLists(JSON.parse(lists));
       if (views) setSavedViews(JSON.parse(views));
       if (selected) setSelectedEvents(JSON.parse(selected));
+      if (scheduled) setScheduledEventIds(unique(JSON.parse(scheduled)));
       if (recentFilters) setFilters(normalizeFiltersState(JSON.parse(recentFilters)));
       if (recentActivityRaw) setRecentActivity(JSON.parse(recentActivityRaw));
     } catch {
@@ -1724,6 +1728,7 @@ export default function EventsClient({
   }, []);
 
   useEffect(() => localStorage.setItem("ccc_selected_events", JSON.stringify(selectedEvents)), [selectedEvents]);
+  useEffect(() => localStorage.setItem("ccc_my_event_schedule", JSON.stringify(scheduledEventIds)), [scheduledEventIds]);
   useEffect(() => localStorage.setItem("ccc_saved_lists", JSON.stringify(savedLists)), [savedLists]);
   useEffect(() => localStorage.setItem("ccc_saved_views", JSON.stringify(savedViews)), [savedViews]);
   useEffect(() => localStorage.setItem("ccc_recent_filters", JSON.stringify(filters)), [filters]);
@@ -2062,6 +2067,7 @@ useEffect(() => {
   const organizersActiveCount = filters.organizer.length;
 
   const selectedSet = useMemo(() => new Set(selectedEvents), [selectedEvents]);
+  const scheduledEventSet = useMemo(() => new Set(scheduledEventIds), [scheduledEventIds]);
   const buildCalendarWeeks = useCallback((source: WorkspaceEvent[]) => {
     const weeks = new Map<
       string,
@@ -3533,6 +3539,20 @@ useEffect(() => {
     return selectedEvents;
   };
 
+  const addSelectedToSchedule = () => {
+    const eventIds = getSavableEventIds();
+    if (!eventIds.length) return;
+    setScheduledEventIds((previous) => unique([...previous, ...eventIds]));
+    recordActivity("view", "Added events to My Event Schedule", `${eventIds.length} events selected`);
+  };
+
+  const removeSelectedFromSchedule = () => {
+    const eventIds = new Set(getSavableEventIds());
+    if (!eventIds.size) return;
+    setScheduledEventIds((previous) => previous.filter((id) => !eventIds.has(id)));
+    recordActivity("view", "Removed events from My Event Schedule", `${eventIds.size} events selected`);
+  };
+
   const addSelectedToNewList = () => {
     const eventIds = getSavableEventIds();
     if (!eventIds.length) {
@@ -3982,6 +4002,7 @@ useEffect(() => {
             });
             const tags = getMobileTags(e).slice(0, 2);
             const selected = selectedSet.has(e.id);
+            const scheduled = scheduledEventSet.has(e.id);
             const link = buildEventLink(e);
             return (
               <article
@@ -3999,6 +4020,11 @@ useEffect(() => {
                   overflow: "hidden",
                 }}
               >
+                {scheduled ? (
+                  <span style={{ position: "absolute", top: "10px", right: "42px", borderRadius: "999px", padding: "3px 7px", border: "1px solid rgba(94,234,212,0.62)", background: "rgba(16,104,99,0.28)", color: "#c9fff4", fontSize: "8px", fontWeight: 900, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                    Scheduled
+                  </span>
+                ) : null}
                 <div style={{ display: "grid", gridTemplateColumns: "66px minmax(0,1fr) auto", gap: "8px", alignItems: "start" }}>
                   <div style={{ height: "66px", borderRadius: "12px", border: "1px solid rgba(147,197,253,0.24)", background: isHot ? "linear-gradient(180deg, rgba(141,99,59,0.45), rgba(68,42,26,0.6))" : isCluster ? "linear-gradient(180deg, rgba(127,53,69,0.44), rgba(58,22,34,0.62))" : "linear-gradient(180deg, rgba(56,88,138,0.52), rgba(22,37,69,0.64))", display: "grid", alignContent: "center", justifyItems: "center", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
                     <div style={{ color: "#dbeafe", fontSize: "11px", fontWeight: 800, lineHeight: 1, letterSpacing: "0.04em", minHeight: "11px" }}>{parts.month}</div>
@@ -7331,10 +7357,11 @@ useEffect(() => {
                               <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 0, borderBottom: "1px solid rgba(107,157,210,0.08)", paddingBottom: "5px", marginBottom: "6px" }}>
                                 {week.dayDates.map((dayIso, idx) => {
                                   const count = week.byDay[idx].length;
+                                  const hasScheduledEvent = week.byDay[idx].some((event) => scheduledEventSet.has(event.id));
                                   return (
                                     <div key={`${week.weekStart}-day-head-${dayIso}`} style={{ minWidth: 0, padding: "0 6px", textAlign: "center" }}>
                                       <div style={{ color: "#94aecb", fontSize: "10px", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 900 }}>{timelineDays[idx]}</div>
-                                      <div style={{ color: "#ffffff", fontSize: "12px", fontWeight: 850, marginTop: "3px" }}>{formatMonthDay(dayIso)}</div>
+                                      <div style={{ color: "#ffffff", fontSize: "12px", fontWeight: 850, marginTop: "3px", display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: "30px", height: "20px", borderRadius: "999px", border: hasScheduledEvent ? "1px solid rgba(94,234,212,0.84)" : "1px solid transparent", background: hasScheduledEvent ? "rgba(45,212,191,0.12)" : "transparent" }}>{formatMonthDay(dayIso)}</div>
                                       <div style={{ color: count > 1 ? "#56d7c3" : "#6e89a7", fontSize: "9.5px", fontWeight: 800, marginTop: "2px" }}>{count > 0 ? count : ""}</div>
                                     </div>
                                   );
@@ -7372,6 +7399,7 @@ useEffect(() => {
                                         {lane.map(({ event, startOffset, endOffset }) => {
                                   const cityLabel = [event.city, event.state].filter(Boolean).join(", ");
                                   const isSelected = weekSelectedEventId === event.id;
+                                  const isScheduled = scheduledEventSet.has(event.id);
                                   const detailSourceEvents = calendarDetailDataset === "all" ? events : filteredEvents;
                                   const detailWeekSignals = calendarDetailDataset === "all" ? allCalendarWeekSignals : calendarWeekSignals;
                                   const detailHotWeekKeys = calendarDetailDataset === "all" ? allCalendarHotWeekKeys : calendarHotWeekKeys;
@@ -7992,8 +8020,9 @@ useEffect(() => {
                                             onMouseEnter={() => setHoveredCardId(eventHoverId)}
                                             onMouseLeave={() => setHoveredCardId((prev) => (prev === eventHoverId ? null : prev))}
                                           >
-                                            <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+                                            <div style={{ display: "flex", alignItems: "center", gap: "7px", minWidth: 0 }}>
                                               <span title={`${event.title} · ${formatMonthDay(event.startDate)}${event.endDate && event.endDate !== event.startDate ? ` - ${formatMonthDay(event.endDate)}` : ""} · ${cityLabel || "Location TBD"} · ${event.organizer || ""}`} style={{ fontSize: "11.5px", fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{event.title}</span>
+                                              {isScheduled ? <span style={{ flex: "0 0 auto", borderRadius: "999px", padding: "2px 5px", border: "1px solid rgba(94,234,212,0.62)", background: "rgba(45,212,191,0.16)", color: "#c9fff4", fontSize: "8px", fontWeight: 900, letterSpacing: "0.05em", textTransform: "uppercase" }}>Scheduled</span> : null}
                                             </div>
                                             <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
 	                                              <div title={event.investmentFocus || getPrimaryParticipationLabel(event) || event.companyParticipants || cityLabel || "Location TBD"} style={{ fontSize: "10.5px", color: "#e6f3ff", opacity: 0.9, overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
@@ -8089,6 +8118,7 @@ useEffect(() => {
             const weekStart = getWeekStart(e.startDate);
             const isHot = hotWeekKeys.has(weekStart);
             const selected = selectedSet.has(e.id);
+            const scheduled = scheduledEventSet.has(e.id);
             const cityLabel = [e.city, e.state].filter(Boolean).join(", ");
             const eventTime = new Date(`${e.startDate}T00:00:00Z`).getTime();
 
@@ -8679,6 +8709,11 @@ useEffect(() => {
                   )}
                 </div>
 
+                {scheduled ? (
+                  <span style={{ position: "absolute", top: "12px", right: "48px", zIndex: 3, borderRadius: "999px", padding: "4px 8px", border: "1px solid rgba(94,234,212,0.62)", background: "rgba(16,104,99,0.28)", color: "#c9fff4", fontSize: "9px", fontWeight: 900, letterSpacing: "0.07em", textTransform: "uppercase" }}>
+                    Scheduled
+                  </span>
+                ) : null}
                 <button
                   type="button"
                   aria-label={selected ? "Deselect event" : "Select event"}
@@ -8940,6 +8975,8 @@ useEffect(() => {
               { label: "Save Selected", description: "Save selected event cards into a new or existing list." },
               { label: "Share Selected", description: "Open an email draft with links to the selected events." },
               { label: "Save Market View", description: "Save the current filtered view locally so you can return to it later." },
+              { label: "Add to Schedule", description: "Add selected event cards to My Event Schedule." },
+              { label: "Remove from Schedule", description: "Remove selected event cards from My Event Schedule." },
               { label: "Clear", description: "Clear selected cards, filters, and quick views." },
             ]}
           />
@@ -9030,10 +9067,54 @@ useEffect(() => {
               </div>
             ) : null,
           },
+          {
+            label: "Add to Schedule",
+            kind: "schedule",
+            accent: "#6ee7d4",
+            description: "Add selected event cards to My Event Schedule.",
+            disabled: selectedEvents.length === 0,
+            active: activeToolbarAction === "schedule",
+            onClick: () => {
+              markToolbarAction("schedule");
+              addSelectedToSchedule();
+            },
+            onMouseEnter: () => setToolbarHelpText("Add selected event cards to My Event Schedule."),
+            onMouseLeave: () => setToolbarHelpText(""),
+          },
+          ...(selectedEvents.some((id) => scheduledEventSet.has(id))
+            ? [{
+                label: "Remove from Schedule",
+                kind: "clear" as const,
+                accent: "#f0b6c4",
+                description: "Remove selected event cards from My Event Schedule.",
+                active: activeToolbarAction === "removeSchedule",
+                onClick: () => {
+                  markToolbarAction("removeSchedule");
+                  removeSelectedFromSchedule();
+                },
+                onMouseEnter: () => setToolbarHelpText("Remove selected event cards from My Event Schedule."),
+                onMouseLeave: () => setToolbarHelpText(""),
+              }]
+            : []),
         ]}
         savedSections={[
           {
-            title: "Saved Lists",
+            title: "My Event Schedule",
+            icon: "lists",
+            count: scheduledEventIds.length,
+            countLabel: `${scheduledEventIds.length} events`,
+            isOpen: eventScheduleOpen,
+            onToggle: () => setEventScheduleOpen((value) => !value),
+            children: (
+              <div style={{ color: "#9fb6d4", fontSize: "12.5px", lineHeight: 1.4, padding: "0 14px 14px" }}>
+                {scheduledEventIds.length
+                  ? "Select scheduled event cards, then use Remove from Schedule to update this list."
+                  : "Select event cards, then use Add to Schedule."}
+              </div>
+            ),
+          },
+          {
+            title: "My Lists",
             icon: "lists",
             count: savedLists.length,
             isOpen: savedConferenceListsOpen,

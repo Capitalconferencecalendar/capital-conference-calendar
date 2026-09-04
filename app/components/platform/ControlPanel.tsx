@@ -3,7 +3,7 @@
 import type { CSSProperties, ReactNode, RefObject } from "react";
 
 type CalendarBrand = "google" | "apple" | "outlook";
-type QuickActionKind = "clear" | "share" | "saveView" | "saveSelected";
+type QuickActionKind = "clear" | "share" | "saveView" | "saveSelected" | "schedule";
 type SectionIconKind = "sync" | "actions" | "lists" | "views" | "status";
 
 type CalendarPlatform = {
@@ -22,6 +22,7 @@ type QuickAction = {
   onMouseLeave?: () => void;
   description?: string;
   active?: boolean;
+  disabled?: boolean;
   containerRef?: RefObject<HTMLDivElement | null>;
   menu?: ReactNode;
 };
@@ -33,6 +34,7 @@ type SavedSection = {
   isOpen?: boolean;
   onToggle?: () => void;
   children?: ReactNode;
+  countLabel?: string;
 };
 
 type ControlPanelProps = {
@@ -161,9 +163,10 @@ export default function ControlPanel({
                     onClick={action.onClick}
                     onMouseEnter={action.onMouseEnter}
                     onMouseLeave={action.onMouseLeave}
+                    disabled={action.disabled}
                     aria-label={action.description || action.label}
                     title={action.description}
-                    style={{ width: "100%", height: "38px", borderRadius: "10px", border: action.active ? "1px solid rgba(125,182,255,0.58)" : "1px solid rgba(92,136,184,0.28)", background: action.active ? "linear-gradient(180deg, rgba(24,58,100,0.98), rgba(17,42,78,0.96))" : "rgba(17,38,67,0.9)", color: "#e7f2ff", fontSize: "13px", fontWeight: 800, cursor: action.onClick ? "pointer" : "default", boxShadow: action.active ? "0 0 0 1px rgba(96,165,250,0.28), 0 0 14px rgba(59,130,246,0.24), inset 0 1px 0 rgba(255,255,255,0.08)" : "0 0 10px rgba(59,130,246,0.12), inset 0 1px 0 rgba(255,255,255,0.06)", transition: "all 140ms ease", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 10px 0 12px" }}
+                    style={{ width: "100%", height: "38px", borderRadius: "10px", border: action.active ? "1px solid rgba(125,182,255,0.58)" : "1px solid rgba(92,136,184,0.28)", background: action.active ? "linear-gradient(180deg, rgba(24,58,100,0.98), rgba(17,42,78,0.96))" : "rgba(17,38,67,0.9)", color: "#e7f2ff", fontSize: "13px", fontWeight: 800, cursor: action.disabled ? "not-allowed" : action.onClick ? "pointer" : "default", opacity: action.disabled ? 0.5 : 1, boxShadow: action.active ? "0 0 0 1px rgba(96,165,250,0.28), 0 0 14px rgba(59,130,246,0.24), inset 0 1px 0 rgba(255,255,255,0.08)" : "0 0 10px rgba(59,130,246,0.12), inset 0 1px 0 rgba(255,255,255,0.06)", transition: "all 140ms ease", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 10px 0 12px" }}
                   >
                     <span>{action.label}</span>
                     <span style={{ opacity: 0.95, display: "inline-flex", alignItems: "center" }}>
@@ -184,7 +187,7 @@ export default function ControlPanel({
                   {section.title}
                 </span>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ color: "#9fc3e7", fontSize: 12, fontWeight: 700 }}>{section.count} saved</span>
+                  <span style={{ color: "#9fc3e7", fontSize: 12, fontWeight: 700 }}>{section.countLabel || `${section.count} saved`}</span>
                   <span style={{ color: "#9fb6d4", fontSize: 14, lineHeight: 1 }}>{section.onToggle ? (section.isOpen ? "▾" : "▸") : "▸"}</span>
                 </span>
               </button>
