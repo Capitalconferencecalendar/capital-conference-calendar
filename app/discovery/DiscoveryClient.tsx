@@ -1471,6 +1471,7 @@ export default function EventsClient({
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(true);
   const [eventScheduleOpen, setEventScheduleOpen] = useState(false);
+  const [scheduledOnly, setScheduledOnly] = useState(false);
   const [savedConferenceListsOpen, setSavedConferenceListsOpen] = useState(false);
   const [savedMarketViewsOpen, setSavedMarketViewsOpen] = useState(false);
   const [dashboardMode, setDashboardMode] = useState<"getstarted" | "market" | "marketview" | "about" | "contact" | "legal" | "subscribe" | "submit">(initialMode);
@@ -1879,8 +1880,9 @@ export default function EventsClient({
     filters.marketFocus.forEach((value) => params.append("investmentFocus", value));
     activeSavedList?.eventIds.forEach((value) => params.append("eventId", value));
     urlEventIds.forEach((value) => params.append("eventId", value));
+    if (scheduledOnly) scheduledEventIds.forEach((value) => params.append("eventId", value));
     return params;
-  }, [activeSavedList?.eventIds, filterMode, filters, fromDate, searchQuery, sortMode, toDate, urlEventIds]);
+  }, [activeSavedList?.eventIds, filterMode, filters, fromDate, scheduledEventIds, scheduledOnly, searchQuery, sortMode, toDate, urlEventIds]);
   const initialDiscoveryRequestRef = useRef<string | null>(null);
 
   const applyDiscoveryPage = useCallback((next: DiscoveryPageResponse, append = false) => {
@@ -1969,7 +1971,8 @@ export default function EventsClient({
   const focusedEventId = initialEventId || urlEventIds[0] || "";
 
   const filteredEvents = useMemo(() => {
-    const list = [...events];
+    const scheduledIds = new Set(scheduledEventIds);
+    const list = scheduledOnly ? events.filter((event) => scheduledIds.has(event.id)) : [...events];
     if (focusedEventId) {
       const matchedIndex = list.findIndex((event) => event.id === focusedEventId);
       if (matchedIndex > 0) {
@@ -1978,10 +1981,13 @@ export default function EventsClient({
       }
     }
     return list;
-  }, [events, focusedEventId]);
+  }, [events, focusedEventId, scheduledEventIds, scheduledOnly]);
 
   const activeFilterChips = useMemo(() => {
     const chips: Array<{ key: string; label: string; clear: () => void }> = [];
+    if (scheduledOnly) {
+      chips.push({ key: "scheduledOnly", label: "Viewing My Event Schedule", clear: () => setScheduledOnly(false) });
+    }
     if (searchQuery.trim()) {
       chips.push({
         key: "search",
@@ -2031,7 +2037,7 @@ export default function EventsClient({
       });
     }
     return chips;
-  }, [filterMode, filters, fromDate, searchQuery, toDate]);
+  }, [filterMode, filters, fromDate, scheduledOnly, searchQuery, toDate]);
 
   const compactSingleResultLayout =
     dashboardMode === "market" &&
@@ -3480,6 +3486,7 @@ useEffect(() => {
     setDashboardMode("market");
     setWorkspaceViewMode("database");
     setSelectedEvents([]);
+    setScheduledOnly(false);
     setActiveSavedListId(null);
     setActiveQuickView("");
     if (action.type === "sectorTheme") {
@@ -3650,6 +3657,7 @@ useEffect(() => {
     setFromDate("");
     setToDate("");
     setSelectedEvents([]);
+    setScheduledOnly(false);
     setActiveQuickView("");
     recordActivity("view", `Loaded view: ${view.name}`, `${view.eventCount ?? "Saved"} events`);
     scrollToResultsAnchor();
@@ -3827,6 +3835,7 @@ useEffect(() => {
     setFromDate("");
     setToDate("");
     setSelectedEvents([]);
+    setScheduledOnly(false);
     setActiveQuickView("");
     setActiveSavedListId(null);
     if (typeof window !== "undefined") {
@@ -4024,7 +4033,7 @@ useEffect(() => {
                 style={{
                   position: "relative",
                   border: selected ? "1px solid rgba(96,165,250,0.8)" : "1px solid rgba(96,165,250,0.22)",
-                  borderLeft: scheduled ? "4px solid rgba(45,212,191,0.88)" : undefined,
+                  borderLeft: scheduled ? "5px solid rgba(34,211,238,0.96)" : undefined,
                   borderRadius: "14px",
                   background: "linear-gradient(145deg, rgba(8,28,52,0.95) 0%, rgba(4,14,30,0.98) 100%)",
                   padding: isCompact ? "10px" : "12px",
@@ -4034,6 +4043,7 @@ useEffect(() => {
                   overflow: "hidden",
                 }}
               >
+                {scheduled ? <span aria-hidden="true" style={{ position: "absolute", left: "1px", top: "12px", bottom: "12px", width: "13px", color: "#bff8ff", fontSize: "8px", fontWeight: 900, letterSpacing: "0.08em", writingMode: "vertical-rl", transform: "rotate(180deg)", textAlign: "center", zIndex: 2 }}>SCHEDULED</span> : null}
                 <div style={{ display: "grid", gridTemplateColumns: "66px minmax(0,1fr) auto", gap: "8px", alignItems: "start" }}>
                   <div style={{ height: "66px", borderRadius: "12px", border: "1px solid rgba(147,197,253,0.24)", background: isHot ? "linear-gradient(180deg, rgba(141,99,59,0.45), rgba(68,42,26,0.6))" : isCluster ? "linear-gradient(180deg, rgba(127,53,69,0.44), rgba(58,22,34,0.62))" : "linear-gradient(180deg, rgba(56,88,138,0.52), rgba(22,37,69,0.64))", display: "grid", alignContent: "center", justifyItems: "center", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
                     <div style={{ color: "#dbeafe", fontSize: "11px", fontWeight: 800, lineHeight: 1, letterSpacing: "0.04em", minHeight: "11px" }}>{parts.month}</div>
@@ -7370,7 +7380,7 @@ useEffect(() => {
                                   return (
                                     <div key={`${week.weekStart}-day-head-${dayIso}`} style={{ minWidth: 0, padding: "0 6px", textAlign: "center" }}>
                                       <div style={{ color: "#94aecb", fontSize: "10px", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 900 }}>{timelineDays[idx]}</div>
-                                      <div style={{ color: "#ffffff", fontSize: "12px", fontWeight: 850, marginTop: "3px", display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: "30px", height: "20px", borderRadius: "999px", border: hasScheduledEvent ? "1px solid rgba(94,234,212,0.84)" : "1px solid transparent", background: hasScheduledEvent ? "rgba(45,212,191,0.12)" : "transparent" }}>{formatMonthDay(dayIso)}</div>
+                                      <div style={{ color: "#ffffff", fontSize: "12px", fontWeight: 850, marginTop: "2px", display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: "38px", height: "26px", padding: "0 5px", borderRadius: "999px", border: hasScheduledEvent ? "1px solid rgba(94,234,212,0.84)" : "1px solid transparent", background: hasScheduledEvent ? "rgba(45,212,191,0.12)" : "transparent" }}>{formatMonthDay(dayIso)}</div>
                                       <div style={{ color: count > 1 ? "#56d7c3" : "#6e89a7", fontSize: "9.5px", fontWeight: 800, marginTop: "2px" }}>{count > 0 ? count : ""}</div>
                                     </div>
                                   );
@@ -8454,7 +8464,7 @@ useEffect(() => {
                   borderTop: selected ? "1px solid rgba(144,178,218,0.56)" : "1px solid rgba(118,142,170,0.2)",
                   borderRight: selected ? "1px solid rgba(144,178,218,0.56)" : "1px solid rgba(118,142,170,0.2)",
                   borderBottom: selected ? "1px solid rgba(144,178,218,0.56)" : "1px solid rgba(118,142,170,0.2)",
-                  borderLeft: scheduled ? "4px solid rgba(45,212,191,0.88)" : isHot ? "3px solid rgba(182,132,84,0.68)" : isCluster ? "3px solid rgba(160,86,104,0.64)" : "3px solid rgba(90,110,132,0.42)",
+                  borderLeft: scheduled ? "5px solid rgba(34,211,238,0.96)" : isHot ? "3px solid rgba(182,132,84,0.68)" : isCluster ? "3px solid rgba(160,86,104,0.64)" : "3px solid rgba(90,110,132,0.42)",
                   borderRadius: "14px",
                   background: `radial-gradient(78% 64% at 46% 50%, rgba(90,136,192,0.1) 0%, rgba(90,136,192,0.02) 54%, rgba(90,136,192,0) 82%), radial-gradient(90% 88% at 26% 18%, rgba(110,156,208,0.09) 0%, rgba(110,156,208,0.02) 42%, rgba(110,156,208,0) 70%), radial-gradient(110% 90% at 92% 92%, rgba(6,14,26,0.24) 0%, rgba(6,14,26,0.06) 52%, rgba(6,14,26,0) 74%), radial-gradient(85% 85% at 15% 10%, ${
                     isHot
@@ -8484,6 +8494,7 @@ useEffect(() => {
                       : "inset 0 1px 0 rgba(255,255,255,0.03), inset 0 -7px 12px rgba(3,11,20,0.22), 0 5px 10px rgba(4,15,29,0.2)",
                 }}
               >
+                {scheduled ? <span aria-hidden="true" style={{ position: "absolute", left: "1px", top: "18px", bottom: "18px", width: "14px", color: "#bff8ff", fontSize: "8px", fontWeight: 900, letterSpacing: "0.1em", writingMode: "vertical-rl", transform: "rotate(180deg)", textAlign: "center", zIndex: 2 }}>SCHEDULED</span> : null}
                 <div style={{ borderRight: "1px solid rgba(108,128,152,0.013)", paddingRight: "8px", display: "grid", alignContent: "start", gap: "4px", minHeight: 0 }}>
                   <div
                     style={{
@@ -9092,7 +9103,13 @@ useEffect(() => {
             count: scheduledEventIds.length,
             countLabel: `${scheduledEventIds.length} events`,
             isOpen: eventScheduleOpen,
-            onToggle: () => setEventScheduleOpen((value) => !value),
+            onToggle: () => {
+              setEventScheduleOpen((value) => !value);
+              setScheduledOnly(true);
+              setDashboardMode("market");
+              setWorkspaceViewMode("database");
+              scrollToResultsAnchor();
+            },
             children: (
               <div style={{ display: "grid", gap: "8px", padding: "0 14px 14px" }}>
                 {scheduledEvents.map((event) => (

@@ -78,7 +78,9 @@ const savedSectionStyle: CSSProperties = {
   width: "100%",
   minHeight: "48px",
   padding: 0,
-  overflow: "visible",
+  display: "grid",
+  alignContent: "start",
+  overflow: "hidden",
   border: "1px solid rgba(205,220,239,0.18)",
   borderRadius: "10px",
   background: "linear-gradient(180deg, rgba(12,34,60,0.42), rgba(7,24,44,0.32))",
@@ -111,7 +113,7 @@ export default function ControlPanel({
       style={{ position: "relative", alignSelf: "stretch", display: "grid", gap: "10px", minWidth: 0, minHeight: 0, width: "100%", maxWidth: "320px", height: panelHeight, maxHeight: panelHeight, overflow: "hidden", paddingRight: "1px" }}
     >
       <div style={{ width: "100%", height: "100%", maxHeight: "100%", overflow: "hidden" }}>
-        <div style={{ height: "100%", maxHeight: "100%", overflowY: "auto", overflowX: "hidden", overscrollBehaviorY: "contain", WebkitOverflowScrolling: "touch", padding: "10px 16px 16px", display: "grid", gap: "4px" }}>
+        <div style={{ height: "100%", maxHeight: "100%", overflowY: "auto", overflowX: "hidden", overscrollBehaviorY: "contain", WebkitOverflowScrolling: "touch", padding: "10px 16px 16px", display: "grid", gridAutoRows: "max-content", alignContent: "start", gap: "4px" }}>
           <div style={{ marginBottom: 2, textAlign: "center", display: "grid", justifyItems: "center" }}>
             <div style={{ color: "#dbeafe", fontWeight: 900, fontSize: "20px", lineHeight: 1.05, marginBottom: "6px" }}>Control Panel</div>
             <div style={{ color: "#9db4d3", fontSize: "13px", lineHeight: 1.35, maxWidth: "230px", width: "100%", textAlign: "left", justifySelf: "stretch" }}>{description}</div>
@@ -198,7 +200,11 @@ export default function ControlPanel({
                   <span style={{ color: "#9fb6d4", fontSize: 14, lineHeight: 1 }}>{section.onToggle ? (section.isOpen ? "▾" : "▸") : "▸"}</span>
                 </span>
               </button>
-              {section.isOpen ? section.children : null}
+              {section.isOpen ? (
+                <div style={{ minHeight: 0, maxHeight: "260px", overflowY: "auto", overflowX: "hidden" }}>
+                  {section.children}
+                </div>
+              ) : null}
             </div>
           ))}
 
