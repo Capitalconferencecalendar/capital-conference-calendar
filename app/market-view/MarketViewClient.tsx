@@ -8,7 +8,7 @@ import ControlPanel from "../components/platform/ControlPanel";
 import ContextHelpIcon from "../components/platform/ContextHelpIcon";
 import { getCachedEventPage, getOrFetchEventPage, seedEventPage } from "../components/platform/eventDataCache";
 
-const quickActions = ["Clear", "Share Selected", "Save Market View", "Save Selected"];
+const quickActions = ["Clear", "Share Selected", "Save Market View", "Save Selected", "Add to Schedule"];
 
 type FilterOptions = {
   cities: string[];
@@ -533,6 +533,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const [savedListCount, setSavedListCount] = useState(0);
   const [savedViewCount, setSavedViewCount] = useState(0);
   const [eventScheduleOpen, setEventScheduleOpen] = useState(false);
+  const [scheduleActionMessage, setScheduleActionMessage] = useState("");
 
   useEffect(() => {
     try {
@@ -1486,17 +1487,21 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
               title="Quick Actions"
               ariaLabel="Help: Quick Actions"
               items={[
-                { label: "Save Selected", description: "Save selected event cards into a new or existing list." },
-                { label: "Share Selected", description: "Open an email draft with links to the selected events." },
-                { label: "Save Market View", description: "Save the current filtered view locally so you can return to it later." },
-                { label: "Clear", description: "Clear selected cards, filters, and quick views." },
-              ]}
-            />
-          }
-          quickActions={quickActions.map((action, index) => ({
+              { label: "Save Selected", description: "Save selected event cards into a new or existing list." },
+              { label: "Share Selected", description: "Open an email draft with links to the selected events." },
+              { label: "Save Market View", description: "Save the current filtered view locally so you can return to it later." },
+              { label: "Add to Schedule", description: "Select event cards first, then add them to My Event Schedule." },
+              { label: "Clear", description: "Clear selected cards, filters, and quick views." },
+            ]}
+          />
+        }
+        quickActionsMessage={scheduleActionMessage || undefined}
+        quickActions={quickActions.map((action, index) => ({
             label: action,
-            kind: ["clear", "share", "saveView", "saveSelected"][index] as "clear" | "share" | "saveView" | "saveSelected",
-            accent: ["#9fc3ff", "#8fd0ff", "#7ad6c8", "#ffbf66"][index],
+            kind: ["clear", "share", "saveView", "saveSelected", "schedule"][index] as "clear" | "share" | "saveView" | "saveSelected" | "schedule",
+            accent: ["#9fc3ff", "#8fd0ff", "#7ad6c8", "#ffbf66", "#6ee7d4"][index],
+            description: action === "Add to Schedule" ? "Select one or more event cards to add them to your schedule." : undefined,
+            onClick: action === "Add to Schedule" ? () => setScheduleActionMessage("Select one or more event cards to add them to your schedule.") : undefined,
           }))}
           savedSections={[
             {
