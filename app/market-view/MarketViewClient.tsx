@@ -829,9 +829,9 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const characterMovementRows = monthMovement.characterMovers || [];
   const accessMovementRows = monthMovement.accessMovers || [];
   const moverGroups = [
-    ["Sector Movers", sectorMovementRows],
-    ["Event Character Movers", characterMovementRows],
-    ["Access Profile Movers", accessMovementRows],
+    ["Industry Movers", sectorMovementRows],
+    ["Event Feature Movers", characterMovementRows],
+    ["Company Participant Movers", accessMovementRows],
   ] as const;
   const mom = displayIntelligence.monthOverMonth || {};
   const notableSignals = [
