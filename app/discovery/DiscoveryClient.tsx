@@ -2999,7 +2999,7 @@ useEffect(() => {
         { label: "Issuer Access", value: loadingCountValue || stats.issuerAccess, tone: "#8b5cf6" },
         { label: "Highest Activity Week", value: loadingValue || stats.highestActivityWeek?.label || "—", detail: dataIsBootstrapping ? "" : stats.highestActivityWeek ? `${stats.highestActivityWeek.count} events` : "", tone: "#38d5c4", compact: true },
         { label: "Lowest Activity Week", value: loadingValue || stats.lowestActivityWeek?.label || "—", detail: dataIsBootstrapping ? "" : stats.lowestActivityWeek ? `${stats.lowestActivityWeek.count} events` : "", tone: "#78aaff", compact: true },
-        { label: "Leading Sector", value: loadingValue || stats.leadingSector?.label || "Not classified", detail: dataIsBootstrapping ? "" : stats.leadingSector ? `${stats.leadingSector.count} events` : "", tone: "#8fbfff", compact: true },
+        { label: "Leading Industry", value: loadingValue || stats.leadingSector?.label || "Not classified", detail: dataIsBootstrapping ? "" : stats.leadingSector ? `${stats.leadingSector.count} events` : "", tone: "#8fbfff", compact: true },
       ],
       earliestDate: stats.earliestDate,
       latestDate: stats.latestDate,
@@ -4454,7 +4454,7 @@ useEffect(() => {
               {[
                 {
                   title: "Sync the conferences that matter",
-                  copy: "Create live calendar feeds from the events, cities, sectors, organizers, and market views your team cares about.",
+                  copy: "Create live calendar feeds from the events, cities, industries, organizers, and market views your team cares about.",
                   bullets: ["Google, Apple, and Outlook", "Live ICS subscription feeds", "Updates as events are added or reclassified"],
                   accent: "#2f6ff3",
                   icon: "sync" as const,
@@ -5228,7 +5228,7 @@ useEffect(() => {
                     "Roadshows and investor access events",
                     "Industry conferences with capital markets relevance",
                     "Private markets gatherings",
-                    "Sector conferences with investor, issuer, sponsor, or advisor participation",
+                    "Industry conferences with investor, issuer, sponsor, or advisor participation",
                     "Capital markets service provider events",
                   ].map((item) => (
                     <div key={item} style={{ display: "grid", gridTemplateColumns: "18px 1fr", gap: "10px", alignItems: "start", color: "#dbeafe", fontSize: "14px", lineHeight: 1.4 }}>
@@ -5249,7 +5249,7 @@ useEffect(() => {
                       "Organizer name",
                       "City and venue",
                       "Audience or participation type",
-                      "Market focus or sector theme",
+                      "Market focus or industry",
                     ].map((item) => (
                       <div key={item} style={{ color: "#c8d8ec", fontSize: "14px", lineHeight: 1.4, display: "grid", gridTemplateColumns: "16px 1fr", gap: "10px" }}>
                         <span style={{ color: "#63A4FF", fontWeight: 900 }}>•</span>
@@ -5472,7 +5472,7 @@ useEffect(() => {
                   ? [
                       { t: "Weekly Conference Briefing", b: "A curated weekly summary of notable upcoming conferences, investor events, and market activity.", f: "Delivered by email", kind: "mail" as const, accent: "#6EA8FF" },
                       { t: "Market Activity Highlights", b: "Track hot weeks, active cities, clusters, and new periods of elevated conference concentration.", f: "Market intelligence updates", kind: "zap" as const, accent: "#FFB357" },
-                      { t: "Coverage Updates", b: "Stay informed as new conferences, organizers, sectors, and regions are added to the platform.", f: "Expanding event coverage", kind: "layers" as const, accent: "#53E0C1" },
+                      { t: "Coverage Updates", b: "Stay informed as new conferences, organizers, industries, and regions are added to the platform.", f: "Expanding event coverage", kind: "layers" as const, accent: "#53E0C1" },
                     ]
                   : infoDashboardMode === "submit"
                     ? [
@@ -5612,7 +5612,7 @@ useEffect(() => {
                     ? [
                         { label: "Upcoming Conferences", value: "Notable events coming up across capital markets." },
                         { label: "Hot Weeks & Clusters", value: "Periods of elevated activity and overlapping events." },
-                        { label: "New Coverage", value: "Recently added conferences, organizers, and sectors." },
+                        { label: "New Coverage", value: "Recently added conferences, organizers, and industries." },
                         { label: "Calendar Workflow Tips", value: "Practical ways to build and maintain live conference feeds." },
                       ]
                     : infoDashboardMode === "submit"
@@ -6325,10 +6325,10 @@ useEffect(() => {
                     {
                       color: "#8b5cf6",
                       icon: "target" as const,
-                      title: "Sector Opportunity",
+                      title: "Industry Opportunity",
                       text: topSectorSignal
-                        ? `${topSectorSignal[0]} is showing the strongest sector concentration right now, which may create a tighter outreach and sponsorship window.`
-                        : "Sector opportunity signals are still building out.",
+                        ? `${topSectorSignal[0]} is showing the strongest industry concentration right now, which may create a tighter outreach and sponsorship window.`
+                        : "Industry opportunity signals are still building out.",
                       action: topSectorSignal ? ({ type: "sectorTheme", value: topSectorSignal[0] } as AnalysisAction) : null,
                     },
                     {
@@ -6879,8 +6879,8 @@ useEffect(() => {
                         <div style={{ ...cardBase, gridColumn: splitSpan, display: "grid", gap: "14px", minHeight: "360px" }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
                             <div>
-                              <div style={{ color: "#f4f8ff", fontSize: "20px", lineHeight: 1.1, fontWeight: 900 }}>Sector Opportunity Windows</div>
-                              <div style={{ color: "#b8cce4", fontSize: "14px", lineHeight: 1.35 }}>Identify where sector activity, issuer access, and investor attention are concentrating.</div>
+                              <div style={{ color: "#f4f8ff", fontSize: "20px", lineHeight: 1.1, fontWeight: 900 }}>Industry Opportunity Windows</div>
+                              <div style={{ color: "#b8cce4", fontSize: "14px", lineHeight: 1.35 }}>Identify where industry activity, issuer access, and investor attention are concentrating.</div>
                             </div>
                             <button
                               type="button"
@@ -6891,7 +6891,7 @@ useEffect(() => {
                               }}
                               style={ctaStyle}
                             >
-                              View Sector Windows →
+                              View Industry Windows →
                             </button>
                           </div>
                           {sectorWindows.length ? (
@@ -6919,12 +6919,12 @@ useEffect(() => {
                               })}
                             </div>
                           ) : (
-                            <div style={{ color: "#b8cce4", fontSize: "13px", lineHeight: 1.45 }}>Not enough filtered data to isolate sector opportunity windows yet.</div>
+                            <div style={{ color: "#b8cce4", fontSize: "13px", lineHeight: 1.45 }}>Not enough filtered data to isolate industry opportunity windows yet.</div>
                           )}
                           <div style={{ marginTop: "2px", borderRadius: "14px", padding: "14px", background: "rgba(9,36,61,0.62)", border: "1px solid rgba(107,157,210,0.14)", color: "#cbe7f6", fontSize: "13px", lineHeight: 1.45 }}>
                             {sectorWindows[0]
-                              ? `${sectorWindows[0].sector} is the strongest sector window right now, with concentration building around ${sectorWindows[0].topCity} and a peak around ${sectorWindows[0].peakWeek.weekStart ? formatWeekLabel(sectorWindows[0].peakWeek.weekStart) : "this window"}.`
-                              : "Sector opportunity intelligence will appear as sector coverage expands."}
+                              ? `${sectorWindows[0].sector} is the strongest industry window right now, with concentration building around ${sectorWindows[0].topCity} and a peak around ${sectorWindows[0].peakWeek.weekStart ? formatWeekLabel(sectorWindows[0].peakWeek.weekStart) : "this window"}.`
+                              : "Industry opportunity intelligence will appear as industry coverage expands."}
                           </div>
                         </div>
 

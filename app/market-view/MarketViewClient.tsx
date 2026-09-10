@@ -158,13 +158,13 @@ const forecastModes: Record<ForecastMode, { label: string; title: string; descri
   hotWeeks: {
     label: "Hot Weeks",
     title: "Market Signal Forecast: Hot Weeks",
-    description: "Weeks where event volume, issuer access, investor attendance, and sector signals concentrate around the same dates.",
+    description: "Weeks where event volume, issuer access, investor attendance, and industry signals concentrate around the same dates.",
     icon: "◷",
   },
   clusters: {
     label: "Event Clusters",
     title: "Market Signal Forecast: Event Clusters",
-    description: "Metro-based planning windows where upcoming conferences overlap by timing, sector, access, or audience signal.",
+    description: "Metro-based planning windows where upcoming conferences overlap by timing, industry, access, or audience signal.",
     icon: "◎",
   },
 };
@@ -398,7 +398,7 @@ function ClusterEmptyState({ filtered }: { filtered: boolean }) {
   return (
     <div className="v3-row" style={{ display: "grid", gap: 6 }}>
       <strong>No qualifying metro planning clusters detected in the current view.</strong>
-      <span style={{ color: "#9fb4ca", fontSize: "11px", lineHeight: 1.4 }}>A qualifying cluster requires upcoming conferences in the same metro within an 8-day planning window, with either 3+ distinct events or 2+ events sharing sector, access, investor, or market-focus signals.</span>
+      <span style={{ color: "#9fb4ca", fontSize: "11px", lineHeight: 1.4 }}>A qualifying cluster requires upcoming conferences in the same metro within an 8-day planning window, with either 3+ distinct events or 2+ events sharing industry, access, investor, or market-focus signals.</span>
       {filtered ? <span style={{ color: "#8fbfff", fontSize: "11px", lineHeight: 1.4 }}>Try Full Market View or broaden filters to see more cluster signals.</span> : null}
     </div>
   );
@@ -679,7 +679,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         signal: row.topPublicCompanySector || row.topSector || "Classified activity",
         summary: `Top cities: ${(row.topCities || [row.topCity].filter(Boolean)).slice(0, 3).join(", ") || "not available"}.`,
         detail: row.planningInterpretation || `${row.totalEvents || 0} tracked events are concentrated in this planning week.`,
-        supportingContext: row.topMarketFocus ? `Market focus context: ${row.topMarketFocus}.` : "This week is ranked by event volume and differentiated access, character, and sector signals.",
+        supportingContext: row.topMarketFocus ? `Market focus context: ${row.topMarketFocus}.` : "This week is ranked by event volume and differentiated access, character, and industry signals.",
       }));
     }
     return (displayAnalytics.weekCounts || [])
@@ -815,12 +815,12 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
     { title: "Top Company Participant Profiles", rows: leaderboardAccessRows.map((row) => ({ ...row, label: displayAccessLabel(row.label) })), empty: "No company-participant activity in this window." },
   ];
   const roadmapCards = [
-    ["Comparable Conference Sets", "Identify events with overlapping sector exposure, audience profile, issuer access, market focus, and event character.", "Coming Soon"],
-    ["Sector Momentum", "Track public company sectors and capital markets themes gaining conference density across upcoming planning windows.", "In Data Expansion"],
+    ["Comparable Conference Sets", "Identify events with overlapping industry exposure, audience profile, issuer access, market focus, and event character.", "Coming Soon"],
+    ["Industry Momentum", "Track industries and capital markets themes gaining conference density across upcoming planning windows.", "In Data Expansion"],
     ["Access Signal Scoring", "Separate issuer-access, investor-heavy, presentation-driven, meeting-oriented, and content-led events with more precise scoring.", "In Classification Buildout"],
     ["Organizer Intelligence", "Compare organizer activity, coverage patterns, event positioning, and concentration across the conference landscape.", "Coming Soon"],
-    ["Market Windows", "Detect periods where sector, access, investor, and event-character signals concentrate across upcoming conferences.", "In Data Expansion"],
-    ["Conference Relevance Scoring", "Explain why a conference may matter using sector exposure, audience profile, issuer participation, and comparable events.", "In Classification Buildout"],
+    ["Market Windows", "Detect periods where industry, access, investor, and event-character signals concentrate across upcoming conferences.", "In Data Expansion"],
+    ["Conference Relevance Scoring", "Explain why a conference may matter using industry exposure, audience profile, issuer participation, and comparable events.", "In Classification Buildout"],
   ] as const;
   const monthMovement = displayAnalytics.monthMovement || { windows: [], sectorMovers: [], characterMovers: [], accessMovers: [] };
   const movementWindows = monthMovement.windows.slice(0, 4);
@@ -1128,7 +1128,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
             <div className="v3-hero-copy">
               <div className="v3-eyebrow">Market View Intelligence</div>
               <h1>Capital Markets Conference Intelligence</h1>
-              <p className="v3-hero-primary">A forward-looking view of where issuer access, investor concentration, sector activity, and market attention are building across the conference landscape.</p>
+              <p className="v3-hero-primary">A forward-looking view of where issuer access, investor concentration, industry activity, and market attention are building across the conference landscape.</p>
               <p className="v3-hero-body">Capital Conference Calendar transforms conference records into market-intelligence signals for investor relations, business development, bankers, and capital markets teams. Instead of only showing what events exist, Market View helps surface where attention is concentrating, where activity is clustering, and where the strongest market signals are emerging.</p>
             </div>
           </section>
@@ -1267,13 +1267,13 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                       ["Events", String(activeHotWeek?.count || 0)],
                       ["Cities", String(activeHotWeek?.cityCount || 0)],
                       ["Character", activeHotWeek?.eventCharacter || "Not classified"],
-                      ["Sector", activeHotWeek?.publicCompanySector || "Not classified"],
+                      ["Industry", activeHotWeek?.publicCompanySector || "Not classified"],
                     ]
                     : [
                       ["Events", String((activeCluster?.events || "0").match(/\d+/)?.[0] || 0)],
                       ["Cities", String(activeCluster?.cityCount || 0)],
                       ["Character", activeCluster?.eventCharacter || "Not classified"],
-                      ["Sector", activeCluster?.sector || "Not classified"],
+                      ["Industry", activeCluster?.sector || "Not classified"],
                     ]
                   ).map(([label, value]) => <div className="v3-metric-cell" key={label}><span>{label}</span><strong>{value}</strong></div>)}
                 </div>
@@ -1360,19 +1360,19 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
 
           <section className="v3-support">
             <div className="v3-support-card">
-              <div className="v3-eyebrow">Sector Momentum</div>
+              <div className="v3-eyebrow">Industry Momentum</div>
               <h3>Change in Tracked Conference Activity</h3>
-              {sectorMomentum.length ? sectorMomentum.map((row: any) => <div className="v3-muted-row" key={row.sector}>{row.sector}: {row.currentCount} current vs {row.priorCount} prior ({row.change >= 0 ? "+" : ""}{row.change})</div>) : <EmptyState>Not enough prior-period data to calculate sector momentum yet.</EmptyState>}
+              {sectorMomentum.length ? sectorMomentum.map((row: any) => <div className="v3-muted-row" key={row.sector}>{row.sector}: {row.currentCount} current vs {row.priorCount} prior ({row.change >= 0 ? "+" : ""}{row.change})</div>) : <EmptyState>Not enough prior-period data to calculate industry momentum yet.</EmptyState>}
             </div>
             <div className="v3-support-card">
               <div className="v3-eyebrow">Metro Momentum</div>
               <h3>Metro Movement</h3>
-              {metroMomentum.length ? metroMomentum.map((row: any) => <div className="v3-muted-row" key={row.metroMarket}>{row.metroMarket}: {row.currentCount} current vs {row.priorCount} prior · {row.topSector || "No sector signal"}</div>) : <EmptyState>Not enough prior-period city data to calculate metro momentum yet.</EmptyState>}
+              {metroMomentum.length ? metroMomentum.map((row: any) => <div className="v3-muted-row" key={row.metroMarket}>{row.metroMarket}: {row.currentCount} current vs {row.priorCount} prior · {row.topSector || "No industry signal"}</div>) : <EmptyState>Not enough prior-period city data to calculate metro momentum yet.</EmptyState>}
             </div>
             <div className="v3-support-card">
               <div className="v3-eyebrow">Organizer Movement</div>
               <h3>Organizer Activity</h3>
-              {organizerMovement.length ? organizerMovement.map((row: any) => <div className="v3-muted-row" key={row.organizer}>{row.organizer}: {row.currentCount} current vs {row.priorCount} prior · {row.topSector || "No sector signal"}</div>) : <EmptyState>Not enough prior-period organizer data to calculate organizer movement yet.</EmptyState>}
+              {organizerMovement.length ? organizerMovement.map((row: any) => <div className="v3-muted-row" key={row.organizer}>{row.organizer}: {row.currentCount} current vs {row.priorCount} prior · {row.topSector || "No industry signal"}</div>) : <EmptyState>Not enough prior-period organizer data to calculate organizer movement yet.</EmptyState>}
             </div>
           </section>
 
@@ -1383,7 +1383,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
 
           <section className="v3-panel">
             <div style={{ display: "grid", gap: 6, marginBottom: 14 }}><div className="v3-eyebrow">Geography / Metro</div><h2>Metro Analytics</h2></div>
-            {metroRows.length ? <div className="v3-metro-grid">{metroRows.map((row: any) => <div className="v3-metro-card" key={`${row.city}-${row.state}`}><h3>{[row.city, row.state].filter(Boolean).join(", ")}</h3><strong>{row.totalEvents} events</strong><span>{row.topSector || "No sector signal"}</span><span>{row.topMarketFocus || "No focus signal"}</span></div>)}</div> : <EmptyState>City, state, and region are required to calculate metro analytics.</EmptyState>}
+            {metroRows.length ? <div className="v3-metro-grid">{metroRows.map((row: any) => <div className="v3-metro-card" key={`${row.city}-${row.state}`}><h3>{[row.city, row.state].filter(Boolean).join(", ")}</h3><strong>{row.totalEvents} events</strong><span>{row.topSector || "No industry signal"}</span><span>{row.topMarketFocus || "No focus signal"}</span></div>)}</div> : <EmptyState>City, state, and region are required to calculate metro analytics.</EmptyState>}
           </section>
 
           <section className="v3-panel v3-watch">
@@ -1419,14 +1419,14 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
           </section>
 
           <section className="v3-section">
-            <div className="v3-section-head"><div className="v3-eyebrow">Current Index Shape</div><h2>Market Composition</h2><p>How the upcoming conference index is distributed by character, access, sector, market focus, and location. Percentages may overlap where conferences carry multiple classifications.</p></div>
+            <div className="v3-section-head"><div className="v3-eyebrow">Current Index Shape</div><h2>Market Composition</h2><p>How the upcoming conference index is distributed by character, access, industry, market focus, and location. Percentages may overlap where conferences carry multiple classifications.</p></div>
             <div className="v3-composition-grid">
               {compositionCards.map((card) => <div className="v3-composition-card" key={card.title}><h3>{card.title}</h3>{card.rows.length ? card.rows.slice(0, 5).map((row) => <Bar key={row.label} label={row.label} value={row.pct} count={row.count} share={row.share} tone={card.tone} />) : <EmptyState>Not enough mapped data is available yet.</EmptyState>}</div>)}
             </div>
           </section>
 
           <section className="v3-section">
-            <div className="v3-section-head"><div className="v3-eyebrow">Roadmap</div><h2>Intelligence Layer Coming Soon</h2><p>We are expanding the classification layer behind Market View to support deeper comparisons, sector movement, access signals, and conference relevance scoring.</p></div>
+            <div className="v3-section-head"><div className="v3-eyebrow">Roadmap</div><h2>Intelligence Layer Coming Soon</h2><p>We are expanding the classification layer behind Market View to support deeper comparisons, industry movement, access signals, and conference relevance scoring.</p></div>
             <div className="v3-roadmap-grid">
               {roadmapCards.map(([title, description, status]) => <div className="v3-roadmap-card" key={title}><span className="v3-status">{status}</span><h3>{title}</h3><p>{description}</p></div>)}
             </div>

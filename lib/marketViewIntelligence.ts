@@ -1112,7 +1112,7 @@ function getPrimaryUseCases(event: MarketViewEventInput): string[] {
   if (isOneOnOneEvent(event) || isStructuredAccessEvent(event)) useCases.add("1x1 meeting planning");
   if (isInvestorHeavyEvent(event)) useCases.add("Investor coverage");
   if (isDealMakingEvent(event)) useCases.add("Partnering and deal sourcing");
-  if (getAllSectors(event).length) useCases.add("Sector coverage");
+  if (getAllSectors(event).length) useCases.add("Industry coverage");
   if (!useCases.size) useCases.add("Market visibility");
   return Array.from(useCases);
 }
@@ -1415,7 +1415,7 @@ function buildClusterWeeks(events: ScoredEvent[], asOfDate: string) {
       }
       const typedGroups: Array<{ type: string; items: ScoredEvent[]; specificity: number }> = [];
       countBy(windowItems.map(getPrimarySector)).filter((row) => row.count >= 2).forEach((row) => {
-        typedGroups.push({ type: `${row.label} Sector Cluster`, items: windowItems.filter((item) => getPrimarySector(item) === row.label), specificity: 18 });
+        typedGroups.push({ type: `${row.label} Industry Cluster`, items: windowItems.filter((item) => getPrimarySector(item) === row.label), specificity: 18 });
       });
       countBy(windowItems.flatMap(getMarketFocusValues)).filter((row) => row.count >= 2).forEach((row) => {
         typedGroups.push({ type: `${row.label} Focus Cluster`, items: windowItems.filter((item) => getMarketFocusValues(item).includes(row.label)), specificity: 18 });
@@ -1461,7 +1461,7 @@ function buildClusterAlerts(events: ScoredEvent[], asOfDate: string): { top: Clu
     const citiesIncluded = unique(eventItems.map(cityLabel));
     return {
       clusterId: `${cluster.metroMarket}-${cluster.clusterType}-${cluster.dateWindow}-${index}`,
-      clusterType: cluster.clusterType.replace(/.+ Sector Cluster$/, "Industry Cluster").replace(/.+ Focus Cluster$/, "Investment Focus Cluster"),
+      clusterType: cluster.clusterType.replace(/.+ Industry Cluster$/, "Industry Cluster").replace(/.+ Focus Cluster$/, "Investment Focus Cluster"),
       metroMarket: cluster.metroMarket,
       anchorCity: cluster.anchorCity,
       citiesIncluded,
@@ -1646,7 +1646,7 @@ function buildConflictAlerts(events: ScoredEvent[]): MarketViewIntelligence["con
         : sharedSignals.some((signal) => /Investor/i.test(signal))
           ? "Same-Investor-Audience Conflict"
           : sharedSignals.some((signal) => getAllSectors(left).includes(signal) || getAllSectors(right).includes(signal))
-            ? "Same-Sector Conflict"
+            ? "Same-Industry Conflict"
             : "Travel Conflict";
       rows.push({
         conflictType,
@@ -1820,7 +1820,7 @@ function buildMonthOverMonth(events: ScoredEvent[], clusterAlerts: ClusterAlert[
       change: currentMatches.length - priorMatches.length,
       topSector: topLabel(currentMatches.map(getPrimarySector)),
       topMarketFocus: topLabel(currentMatches.flatMap(getMarketFocusValues)),
-      interpretation: `${metroMarket} has ${currentMatches.length} tracked ${currentMonth} events${topLabel(currentMatches.map(getPrimarySector)) ? `, with ${topLabel(currentMatches.map(getPrimarySector))} as the leading sector signal` : ""}.`,
+      interpretation: `${metroMarket} has ${currentMatches.length} tracked ${currentMonth} events${topLabel(currentMatches.map(getPrimarySector)) ? `, with ${topLabel(currentMatches.map(getPrimarySector))} as the leading industry signal` : ""}.`,
     };
   })).slice(0, 5);
   const inNext = (days: number) => events.filter((event) => {
@@ -1845,7 +1845,7 @@ function buildMonthOverMonth(events: ScoredEvent[], clusterAlerts: ClusterAlert[
   };
   const leadingSector = sectorMomentum[0]?.sector;
   const leadingMetro = metroMomentum[0]?.metroMarket;
-  const readout = `Tracked ${currentMonth} activity is ${volumeChange > 0 ? "higher than" : volumeChange < 0 ? "lower than" : "roughly in line with"} ${priorMonth}. ${leadingSector ? `${leadingSector} is the leading sector mover, ` : ""}${leadingMetro ? `while ${leadingMetro} is the leading metro signal. ` : ""}${signalMixShift.issuerAccess.change > 0 ? "Issuer-access signals are higher month over month. " : ""}${forwardBuild}`.trim();
+  const readout = `Tracked ${currentMonth} activity is ${volumeChange > 0 ? "higher than" : volumeChange < 0 ? "lower than" : "roughly in line with"} ${priorMonth}. ${leadingSector ? `${leadingSector} is the leading industry mover, ` : ""}${leadingMetro ? `while ${leadingMetro} is the leading metro signal. ` : ""}${signalMixShift.issuerAccess.change > 0 ? "Issuer-access signals are higher month over month. " : ""}${forwardBuild}`.trim();
   return {
     currentMonth,
     priorMonth,
@@ -2093,7 +2093,7 @@ function buildDataReadiness(events: ScoredEvent[]) {
     weakestFields: rows.filter((row) => row.coveragePct < 50).map((row) => row.field),
     recommendedCaveats: [
       "Website Approval is the stronger readiness signal; Verification Status should be treated as a secondary field until coverage improves.",
-      "Public company sector momentum should be shown with coverage context because sector tagging may be incomplete in narrow filtered views.",
+      "Industry momentum should be shown with coverage context because industry tagging may be incomplete in narrow filtered views.",
       "Audience-specific analytics should not be emphasized unless the Audience field becomes populated.",
     ],
   };

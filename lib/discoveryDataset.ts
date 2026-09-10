@@ -661,7 +661,7 @@ function buildLeaderboardContext(events: DiscoveryEvent[], counts: {
         const items = byCity(label);
         const sector = leadSector(items);
         const character = leadCharacter(items);
-        return sector ? `Lead sector: ${sector}` : character ? `Lead character: ${character}` : "";
+        return sector ? `Lead industry: ${sector}` : character ? `Lead character: ${character}` : "";
       }),
       signalRead: metroLead[1] && metroSecond?.[1] && metroLead[1] >= metroSecond[1] * 3
         ? `${metroLead[0]} has more than 3x the conferences of the second-ranked metro.`
