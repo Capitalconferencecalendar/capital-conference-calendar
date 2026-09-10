@@ -1797,7 +1797,13 @@ export default function EventsClient({
     const marketFocusParams = [...params.getAll("investmentFocus"), ...params.getAll("marketFocus")];
     const eventIds = params.getAll("eventId").filter(Boolean);
     const searchParam = params.get("q") || "";
+    const scheduleViewRequested = params.get("schedule") === "1" || params.get("view") === "schedule";
     if (searchParam) setSearchQuery(searchParam);
+    if (scheduleViewRequested) {
+      setScheduledOnly(true);
+      setDashboardMode("market");
+      setWorkspaceViewMode("database");
+    }
     if (cityParams.length || startDateParam || endDateParam || eventIds.length || countryParams.length || regionParams.length || stateParams.length || sectorThemeParams.length || publicCompanySectorParams.length || conferenceTypeParams.length || issuerParticipationParams.length || targetAudienceParams.length || companyParticipantParams.length || eventFeatureParams.length || accessModelParams.length || marketCapParams.length || organizerParams.length || marketFocusParams.length) {
       setFilters((prev) => ({
         ...prev,

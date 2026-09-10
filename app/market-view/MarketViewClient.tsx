@@ -529,6 +529,10 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const [selectedClusterIndex, setSelectedClusterIndex] = useState(0);
   const [hotWeekEvents, setHotWeekEvents] = useState<HotWeekEvent[]>([]);
   const [isLoadingHotWeekEvents, setIsLoadingHotWeekEvents] = useState(false);
+  const [scheduledEventIds, setScheduledEventIds] = useState<string[]>([]);
+  const [savedListCount, setSavedListCount] = useState(0);
+  const [savedViewCount, setSavedViewCount] = useState(0);
+  const [eventScheduleOpen, setEventScheduleOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -539,6 +543,35 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
       // Keep the default Match All mode when browser storage is unavailable.
     }
   }, []);
+
+  useEffect(() => {
+    const readStoredArray = (key: string): unknown[] => {
+      try {
+        const value = localStorage.getItem(key);
+        const parsed = value ? JSON.parse(value) : [];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    };
+    const syncRailStorage = () => {
+      setScheduledEventIds(Array.from(new Set(readStoredArray("ccc_my_event_schedule").filter((value): value is string => typeof value === "string"))));
+      setSavedListCount(readStoredArray("ccc_saved_lists").length);
+      setSavedViewCount(readStoredArray("ccc_saved_views").length);
+    };
+    syncRailStorage();
+    window.addEventListener("storage", syncRailStorage);
+    return () => window.removeEventListener("storage", syncRailStorage);
+  }, []);
+
+  const loadEventSchedule = () => {
+    window.location.assign("/discovery?schedule=1");
+  };
+
+  const clearEventSchedule = () => {
+    localStorage.setItem("ccc_my_event_schedule", "[]");
+    setScheduledEventIds([]);
+  };
 
   const updateFilterMode = (nextMode: FilterMatchMode) => {
     setFilterMode(nextMode);
@@ -1466,8 +1499,31 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
             accent: ["#9fc3ff", "#8fd0ff", "#7ad6c8", "#ffbf66"][index],
           }))}
           savedSections={[
-            { title: "Saved Lists", icon: "lists", count: 0 },
-            { title: "Saved Views", icon: "views", count: 0 },
+            {
+              title: "My Event Schedule",
+              icon: "lists",
+              count: scheduledEventIds.length,
+              countLabel: `${scheduledEventIds.length} events`,
+              isOpen: eventScheduleOpen,
+              onToggle: () => setEventScheduleOpen((value) => !value),
+              children: (
+                <div style={{ display: "grid", gap: "8px", padding: "0 14px 14px" }}>
+                  {scheduledEventIds.length ? (
+                    <>
+                      <div style={{ color: "#9fb6d4", fontSize: "12px", lineHeight: 1.35 }}>{scheduledEventIds.length} event{scheduledEventIds.length === 1 ? "" : "s"} saved locally.</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                        <button type="button" onClick={loadEventSchedule} style={{ height: "28px", borderRadius: "8px", border: "1px solid rgba(96,165,250,0.42)", background: "rgba(37,99,235,0.22)", color: "#dbeafe", fontSize: "11px", fontWeight: 800, cursor: "pointer", padding: "0 12px" }}>Load</button>
+                        <button type="button" onClick={clearEventSchedule} style={{ border: "none", background: "transparent", color: "#9fc3e7", fontSize: "11px", fontWeight: 800, cursor: "pointer", padding: "3px 0" }}>Clear schedule</button>
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ color: "#9fb6d4", fontSize: "12.5px", lineHeight: 1.4 }}>Add events from Discovery to build your schedule.</div>
+                  )}
+                </div>
+              ),
+            },
+            { title: "My Lists", icon: "lists", count: savedListCount },
+            { title: "Saved Views", icon: "views", count: savedViewCount },
           ]}
         />
       </div>
