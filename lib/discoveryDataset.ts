@@ -245,6 +245,7 @@ export type DiscoveryQuery = {
   organizer?: string[];
   marketFocus?: string[];
   eventIds?: string[];
+  eventIdsOnly?: boolean;
   sort?: "soonest" | "city";
   filterMode?: "and" | "or";
 };
@@ -1156,6 +1157,9 @@ function filterEvents(events: InternalDiscoveryEvent[], query: DiscoveryQuery) {
   const useOrFilters = query.filterMode === "or";
 
   return events.filter((event) => {
+    if (query.eventIdsOnly) {
+      return ids.has(event.id);
+    }
     const startTime = new Date(`${event.startDate}T00:00:00Z`).getTime();
     if (!Number.isFinite(startTime)) return false;
     if (query.dateRange && query.dateRange !== "all" && (startTime < todayTime || startTime > maxTime)) return false;

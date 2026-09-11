@@ -1863,7 +1863,13 @@ export default function EventsClient({
 
   const discoveryRequest = useMemo(() => {
     const params = new URLSearchParams();
-    params.set("limit", String(LOAD_MORE_INCREMENT));
+    params.set("limit", String(scheduledOnly ? Math.max(LOAD_MORE_INCREMENT, scheduledEventIds.length) : LOAD_MORE_INCREMENT));
+    if (scheduledOnly) {
+      params.set("schedule", "1");
+      params.set("sort", "soonest");
+      scheduledEventIds.forEach((value) => params.append("eventId", value));
+      return params;
+    }
     params.set("dateRange", filters.dateRange);
     params.set("filterMode", filterMode);
     params.set("sort", sortMode);
@@ -1887,7 +1893,6 @@ export default function EventsClient({
     filters.marketFocus.forEach((value) => params.append("investmentFocus", value));
     activeSavedList?.eventIds.forEach((value) => params.append("eventId", value));
     urlEventIds.forEach((value) => params.append("eventId", value));
-    if (scheduledOnly) scheduledEventIds.forEach((value) => params.append("eventId", value));
     return params;
   }, [activeSavedList?.eventIds, filterMode, filters, fromDate, scheduledEventIds, scheduledOnly, searchQuery, sortMode, toDate, urlEventIds]);
   const initialDiscoveryRequestRef = useRef<string | null>(null);
@@ -2085,6 +2090,12 @@ useEffect(() => {
   const scheduledEvents = useMemo(
     () => scheduledEventIds.map((id) => events.find((event) => event.id === id)).filter((event): event is WorkspaceEvent => Boolean(event)),
     [events, scheduledEventIds]
+  );
+  const unavailableScheduledEventIds = useMemo(
+    () => scheduledOnly && !isLoadingEvents
+      ? scheduledEventIds.filter((id) => !events.some((event) => event.id === id))
+      : [],
+    [events, isLoadingEvents, scheduledEventIds, scheduledOnly]
   );
   const buildCalendarWeeks = useCallback((source: WorkspaceEvent[]) => {
     const weeks = new Map<
@@ -9144,11 +9155,12 @@ useEffect(() => {
                             <button type="button" onClick={() => removeScheduledEvent(event.id)} aria-label={`Remove ${event.title} from My Event Schedule`} title={`Remove ${event.title} from My Event Schedule`} style={{ width: "22px", height: "22px", borderRadius: "6px", border: "1px solid rgba(190,102,122,0.36)", background: "rgba(118,46,63,0.18)", color: "#f2b7c4", fontSize: "14px", lineHeight: 1, cursor: "pointer", padding: 0 }}>×</button>
                           </div>
                         ))}
-                        {scheduledEventIds.length > scheduledEvents.length ? (
-                          <div style={{ color: "#8fa9c7", fontSize: "11px", lineHeight: 1.35, paddingTop: "4px" }}>
-                            {scheduledEventIds.length - scheduledEvents.length} scheduled event{scheduledEventIds.length - scheduledEvents.length === 1 ? " is" : "s are"} not currently loaded.
+                        {unavailableScheduledEventIds.map((eventId) => (
+                          <div key={eventId} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: "8px", minHeight: "30px", padding: "6px 0", borderBottom: "1px solid rgba(147,197,253,0.10)" }}>
+                            <span style={{ color: "#9fb6d4", fontSize: "11.5px", fontWeight: 700 }}>Event no longer available</span>
+                            <button type="button" onClick={() => removeScheduledEvent(eventId)} aria-label="Remove unavailable event from My Event Schedule" title="Remove unavailable event from My Event Schedule" style={{ width: "22px", height: "22px", borderRadius: "6px", border: "1px solid rgba(190,102,122,0.36)", background: "rgba(118,46,63,0.18)", color: "#f2b7c4", fontSize: "14px", lineHeight: 1, cursor: "pointer", padding: 0 }}>×</button>
                           </div>
-                        ) : null}
+                        ))}
                       </div>
                     ) : null}
                   </>

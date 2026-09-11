@@ -65,6 +65,7 @@ export async function GET(request: NextRequest) {
       organizer: values(params, "organizer"),
       marketFocus: [...values(params, "investmentFocus"), ...values(params, "marketFocus")],
       eventIds: values(params, "eventId"),
+      eventIdsOnly: params.get("schedule") === "1",
       sort: sort === "city" ? "city" : "soonest",
       filterMode: filterMode === "or" ? "or" : "and",
     };
