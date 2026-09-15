@@ -148,7 +148,7 @@ export default function AppShell({
               {
                 title: "Explore",
                 links: [
-                  { label: "Get Started", href: "/" },
+                  { label: "Get Started", href: "/get-started" },
                   { label: "Discovery", href: "/discovery" },
                   { label: "Market View", href: "/market-view" },
                 ],
