@@ -143,6 +143,11 @@ export type MarketViewAnalytics = {
   total: number;
   cityCounts: RankedCount[];
   organizerCounts: RankedCount[];
+  industryCounts: RankedCount[];
+  investmentFocusCounts: RankedCount[];
+  eventFeaturesCounts: RankedCount[];
+  companyParticipantsCounts: RankedCount[];
+  regionCounts: RankedCount[];
   themeCounts: RankedCount[];
   focusCounts: RankedCount[];
   categoryCounts: RankedCount[];
@@ -833,21 +838,26 @@ function windowStats(events: DiscoveryEvent[]): MarketWindow {
 function buildMarketViewAnalytics(events: DiscoveryEvent[]): MarketViewAnalytics {
   const cityCounts = ranked(events.map(cityValue));
   const organizerCounts = ranked(events.map((event) => event.organizer));
-  const themeCounts = ranked(events.flatMap((event) => splitCsv(event.industry || "")));
-  const focusCounts = ranked(events.flatMap((event) => {
+  const industryCounts = ranked(events.flatMap((event) => splitCsv(event.industry || "")));
+  const investmentFocusCounts = ranked(events.flatMap((event) => {
     return splitCsv(event.investmentFocus || "");
   }));
+  const eventFeaturesCounts = ranked(events.flatMap((event) => splitCsv(event.eventFeatures || "")));
+  const companyParticipantsCounts = ranked(events.flatMap((event) => splitCsv(event.companyParticipants || "")));
+  const regionCounts = ranked(events.map((event) => event.region));
+  const themeCounts = industryCounts;
+  const focusCounts = investmentFocusCounts;
   const categoryCounts = ranked(events.map((event) => event.conferenceType || ""));
   const formatCounts = ranked(events.map((event) => event.format));
-  const sectorCounts = ranked(events.flatMap((event) => splitCsv(event.industry || "")));
+  const sectorCounts = industryCounts;
   const audienceCounts = ranked(events.flatMap((event) => unique([
     ...splitCsv(event.targetAudience || ""),
     ...splitCsv(event.companyParticipants || ""),
     ...splitCsv(event.eventFeatures || ""),
     ...splitCsv(event.accessModel || ""),
   ]).filter((value) => /(institutional investors?|family offices?|private equity|venture capital|retail investors?|public company|issuer|mixed participation|company presentations|1x1|one-on-one|industry networking|public markets|private markets)/i.test(value))));
-  const eventCharacterCounts = ranked(events.flatMap((event) => splitCsv(event.eventFeatures || "")));
-  const issuerParticipationCounts = ranked(events.flatMap((event) => splitCsv(event.companyParticipants || "")));
+  const eventCharacterCounts = eventFeaturesCounts;
+  const issuerParticipationCounts = companyParticipantsCounts;
   const leaderboardContext = buildLeaderboardContext(events, { cityCounts, organizerCounts, sectorCounts, focusCounts, eventCharacterCounts, issuerParticipationCounts });
   const leaderboardWindows = {
     "30": buildLeaderboardWindow(events, 30),
@@ -975,7 +985,7 @@ function buildMarketViewAnalytics(events: DiscoveryEvent[]): MarketViewAnalytics
   }));
   const monthMovement = buildMonthMovement(events);
   return {
-    total: events.length, cityCounts, organizerCounts, themeCounts, focusCounts, categoryCounts, formatCounts, sectorCounts, audienceCounts, eventCharacterCounts, issuerParticipationCounts, verificationStatusCounts, weekCounts, monthCounts, monthMovement, leaderboardContext, leaderboardWindows,
+    total: events.length, cityCounts, organizerCounts, industryCounts, investmentFocusCounts, eventFeaturesCounts, companyParticipantsCounts, regionCounts, themeCounts, focusCounts, categoryCounts, formatCounts, sectorCounts, audienceCounts, eventCharacterCounts, issuerParticipationCounts, verificationStatusCounts, weekCounts, monthCounts, monthMovement, leaderboardContext, leaderboardWindows,
     statesCount: new Set(events.map((event) => event.state).filter(Boolean)).size,
     citiesCount: new Set(events.map(cityValue).filter(Boolean)).size,
     organizersCount: new Set(events.map((event) => event.organizer).filter(Boolean)).size,

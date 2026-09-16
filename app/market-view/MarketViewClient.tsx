@@ -56,6 +56,11 @@ type MarketAnalytics = {
   monthCounts?: { month: string; count: number }[];
   cityCounts: [string, number][];
   organizerCounts: [string, number][];
+  industryCounts?: [string, number][];
+  investmentFocusCounts?: [string, number][];
+  eventFeaturesCounts?: [string, number][];
+  companyParticipantsCounts?: [string, number][];
+  regionCounts?: [string, number][];
   themeCounts: [string, number][];
   focusCounts: [string, number][];
   categoryCounts: [string, number][];
@@ -823,21 +828,20 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const leaderboardVisibleFocusRows = leaderboardFocusRows.filter((row) => !/institutional investors/i.test(row.label));
   const focusLeaderboard = focusRows.filter((row) => !/institutional investors/i.test(row.label));
   const visibleFocusRows = focusLeaderboard.length ? focusLeaderboard : focusRows;
-  const metroMaxCount = Math.max(...metroLeaderboard.map((row) => row.count), 1);
-  const regionalRows = metroLeaderboard.map((row) => ({
-    ...row,
-    pct: Math.max(4, Math.round((row.count / metroMaxCount) * 100)),
-  }));
-  const compositionRows = (rows: Array<{ label: string; count: number; pct: number }>) => rows.map((row) => ({
-    ...row,
-    share: displayAggregates.events ? Math.round((row.count / displayAggregates.events) * 100) : 0,
-  }));
+  const compositionRows = (rows: [string, number][] | undefined) => (rows || [])
+    .filter(([label, count]) => Boolean(label) && count > 0)
+    .slice(0, 5)
+    .map(([label, count]) => ({
+      label,
+      count,
+      share: displayAggregates.events ? Math.round((count / displayAggregates.events) * 100) : 0,
+    }));
   const compositionCards = [
-    { title: "Event Features Mix", rows: compositionRows(characterRows), tone: "indigo" as const },
-    { title: "Audience & Access Mix", rows: compositionRows(accessRows.map((row) => ({ ...row, label: displayAccessLabel(row.label) }))), tone: "blue" as const },
-    { title: "Industry Mix", rows: compositionRows(sectorRows), tone: "blue" as const },
-    { title: "Investment Focus Mix", rows: compositionRows(visibleFocusRows), tone: "indigo" as const },
-    { title: "Regional Mix", rows: compositionRows(regionalRows), tone: "blue" as const },
+    { title: "Event Features Mix", rows: compositionRows(displayAnalytics.eventFeaturesCounts), tone: "indigo" as const },
+    { title: "Company Participant Mix", rows: compositionRows(displayAnalytics.companyParticipantsCounts), tone: "blue" as const },
+    { title: "Industry Mix", rows: compositionRows(displayAnalytics.industryCounts), tone: "blue" as const },
+    { title: "Investment Focus Mix", rows: compositionRows(displayAnalytics.investmentFocusCounts), tone: "indigo" as const },
+    { title: "Regional Mix", rows: compositionRows(displayAnalytics.regionCounts), tone: "blue" as const },
   ];
   const leaderboardContext = leaderboardSource.leaderboardContext || {};
   const leaderboardCards = [
@@ -1122,7 +1126,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-tooltip { position: absolute; z-index: 10; right: 0; bottom: calc(100% + 8px); width: 260px; border-radius: 10px; background: #102136; color: #fff; padding: 10px; font-size: 12px; line-height: 1.35; box-shadow: 0 16px 32px rgba(0,0,0,.25); opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
         .v3-info:hover .v3-tooltip, .v3-info:focus .v3-tooltip { opacity: 1; }
         @media (max-width: 1180px) { .v3-page { overflow: auto; } .v3-main { overflow: visible; } .v3-readout, .v3-primary-row, .v3-kpi-strip, .v3-support, .v3-analytics, .v3-watch { grid-template-columns: 1fr; } .v3-signal-forecast { height: auto; } .v3-signal-body { grid-template-columns: 1fr; } .v3-signal-list { max-height: 360px; border-right: 0; border-bottom: 1px solid rgba(125,162,199,.2); } .v3-signal-detail { max-height: none; overflow: visible; } }
-        @media (max-width: 1180px) { .v3-league-grid, .v3-composition-grid, .v3-roadmap-grid, .v3-mover-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+        @media (max-width: 1180px) { .v3-league-grid, .v3-roadmap-grid, .v3-mover-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .v3-composition-grid { grid-template-columns: 1fr; } }
         @media (max-width: 900px) { .v3-mom-body { grid-template-columns: 1fr; } }
         @media (max-width: 760px) { h1 { font-size: 31px; } .v3-metro-grid, .v3-league-grid, .v3-composition-grid, .v3-roadmap-grid, .v3-mover-grid { grid-template-columns: 1fr; } .v3-signal-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); } }
       `}</style>
@@ -1358,6 +1362,13 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
             </div>
           </section>
 
+          <section className="v3-section">
+            <div className="v3-section-head"><div className="v3-eyebrow">Current Index Shape</div><h2>Market Composition</h2><p>How the current conference index is distributed across event structure, audience, industry, investment focus, and location.</p></div>
+            <div className="v3-composition-grid">
+              {compositionCards.map((card) => <div className="v3-composition-card" key={card.title}><h3>{card.title}</h3>{card.rows.length ? card.rows.map((row) => <Bar key={row.label} label={row.label} value={row.share} count={row.count} share={row.share} tone={card.tone} />) : <EmptyState>Not enough mapped data is available yet.</EmptyState>}</div>)}
+            </div>
+          </section>
+
           {false && <>
           <section className="v3-support">
             <div className="v3-support-card">
@@ -1449,13 +1460,6 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                   {context?.signalRead ? <div className="v3-league-signal">{context.signalRead}</div> : null}
                 </div>;
               })}
-            </div>
-          </section>
-
-          <section className="v3-section">
-            <div className="v3-section-head"><div className="v3-eyebrow">Current Index Shape</div><h2>Market Composition</h2><p>How the upcoming conference index is distributed by character, access, industry, market focus, and location. Percentages may overlap where conferences carry multiple classifications.</p></div>
-            <div className="v3-composition-grid">
-              {compositionCards.map((card) => <div className="v3-composition-card" key={card.title}><h3>{card.title}</h3>{card.rows.length ? card.rows.slice(0, 5).map((row) => <Bar key={row.label} label={row.label} value={row.pct} count={row.count} share={row.share} tone={card.tone} />) : <EmptyState>Not enough mapped data is available yet.</EmptyState>}</div>)}
             </div>
           </section>
 
