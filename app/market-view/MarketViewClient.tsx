@@ -303,15 +303,17 @@ function Bar({ label, value, tone = "blue", count, share }: { label: string; val
 }
 
 function CompositionBar({ rank, label, count, share, tone }: { rank: number; label: string; count: number; share: number; tone: "blue" | "indigo" }) {
+  const fill = tone === "indigo" ? "linear-gradient(90deg,#4f46a5,#818cf8)" : "linear-gradient(90deg,#2563eb,#38bdf8)";
+  const glow = tone === "indigo" ? "0 0 9px rgba(129,140,248,.45)" : "0 0 9px rgba(56,189,248,.52)";
   return (
-    <div className={`v3-composition-row ${tone}`}>
-      <div className="v3-composition-row-head">
-        <span className="v3-composition-rank">{rank}</span>
-        <span className="v3-composition-label">{label}</span>
-        <strong><span>{formatNumber(count)}</span><span>{share}%</span></strong>
+    <div className={`v3-composition-row ${tone}`} style={{ display: "grid", gap: 6, padding: "9px 0 8px", borderTop: "1px solid rgba(120,168,212,.15)" }}>
+      <div className="v3-composition-row-head" style={{ display: "grid", gridTemplateColumns: "22px minmax(0, 1fr) auto", gap: 8, alignItems: "center", minWidth: 0 }}>
+        <span className="v3-composition-rank" style={{ width: 22, height: 22, display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "0 0 22px", border: "1px solid rgba(96,165,250,.34)", borderRadius: 5, background: "rgba(37,99,235,.12)", color: "#8dccff", fontSize: 9, fontWeight: 900 }}>{rank}</span>
+        <span className="v3-composition-label" style={{ minWidth: 0, color: "#dcecff", fontSize: 10.5, fontWeight: 750, lineHeight: 1.2, overflowWrap: "anywhere" }}>{label}</span>
+        <strong style={{ display: "inline-block", color: "#f1f7ff", fontSize: 10, whiteSpace: "nowrap", textAlign: "right" }}>{formatNumber(count)} <span style={{ color: "#9dbbda", fontSize: 9.5 }}>· {share}%</span></strong>
       </div>
-      <div className="v3-composition-track" aria-label={`${label}: ${count} events, ${share}% of the current index`}>
-        <span style={{ width: `${Math.max(4, share)}%` }} />
+      <div className="v3-composition-track" aria-label={`${label}: ${count} events, ${share}% of the current index`} style={{ display: "block", width: "100%", height: 6, overflow: "hidden", borderRadius: 999, background: "rgba(49,87,125,.38)", boxShadow: "inset 0 1px 1px rgba(0,0,0,.25)" }}>
+        <span style={{ display: "block", height: "100%", width: `${Math.max(4, share)}%`, borderRadius: 999, background: fill, boxShadow: glow }} />
       </div>
     </div>
   );
