@@ -302,6 +302,21 @@ function Bar({ label, value, tone = "blue", count, share }: { label: string; val
   );
 }
 
+function CompositionBar({ rank, label, count, share, tone }: { rank: number; label: string; count: number; share: number; tone: "blue" | "indigo" }) {
+  return (
+    <div className={`v3-composition-row ${tone}`}>
+      <div className="v3-composition-row-head">
+        <span className="v3-composition-rank">{rank}</span>
+        <span className="v3-composition-label">{label}</span>
+        <strong><span>{formatNumber(count)}</span><span>{share}%</span></strong>
+      </div>
+      <div className="v3-composition-track" aria-label={`${label}: ${count} events, ${share}% of the current index`}>
+        <span style={{ width: `${Math.max(4, share)}%` }} />
+      </div>
+    </div>
+  );
+}
+
 function OpenLink({ children = "Inspect" }: { children?: ReactNode }) {
   return <span className="v3-link">{children}</span>;
 }
@@ -1101,9 +1116,22 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-league-bar { grid-column: 2 / -1; height: 2px; border-radius: 999px; overflow: hidden; background: rgba(77,128,178,.16); }
         .v3-league-bar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#2563eb,#38bdf8); box-shadow: 0 0 8px rgba(56,189,248,.45); }
         .v3-league-signal { margin-top: 2px; padding-top: 7px; border-top: 1px solid rgba(120,168,212,.13); color: #9db7d1; font-size: 10.5px; line-height: 1.35; }
-        .v3-composition-card .v3-bar-row { grid-template-columns: minmax(74px,.8fr) minmax(0,1fr) minmax(66px,auto); font-size: 10.5px; }
-        .v3-composition-card .v3-bar-row > span { overflow-wrap: anywhere; }
-        .v3-composition-card .v3-bar-row strong { font-size: 9.5px; text-align: right; white-space: nowrap; }
+        .v3-composition-card { padding: 13px; gap: 0; overflow: hidden; }
+        .v3-composition-card.blue { border-color: rgba(59,130,246,.38); }
+        .v3-composition-card.indigo { border-color: rgba(129,140,248,.36); }
+        .v3-composition-card-head { display: flex; align-items: center; gap: 8px; padding-bottom: 8px; }
+        .v3-composition-card-head::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: #38bdf8; box-shadow: 0 0 10px rgba(56,189,248,.7); }
+        .v3-composition-card.indigo .v3-composition-card-head::before { background: #818cf8; box-shadow: 0 0 10px rgba(129,140,248,.7); }
+        .v3-composition-card-head h3 { margin: 0; }
+        .v3-composition-row { display: grid; gap: 6px; padding: 8px 0 7px; border-top: 1px solid rgba(120,168,212,.15); }
+        .v3-composition-row-head { display: grid; grid-template-columns: 20px minmax(0,1fr) auto; gap: 7px; align-items: center; }
+        .v3-composition-rank { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid rgba(96,165,250,.34); border-radius: 5px; background: rgba(37,99,235,.12); color: #8dccff; font-size: 9px; font-weight: 900; }
+        .v3-composition-label { min-width: 0; color: #dcecff; font-size: 10.5px; font-weight: 750; line-height: 1.2; overflow-wrap: anywhere; }
+        .v3-composition-row-head strong { display: inline-flex; align-items: baseline; gap: 5px; color: #f1f7ff; font-size: 10px; white-space: nowrap; }
+        .v3-composition-row-head strong span:last-child { color: #9dbbda; font-size: 9.5px; }
+        .v3-composition-track { height: 5px; overflow: hidden; border-radius: 999px; background: rgba(49,87,125,.26); box-shadow: inset 0 1px 1px rgba(0,0,0,.25); }
+        .v3-composition-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#2563eb,#38bdf8); box-shadow: 0 0 9px rgba(56,189,248,.52); }
+        .v3-composition-row.indigo .v3-composition-track span { background: linear-gradient(90deg,#4f46a5,#818cf8); box-shadow: 0 0 9px rgba(129,140,248,.45); }
         .v3-roadmap-card { padding: 13px; display: grid; gap: 8px; border-color: rgba(109,146,190,.23); }
         .v3-roadmap-card p { color: #a9bdd0; font-size: 11px; line-height: 1.45; }
         .v3-status { width: fit-content; color: #a8d5ff; background: rgba(37,99,235,.16); border: 1px solid rgba(96,165,250,.3); border-radius: 999px; padding: 3px 7px; font-size: 9px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
@@ -1365,7 +1393,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
           <section className="v3-section">
             <div className="v3-section-head"><div className="v3-eyebrow">Current Index Shape</div><h2>Market Composition</h2><p>How the current conference index is distributed across event structure, audience, industry, investment focus, and location.</p></div>
             <div className="v3-composition-grid">
-              {compositionCards.map((card) => <div className="v3-composition-card" key={card.title}><h3>{card.title}</h3>{card.rows.length ? card.rows.map((row) => <Bar key={row.label} label={row.label} value={row.share} count={row.count} share={row.share} tone={card.tone} />) : <EmptyState>Not enough mapped data is available yet.</EmptyState>}</div>)}
+              {compositionCards.map((card) => <div className={`v3-composition-card ${card.tone}`} key={card.title}><div className="v3-composition-card-head"><h3>{card.title}</h3></div>{card.rows.length ? card.rows.map((row, index) => <CompositionBar key={row.label} rank={index + 1} label={row.label} count={row.count} share={row.share} tone={card.tone} />) : <EmptyState>Not enough mapped data is available yet.</EmptyState>}</div>)}
             </div>
           </section>
 
