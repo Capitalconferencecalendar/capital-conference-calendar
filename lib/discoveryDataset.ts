@@ -109,6 +109,11 @@ type MarketWindow = {
   bestWeekCities: string[];
 };
 type MonthMovementRow = { label: string; count: number; change: number | null; pct: number | null };
+type AnalyticalFieldCoverage = {
+  universeCount: number;
+  populatedCount: number;
+  coveragePct: number;
+};
 type LeaderboardContextCard = {
   leadLabel: string;
   leadCount: number;
@@ -148,6 +153,17 @@ export type MarketViewAnalytics = {
   eventFeaturesCounts: RankedCount[];
   companyParticipantsCounts: RankedCount[];
   regionCounts: RankedCount[];
+  fieldCoverage: {
+    conferenceType: AnalyticalFieldCoverage;
+    industry: AnalyticalFieldCoverage;
+    investmentFocus: AnalyticalFieldCoverage;
+    targetAudience: AnalyticalFieldCoverage;
+    companyParticipants: AnalyticalFieldCoverage;
+    eventFeatures: AnalyticalFieldCoverage;
+    accessModel: AnalyticalFieldCoverage;
+    marketCap: AnalyticalFieldCoverage;
+    region: AnalyticalFieldCoverage;
+  };
   themeCounts: RankedCount[];
   focusCounts: RankedCount[];
   categoryCounts: RankedCount[];
@@ -223,6 +239,7 @@ export type DiscoveryPage = {
   allAggregates: DiscoveryAggregateStats;
   marketAnalytics: MarketViewAnalytics;
   allMarketAnalytics: MarketViewAnalytics;
+  rollingMarketMovement: MarketViewAnalytics["monthMovement"];
   marketViewIntelligence?: MarketViewIntelligenceWithInternal;
   allMarketViewIntelligence?: MarketViewIntelligenceWithInternal;
 };
@@ -484,6 +501,16 @@ function ranked(values: string[]): RankedCount[] {
     if (label) counts.set(label, (counts.get(label) || 0) + 1);
   });
   return Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+
+function analyticalCoverage(events: DiscoveryEvent[], valueFor: (event: DiscoveryEvent) => string | undefined): AnalyticalFieldCoverage {
+  const universeCount = events.length;
+  const populatedCount = events.filter((event) => Boolean(valueFor(event)?.trim())).length;
+  return {
+    universeCount,
+    populatedCount,
+    coveragePct: universeCount ? Math.round((populatedCount / universeCount) * 100) : 0,
+  };
 }
 
 function weekStart(value: string) {
@@ -845,6 +872,17 @@ function buildMarketViewAnalytics(events: DiscoveryEvent[]): MarketViewAnalytics
   const eventFeaturesCounts = ranked(events.flatMap((event) => splitCsv(event.eventFeatures || "")));
   const companyParticipantsCounts = ranked(events.flatMap((event) => splitCsv(event.companyParticipants || "")));
   const regionCounts = ranked(events.map((event) => event.region));
+  const fieldCoverage = {
+    conferenceType: analyticalCoverage(events, (event) => event.conferenceType),
+    industry: analyticalCoverage(events, (event) => event.industry),
+    investmentFocus: analyticalCoverage(events, (event) => event.investmentFocus),
+    targetAudience: analyticalCoverage(events, (event) => event.targetAudience),
+    companyParticipants: analyticalCoverage(events, (event) => event.companyParticipants),
+    eventFeatures: analyticalCoverage(events, (event) => event.eventFeatures),
+    accessModel: analyticalCoverage(events, (event) => event.accessModel),
+    marketCap: analyticalCoverage(events, (event) => event.marketCap),
+    region: analyticalCoverage(events, (event) => event.region),
+  };
   const themeCounts = industryCounts;
   const focusCounts = investmentFocusCounts;
   const categoryCounts = ranked(events.map((event) => event.conferenceType || ""));
@@ -985,7 +1023,7 @@ function buildMarketViewAnalytics(events: DiscoveryEvent[]): MarketViewAnalytics
   }));
   const monthMovement = buildMonthMovement(events);
   return {
-    total: events.length, cityCounts, organizerCounts, industryCounts, investmentFocusCounts, eventFeaturesCounts, companyParticipantsCounts, regionCounts, themeCounts, focusCounts, categoryCounts, formatCounts, sectorCounts, audienceCounts, eventCharacterCounts, issuerParticipationCounts, verificationStatusCounts, weekCounts, monthCounts, monthMovement, leaderboardContext, leaderboardWindows,
+    total: events.length, cityCounts, organizerCounts, industryCounts, investmentFocusCounts, eventFeaturesCounts, companyParticipantsCounts, regionCounts, fieldCoverage, themeCounts, focusCounts, categoryCounts, formatCounts, sectorCounts, audienceCounts, eventCharacterCounts, issuerParticipationCounts, verificationStatusCounts, weekCounts, monthCounts, monthMovement, leaderboardContext, leaderboardWindows,
     statesCount: new Set(events.map((event) => event.state).filter(Boolean)).size,
     citiesCount: new Set(events.map(cityValue).filter(Boolean)).size,
     organizersCount: new Set(events.map((event) => event.organizer).filter(Boolean)).size,
@@ -1295,6 +1333,12 @@ export async function getDiscoveryPage(
 ): Promise<DiscoveryPage> {
   const approvedEvents = await fetchApprovedEvents();
   const filtered = filterEvents(approvedEvents, query);
+  const rollingEvents = filterEvents(approvedEvents, {
+    ...query,
+    dateRange: "all",
+    fromDate: dateKeyForOffset(-30),
+    toDate: dateKeyForOffset(89),
+  });
   const limit = Math.min(Math.max(query.limit || 30, 1), 30);
   const start = decodeCursor(query.cursor);
   const nextIndex = start + limit;
@@ -1306,6 +1350,7 @@ export async function getDiscoveryPage(
     filterOptions: buildFilterOptions(approvedEvents),
     aggregates: aggregate(filtered),
     allAggregates: aggregate(approvedEvents),
+    rollingMarketMovement: buildMonthMovement(rollingEvents),
   };
 
   if (options.includeMarketAnalytics !== false) {

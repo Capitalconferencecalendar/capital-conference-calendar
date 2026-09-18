@@ -52,6 +52,12 @@ type LeaderboardContext = Record<string, {
   signalRead: string;
 }>;
 
+type AnalyticalFieldCoverage = {
+  universeCount: number;
+  populatedCount: number;
+  coveragePct: number;
+};
+
 type MarketAnalytics = {
   monthCounts?: { month: string; count: number }[];
   cityCounts: [string, number][];
@@ -61,6 +67,17 @@ type MarketAnalytics = {
   eventFeaturesCounts?: [string, number][];
   companyParticipantsCounts?: [string, number][];
   regionCounts?: [string, number][];
+  fieldCoverage?: {
+    conferenceType: AnalyticalFieldCoverage;
+    industry: AnalyticalFieldCoverage;
+    investmentFocus: AnalyticalFieldCoverage;
+    targetAudience: AnalyticalFieldCoverage;
+    companyParticipants: AnalyticalFieldCoverage;
+    eventFeatures: AnalyticalFieldCoverage;
+    accessModel: AnalyticalFieldCoverage;
+    marketCap: AnalyticalFieldCoverage;
+    region: AnalyticalFieldCoverage;
+  };
   themeCounts: [string, number][];
   focusCounts: [string, number][];
   categoryCounts: [string, number][];
@@ -113,6 +130,7 @@ type MarketViewPageData = {
   allAggregates: AggregateStats;
   marketAnalytics: MarketAnalytics;
   allMarketAnalytics: MarketAnalytics;
+  rollingMarketMovement?: NonNullable<MarketAnalytics["monthMovement"]>;
   marketViewIntelligence?: any;
   allMarketViewIntelligence?: any;
 };
@@ -302,7 +320,7 @@ function Bar({ label, value, tone = "blue", count, share }: { label: string; val
   );
 }
 
-function CompositionBar({ rank, label, count, share, tone }: { rank: number; label: string; count: number; share: number; tone: "blue" | "indigo" }) {
+function CompositionBar({ rank, label, count, share, tone, shareLabel }: { rank: number; label: string; count: number; share: number; tone: "blue" | "indigo"; shareLabel: string }) {
   const fill = tone === "indigo" ? "linear-gradient(90deg,#4f46a5,#818cf8)" : "linear-gradient(90deg,#2563eb,#38bdf8)";
   const glow = tone === "indigo" ? "0 0 9px rgba(129,140,248,.45)" : "0 0 9px rgba(56,189,248,.52)";
   return (
@@ -312,7 +330,7 @@ function CompositionBar({ rank, label, count, share, tone }: { rank: number; lab
         <span className="v3-composition-label" style={{ minWidth: 0, color: "#dcecff", fontSize: 10.5, fontWeight: 750, lineHeight: 1.2, overflowWrap: "anywhere" }}>{label}</span>
         <strong style={{ display: "inline-block", color: "#f1f7ff", fontSize: 10, whiteSpace: "nowrap", textAlign: "right" }}>{formatNumber(count)} <span style={{ color: "#9dbbda", fontSize: 9.5 }}>· {share}%</span></strong>
       </div>
-      <div className="v3-composition-track" aria-label={`${label}: ${count} events, ${share}% of the current index`} style={{ display: "block", width: "100%", height: 6, overflow: "hidden", borderRadius: 999, background: "rgba(49,87,125,.38)", boxShadow: "inset 0 1px 1px rgba(0,0,0,.25)" }}>
+      <div className="v3-composition-track" aria-label={`${label}: ${count} events, ${share}% ${shareLabel.toLowerCase()}`} style={{ display: "block", width: "100%", height: 6, overflow: "hidden", borderRadius: 999, background: "rgba(49,87,125,.38)", boxShadow: "inset 0 1px 1px rgba(0,0,0,.25)" }}>
         <span style={{ display: "block", height: "100%", width: `${Math.max(4, share)}%`, borderRadius: 999, background: fill, boxShadow: glow }} />
       </div>
     </div>
@@ -853,12 +871,14 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
       count,
       share: displayAggregates.events ? Math.round((count / displayAggregates.events) * 100) : 0,
     }));
+  const defaultCoverage: AnalyticalFieldCoverage = { universeCount: displayAggregates.events, populatedCount: 0, coveragePct: 0 };
+  const compositionCoverage: Partial<NonNullable<MarketAnalytics["fieldCoverage"]>> = displayAnalytics.fieldCoverage || {};
   const compositionCards = [
-    { title: "Event Features Mix", rows: compositionRows(displayAnalytics.eventFeaturesCounts), tone: "indigo" as const },
-    { title: "Company Participant Mix", rows: compositionRows(displayAnalytics.companyParticipantsCounts), tone: "blue" as const },
-    { title: "Industry Mix", rows: compositionRows(displayAnalytics.industryCounts), tone: "blue" as const },
-    { title: "Investment Focus Mix", rows: compositionRows(displayAnalytics.investmentFocusCounts), tone: "indigo" as const },
-    { title: "Regional Mix", rows: compositionRows(displayAnalytics.regionCounts), tone: "blue" as const },
+    { title: "Event Features Mix", rows: compositionRows(displayAnalytics.eventFeaturesCounts), tone: "indigo" as const, coverage: compositionCoverage.eventFeatures || defaultCoverage, coverageLabel: "Event Feature coverage", shareLabel: "Share of events tagged" },
+    { title: "Company Participant Mix", rows: compositionRows(displayAnalytics.companyParticipantsCounts), tone: "blue" as const, coverage: compositionCoverage.companyParticipants || defaultCoverage, coverageLabel: "Participant coverage", shareLabel: "Share of events tagged" },
+    { title: "Industry Mix", rows: compositionRows(displayAnalytics.industryCounts), tone: "blue" as const, coverage: compositionCoverage.industry || defaultCoverage, coverageLabel: "Industry coverage", shareLabel: "Share of events tagged" },
+    { title: "Investment Focus Mix", rows: compositionRows(displayAnalytics.investmentFocusCounts), tone: "indigo" as const, coverage: compositionCoverage.investmentFocus || defaultCoverage, coverageLabel: "Investment Focus coverage", shareLabel: "Share of events tagged" },
+    { title: "Regional Mix", rows: compositionRows(displayAnalytics.regionCounts), tone: "blue" as const, coverage: compositionCoverage.region || defaultCoverage, coverageLabel: "Regional coverage", shareLabel: "Share of upcoming events" },
   ];
   const leaderboardContext = leaderboardSource.leaderboardContext || {};
   const leaderboardCards = [
@@ -877,7 +897,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
     ["Market Windows", "Detect periods where industry, access, investor, and event-character signals concentrate across upcoming conferences.", "In Data Expansion"],
     ["Conference Relevance Scoring", "Explain why a conference may matter using industry exposure, audience profile, issuer participation, and comparable events.", "In Classification Buildout"],
   ] as const;
-  const monthMovement = displayAnalytics.monthMovement || { windows: [], sectorMovers: [], characterMovers: [], accessMovers: [] };
+  const monthMovement = displayPage.rollingMarketMovement || displayAnalytics.monthMovement || { windows: [], sectorMovers: [], characterMovers: [], accessMovers: [] };
   const movementWindows = monthMovement.windows.slice(0, 4);
   const rollingVolumeMax = Math.max(...movementWindows.map((row) => row.count), 1);
   const sectorMovementRows = monthMovement.sectorMovers || [];
@@ -1125,6 +1145,10 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         .v3-composition-card-head::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: #38bdf8; box-shadow: 0 0 10px rgba(56,189,248,.7); }
         .v3-composition-card.indigo .v3-composition-card-head::before { background: #818cf8; box-shadow: 0 0 10px rgba(129,140,248,.7); }
         .v3-composition-card-head h3 { margin: 0; }
+        .v3-universe-note { display: block; margin-top: 5px; color: #91aecb; font-size: 10.5px; line-height: 1.4; }
+        .v3-composition-coverage { display: grid; gap: 3px; padding: 0 0 8px; color: #9db7d1; font-size: 9.5px; line-height: 1.25; }
+        .v3-composition-coverage > span { color: #83bce8; font-weight: 800; }
+        .v3-composition-coverage strong { color: #b7cbe0; font-size: 9px; font-weight: 700; }
         .v3-composition-row { display: grid; gap: 6px; padding: 8px 0 7px; border-top: 1px solid rgba(120,168,212,.15); }
         .v3-composition-row-head { display: grid; grid-template-columns: 20px minmax(0,1fr) auto; gap: 7px; align-items: center; }
         .v3-composition-rank { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid rgba(96,165,250,.34); border-radius: 5px; background: rgba(37,99,235,.12); color: #8dccff; font-size: 9px; font-weight: 900; }
@@ -1358,7 +1382,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
           </section>
 
           <section className="v3-section">
-            <div className="v3-section-head"><div className="v3-eyebrow">Database Market Signals</div><h2>30-Day Market Movement</h2><p>Rolling conference activity across prior, current, and forward 30-day windows, calculated from event start dates.</p></div>
+            <div className="v3-section-head"><div className="v3-eyebrow">Database Market Signals</div><h2>30-Day Market Movement</h2><p>Approved events by event start date across rolling prior, current, next, and following 30-day windows.</p></div>
             <div className="v3-market-tape">
               <div className="v3-movement-line" aria-label="Hot and cold rolling 30-day movement line">
                 <div className="v3-movement-track" />
@@ -1393,9 +1417,9 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
           </section>
 
           <section className="v3-section">
-            <div className="v3-section-head"><div className="v3-eyebrow">Current Index Shape</div><h2>Market Composition</h2><p>How the current conference index is distributed across event structure, audience, industry, investment focus, and location.</p></div>
+            <div className="v3-section-head"><div className="v3-eyebrow">Upcoming Market Composition</div><h2>Market Composition</h2><p>How the current conference index is distributed across event structure, audience, industry, investment focus, and location.</p><small className="v3-universe-note">{formatNumber(displayAggregates.events)} approved upcoming events. Events may carry more than one classification; shares can exceed 100% in aggregate.</small></div>
             <div className="v3-composition-grid">
-              {compositionCards.map((card) => <div className={`v3-composition-card ${card.tone}`} key={card.title}><div className="v3-composition-card-head"><h3>{card.title}</h3></div>{card.rows.length ? card.rows.map((row, index) => <CompositionBar key={row.label} rank={index + 1} label={row.label} count={row.count} share={row.share} tone={card.tone} />) : <EmptyState>Not enough mapped data is available yet.</EmptyState>}</div>)}
+              {compositionCards.map((card) => <div className={`v3-composition-card ${card.tone}`} key={card.title}><div className="v3-composition-card-head"><h3>{card.title}</h3></div><div className="v3-composition-coverage"><span>{card.shareLabel}</span><strong>{card.coverageLabel}: {formatNumber(card.coverage.populatedCount)} of {formatNumber(card.coverage.universeCount)} events classified · {card.coverage.coveragePct}% coverage</strong></div>{card.rows.length ? card.rows.map((row, index) => <CompositionBar key={row.label} rank={index + 1} label={row.label} count={row.count} share={row.share} tone={card.tone} shareLabel={card.shareLabel} />) : <EmptyState>Not enough mapped data is available yet.</EmptyState>}</div>)}
             </div>
           </section>
 
@@ -1469,7 +1493,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
           </>}
 
           <section className="v3-section">
-            <div className="v3-section-head"><div className="v3-section-title-row"><div><div className="v3-eyebrow">Upcoming Conferences</div><h2>Market Leaderboards</h2></div><div className="v3-window-toggle" aria-label="Select leaderboard window">{leaderboardWindowOptions.map((days) => <button type="button" key={days} className={leaderboardWindowDays === days ? "active" : ""} onClick={() => setLeaderboardWindowDays(days)}>{days}D</button>)}</div></div><p>A ranked view of upcoming conference activity over the next {leaderboardWindowDays} days.</p></div>
+            <div className="v3-section-head"><div className="v3-section-title-row"><div><div className="v3-eyebrow">Upcoming Conferences</div><h2>Market Leaderboards</h2></div><div className="v3-window-toggle" aria-label="Select leaderboard window">{leaderboardWindowOptions.map((days) => <button type="button" key={days} className={leaderboardWindowDays === days ? "active" : ""} onClick={() => setLeaderboardWindowDays(days)}>{days}D</button>)}</div></div><p>{formatNumber(displayAggregates.events)} approved upcoming events in the current view, ranked over the next {leaderboardWindowDays} days.</p></div>
             <div className="v3-league-grid">
               {leaderboardCards.map((card) => {
                 const context = leaderboardContext[card.title];
