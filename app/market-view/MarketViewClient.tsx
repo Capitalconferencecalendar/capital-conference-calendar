@@ -8,6 +8,7 @@ import ControlPanel from "../components/platform/ControlPanel";
 import ContextHelpIcon from "../components/platform/ContextHelpIcon";
 import { getCachedEventPage, getOrFetchEventPage, seedEventPage } from "../components/platform/eventDataCache";
 import type { IntelligenceFinding } from "../../lib/marketIntelligenceV2";
+import MarketIntelligenceBriefingModule from "../components/platform/MarketIntelligenceBriefingModule";
 
 const quickActions = ["Clear", "Share Selected", "Save Market View", "Save Selected", "Add to Schedule"];
 
@@ -839,9 +840,6 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
 
   const topMetro = displayAnalytics.cityCounts?.[0];
   const topFocus = displayAnalytics.focusCounts?.[0];
-  const weeklyBriefingConfidence = weeklyBriefing
-    ? weeklyBriefing.confidence.score >= 80 ? "High" : weeklyBriefing.confidence.score >= 55 ? "Moderate" : "Low"
-    : null;
   const liveKpis = [
     ["Upcoming Conference Index", formatNumber(displayAggregates.events), "Upcoming conferences"],
     ["Issuer Access", formatNumber(displayAggregates.issuerAccess), "Classified signals"],
@@ -1201,7 +1199,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
         @media (max-width: 760px) { h1 { font-size: 31px; } .v3-metro-grid, .v3-league-grid, .v3-composition-grid, .v3-roadmap-grid, .v3-mover-grid { grid-template-columns: 1fr; } .v3-signal-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); } }
       `}</style>
 
-      <div className="workspace-shell" style={{ display: "grid", gridTemplateColumns: "minmax(280px, 290px) minmax(0, 1fr) minmax(300px, 320px)", gridTemplateRows: "minmax(0, 1fr)", gap: "18px", alignItems: "stretch", width: "100%", height: "calc(100vh - 126px)", maxWidth: "100%", minWidth: 0, minHeight: 0, overflow: "hidden", justifyContent: "center" }}>
+      <div className="workspace-shell" style={{ display: "grid", gridTemplateColumns: "minmax(230px, 250px) minmax(0, 1fr) minmax(260px, 280px)", gridTemplateRows: "minmax(0, 1fr)", gap: "14px", alignItems: "stretch", width: "100%", height: "calc(100vh - 126px)", maxWidth: "100%", minWidth: 0, minHeight: 0, overflow: "hidden", justifyContent: "center" }}>
         <aside
           className="ccc-scroll-rail ccc-scroll-rail-left"
           style={{ position: "relative", alignSelf: "stretch", display: "grid", gap: "8px", minWidth: 0, minHeight: 0, width: "100%", maxWidth: "280px", height: "calc(100vh - 126px)", maxHeight: "calc(100vh - 126px)", overflow: "hidden", paddingRight: "2px" }}
@@ -1263,41 +1261,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
             {isFiltering ? <div style={{ color: "#8fb3df", fontSize: "11px", fontWeight: 800, gridColumn: "2 / -1" }}>Updating filtered Market View…</div> : null}
           </section>
 
-          {weeklyBriefing && !isFiltering ? <section className="v3-section" aria-labelledby="weekly-market-briefing">
-            <div style={{ padding: "22px", border: "1px solid rgba(88, 164, 220, 0.3)", borderRadius: "10px", background: "linear-gradient(135deg, rgba(10, 39, 68, 0.98), rgba(5, 20, 36, 0.98))", boxShadow: "0 16px 34px rgba(0,0,0,.18)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: "14px", alignItems: "start", flexWrap: "wrap" }}>
-                <div style={{ minWidth: 0 }}>
-                  <div className="v3-eyebrow">This Week in Conference Markets</div>
-                  <h2 id="weekly-market-briefing" style={{ margin: "7px 0 9px", color: "#f8fbff", fontSize: "28px", lineHeight: 1.15 }}>{weeklyBriefing.headline}</h2>
-                  <p style={{ margin: 0, maxWidth: "900px", color: "#cbdced", fontSize: "15px", lineHeight: 1.6 }}>{weeklyBriefing.finding}</p>
-                </div>
-                <a href="/market-view-v2" className="v3-link" style={{ whiteSpace: "nowrap", marginTop: "3px" }}>View full brief →</a>
-              </div>
-
-              <div style={{ marginTop: "18px", paddingTop: "16px", borderTop: "1px solid rgba(137, 180, 223, 0.16)" }}>
-                <div className="v3-detail-label">Why This Matters</div>
-                <p style={{ margin: "6px 0 0", color: "#d7e6f5", fontSize: "14px", lineHeight: 1.55 }}>{weeklyBriefing.whyItMatters}</p>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(220px, .34fr)", gap: "18px", marginTop: "18px" }}>
-                <div>
-                  <div className="v3-detail-label">Evidence</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "7px", marginTop: "8px" }}>
-                    {weeklyBriefing.evidence.slice(0, 5).map((item) => <span key={item.label} style={{ padding: "7px 9px", borderRadius: "6px", border: "1px solid rgba(105, 177, 229, 0.24)", background: "rgba(23, 78, 120, 0.22)", color: "#d6e9fa", fontSize: "12px" }}><strong style={{ color: "#fff" }}>{item.value}{item.unit === "events" && typeof item.value === "number" ? " events" : ""}</strong> · {item.label}</span>)}
-                  </div>
-                  <div className="v3-detail-label" style={{ marginTop: "17px" }}>Supporting Events</div>
-                  <div style={{ display: "grid", gap: "5px", marginTop: "7px" }}>
-                    {weeklyBriefing.supportingEvents.slice(0, 3).map((event) => <div key={event.id} style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "baseline", color: "#b8ccdf", fontSize: "13px" }}><span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.title}</span><span style={{ color: "#89bce8", whiteSpace: "nowrap" }}>{event.signals.slice(0, 2).map((signal) => signal.replace(/-/g, " ")).join(" · ") || "classified event"}</span></div>)}
-                  </div>
-                </div>
-                <aside style={{ padding: "13px", borderRadius: "7px", border: "1px solid rgba(120, 166, 208, 0.19)", background: "rgba(5, 24, 43, 0.58)", display: "grid", gap: "10px", alignContent: "start" }}>
-                  <div><div className="v3-detail-label">Comparison</div><span style={{ color: "#d6e6f6", fontSize: "13px" }}>{weeklyBriefing.comparison.baselineValue === null ? "No nearby-week baseline" : `${weeklyBriefing.comparison.baselineValue} nearby-week events`}</span></div>
-                  <div><div className="v3-detail-label">Confidence / Coverage</div><strong style={{ color: weeklyBriefingConfidence === "High" ? "#6ee7b7" : weeklyBriefingConfidence === "Moderate" ? "#fde68a" : "#fca5a5", fontSize: "14px" }}>{weeklyBriefingConfidence}</strong><span style={{ color: "#a9c2d9", fontSize: "12px" }}> · {weeklyBriefing.coverage.overallCoveragePct}% field coverage</span></div>
-                  <div><div className="v3-detail-label">Limitation</div><span style={{ color: "#9fb5ca", fontSize: "11px", lineHeight: 1.45 }}>{weeklyBriefing.limitation}</span></div>
-                </aside>
-              </div>
-            </div>
-          </section> : null}
+          {weeklyBriefing && !isFiltering ? <MarketIntelligenceBriefingModule finding={weeklyBriefing} /> : null}
 
           <section className={`v3-signal-forecast ${isHotSignal ? "hot" : "cluster"}`}>
             <div className="v3-signal-head">

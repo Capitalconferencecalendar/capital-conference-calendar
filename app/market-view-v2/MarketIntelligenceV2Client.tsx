@@ -60,7 +60,7 @@ export default function MarketIntelligenceV2Client({ finding }: { finding: Intel
         </section>
 
         <section style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(260px, 0.38fr)", gap: "16px", alignItems: "start" }}>
-          <div style={{ padding: "22px", border: "1px solid rgba(117, 160, 205, 0.2)", borderRadius: "8px", background: "rgba(6, 25, 45, 0.86)" }}>
+          <div id="evidence" style={{ padding: "22px", border: "1px solid rgba(117, 160, 205, 0.2)", borderRadius: "8px", background: "rgba(6, 25, 45, 0.86)" }}>
             <h2 style={{ margin: "0 0 14px", color: "#f3f8ff", fontSize: "18px" }}>Evidence</h2>
             <div style={{ display: "grid", gap: "8px" }}>
               {finding.evidence.slice(0, 5).map((item) => <div key={item.label} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "12px", alignItems: "baseline", padding: "10px 0", borderBottom: "1px solid rgba(143, 178, 216, 0.12)" }}><span style={{ color: "#b9cbe0", fontSize: "14px" }}>{item.label}</span><strong style={{ color: "#ffffff", fontSize: "15px", whiteSpace: "nowrap" }}>{item.value}{item.unit === "events" && typeof item.value === "number" ? " events" : ""}</strong></div>)}
