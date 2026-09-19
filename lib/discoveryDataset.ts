@@ -1327,6 +1327,10 @@ async function buildMarketViewIntelligenceWithInternal(events: InternalDiscovery
   };
 }
 
+export async function getScopedMarketIntelligenceEvents(query: DiscoveryQuery = {}): Promise<DiscoveryEvent[]> {
+  return filterEvents(await fetchApprovedEvents(), query);
+}
+
 export async function getDiscoveryPage(
   query: DiscoveryQuery = {},
   options: {

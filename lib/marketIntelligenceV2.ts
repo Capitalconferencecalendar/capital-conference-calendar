@@ -48,6 +48,8 @@ export type IntelligenceSupportingEvent = {
   startDate: string;
   city: string;
   state: string;
+  organizer: string;
+  website: string;
   signals: Array<"issuer-access" | "investor-heavy" | "structured-access" | "deal-making" | "company-presentations" | "1x1-meetings">;
 };
 
@@ -239,6 +241,8 @@ export function buildWeeklyMarketSignal(
     startDate: event.startDate || "",
     city: event.city || "",
     state: event.state || "",
+    organizer: event.organizer || "",
+    website: event.website || "",
     signals: signalNames(event),
   }));
   const supportingIds = supportingEvents.map((event) => event.id);
