@@ -1329,7 +1329,12 @@ async function buildMarketViewIntelligenceWithInternal(events: InternalDiscovery
 
 export async function getDiscoveryPage(
   query: DiscoveryQuery = {},
-  options: { includeMarketAnalytics?: boolean; includeMarketViewIntelligence?: boolean } = {}
+  options: {
+    includeMarketAnalytics?: boolean;
+    includeMarketViewIntelligence?: boolean;
+    includeAllMarketAnalytics?: boolean;
+    includeAllMarketViewIntelligence?: boolean;
+  } = {}
 ): Promise<DiscoveryPage> {
   const approvedEvents = await fetchApprovedEvents();
   const filtered = filterEvents(approvedEvents, query);
@@ -1355,12 +1360,16 @@ export async function getDiscoveryPage(
 
   if (options.includeMarketAnalytics !== false) {
     page.marketAnalytics = buildMarketViewAnalytics(filtered);
-    page.allMarketAnalytics = buildMarketViewAnalytics(approvedEvents);
+    if (options.includeAllMarketAnalytics !== false) {
+      page.allMarketAnalytics = buildMarketViewAnalytics(approvedEvents);
+    }
   }
 
   if (options.includeMarketViewIntelligence !== false) {
     page.marketViewIntelligence = await buildMarketViewIntelligenceWithInternal(filtered);
-    page.allMarketViewIntelligence = await buildMarketViewIntelligenceWithInternal(approvedEvents);
+    if (options.includeAllMarketViewIntelligence !== false) {
+      page.allMarketViewIntelligence = await buildMarketViewIntelligenceWithInternal(approvedEvents);
+    }
   }
 
   return page as DiscoveryPage;

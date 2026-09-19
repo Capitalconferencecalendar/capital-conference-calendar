@@ -481,11 +481,18 @@ function appendMany(params: URLSearchParams, key: string, values: string[]) {
   });
 }
 
-function buildMarketViewRequest(filters: FiltersState, filterMode: FilterMatchMode = "and") {
+function buildMarketViewRequest(
+  filters: FiltersState,
+  filterMode: FilterMatchMode = "and",
+  includeMarketViewIntelligence = true
+) {
   const params = new URLSearchParams();
   params.set("limit", "30");
   params.set("dateRange", filters.dateRange);
   params.set("filterMode", filterMode);
+  if (includeMarketViewIntelligence) {
+    params.set("includeMarketViewIntelligence", "1");
+  }
   appendMany(params, "country", filters.country);
   appendMany(params, "region", filters.region);
   appendMany(params, "state", filters.state);
@@ -663,6 +670,8 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
       .then((next) => {
         if (!active) return;
         setMarketPage(next);
+        setSelectedHotWeekIndex(0);
+        setSelectedClusterIndex(0);
       })
       .catch(() => {
         if (!active) return;
@@ -683,7 +692,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const displayPage = viewScope === "filtered" ? marketPage : initialPage;
   const displayAggregates = displayPage.aggregates;
   const displayAnalytics = displayPage.marketAnalytics;
-  const displayIntelligence = displayPage.marketViewIntelligence || initialPage.marketViewIntelligence || {};
+  const displayIntelligence = displayPage.marketViewIntelligence || {};
   const internalIntelligence = displayIntelligence.internalIntelligence || {};
   const intelligenceReadByTitle = new Map(
     ((internalIntelligence.eventReads || []) as any[]).map((read) => [read.title, read])
@@ -800,7 +809,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
     }
     let active = true;
     const scopedFilters = viewScope === "filtered" ? filters : DEFAULT_FILTERS;
-    const params = buildMarketViewRequest(scopedFilters, filterMode);
+    const params = buildMarketViewRequest(scopedFilters, filterMode, false);
     params.set("fromDate", activeHotWeek.weekStart);
     params.set("toDate", activeHotWeek.weekEnd);
     params.set("limit", "4");
