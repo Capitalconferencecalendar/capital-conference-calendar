@@ -1,6 +1,7 @@
 import "server-only";
 import type { MarketViewIntelligence } from "./marketViewIntelligence";
 import type { InternalMarketIntelligence } from "./internalMarketIntelligence";
+import type { IntelligenceFinding } from "./marketIntelligenceV2";
 
 export type DiscoveryEvent = {
   id: string;
@@ -242,6 +243,7 @@ export type DiscoveryPage = {
   rollingMarketMovement: MarketViewAnalytics["monthMovement"];
   marketViewIntelligence?: MarketViewIntelligenceWithInternal;
   allMarketViewIntelligence?: MarketViewIntelligenceWithInternal;
+  marketIntelligenceV2?: IntelligenceFinding | null;
 };
 
 export type DiscoveryQuery = {
@@ -1327,6 +1329,42 @@ async function buildMarketViewIntelligenceWithInternal(events: InternalDiscovery
   };
 }
 
+function marketIntelligenceV2Scope(query: DiscoveryQuery, events: DiscoveryEvent[]) {
+  const activeFilters: Record<string, string[]> = {};
+  const add = (key: string, values: string[] | undefined) => {
+    if (values?.length) activeFilters[key] = values;
+  };
+  add("country", query.country);
+  add("region", query.region);
+  add("state", query.state);
+  add("city", query.cities);
+  add("industry", query.sectorThemes);
+  add("conferenceType", query.conferenceType);
+  add("targetAudience", query.targetAudience);
+  add("companyParticipants", query.companyParticipants);
+  add("eventFeatures", query.eventFeatures);
+  add("accessModel", query.accessModel);
+  add("marketCap", query.marketCap);
+  add("organizer", query.organizer);
+  add("investmentFocus", query.marketFocus);
+  if (query.dateRange && query.dateRange !== "all") activeFilters.dateRange = [query.dateRange];
+  if (query.fromDate || query.toDate) activeFilters.dateWindow = [query.fromDate || "", query.toDate || ""].filter(Boolean);
+  if (query.q) activeFilters.search = [query.q];
+  const geography = [...(query.country || []), ...(query.region || []), ...(query.state || []), ...(query.cities || [])];
+  const hasActiveFilters = Object.keys(activeFilters).length > 0;
+  return {
+    population: hasActiveFilters ? "filtered-market" as const : "full-market" as const,
+    activeFilters,
+    asOfDate: new Date().toISOString().slice(0, 10),
+    geography,
+    comparisonPopulation: {
+      label: hasActiveFilters ? "Current filtered upcoming conference index" : "Full upcoming conference index",
+      eventCount: events.length,
+      dateWindow: null,
+    },
+  };
+}
+
 export async function getScopedMarketIntelligenceEvents(query: DiscoveryQuery = {}): Promise<DiscoveryEvent[]> {
   return filterEvents(await fetchApprovedEvents(), query);
 }
@@ -1338,6 +1376,7 @@ export async function getDiscoveryPage(
     includeMarketViewIntelligence?: boolean;
     includeAllMarketAnalytics?: boolean;
     includeAllMarketViewIntelligence?: boolean;
+    includeMarketIntelligenceV2?: boolean;
   } = {}
 ): Promise<DiscoveryPage> {
   const approvedEvents = await fetchApprovedEvents();
@@ -1351,8 +1390,8 @@ export async function getDiscoveryPage(
   const limit = Math.min(Math.max(query.limit || 30, 1), 30);
   const start = decodeCursor(query.cursor);
   const nextIndex = start + limit;
-  const page: Omit<DiscoveryPage, "marketAnalytics" | "allMarketAnalytics" | "marketViewIntelligence" | "allMarketViewIntelligence"> &
-    Partial<Pick<DiscoveryPage, "marketAnalytics" | "allMarketAnalytics" | "marketViewIntelligence" | "allMarketViewIntelligence">> = {
+  const page: Omit<DiscoveryPage, "marketAnalytics" | "allMarketAnalytics" | "marketViewIntelligence" | "allMarketViewIntelligence" | "marketIntelligenceV2"> &
+    Partial<Pick<DiscoveryPage, "marketAnalytics" | "allMarketAnalytics" | "marketViewIntelligence" | "allMarketViewIntelligence" | "marketIntelligenceV2">> = {
     events: filtered.slice(start, nextIndex).map(toPublicEvent),
     total: filtered.length,
     nextCursor: nextIndex < filtered.length ? encodeCursor(nextIndex) : null,
@@ -1374,6 +1413,14 @@ export async function getDiscoveryPage(
     if (options.includeAllMarketViewIntelligence !== false) {
       page.allMarketViewIntelligence = await buildMarketViewIntelligenceWithInternal(approvedEvents);
     }
+  }
+
+  if (options.includeMarketIntelligenceV2) {
+    const { buildWeeklyMarketSignal } = await import("./marketIntelligenceV2");
+    page.marketIntelligenceV2 = buildWeeklyMarketSignal(filtered, {
+      scope: marketIntelligenceV2Scope(query, filtered),
+      existingIntelligence: page.marketViewIntelligence,
+    });
   }
 
   return page as DiscoveryPage;

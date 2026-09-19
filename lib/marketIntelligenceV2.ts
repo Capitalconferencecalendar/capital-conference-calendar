@@ -7,6 +7,7 @@ import {
   isOneOnOneEvent,
   isStructuredAccessEvent,
   type MarketViewEventInput,
+  type MarketViewIntelligence,
   type WeeklyIntensityRow,
 } from "./marketViewIntelligence";
 
@@ -102,6 +103,7 @@ export type WeeklyMarketSignalOptions = {
   scope: Omit<IntelligenceScope, "eligibleEventCount" | "dateWindow"> & {
     dateWindow?: { startDate: string; endDate: string };
   };
+  existingIntelligence?: MarketViewIntelligence;
 };
 
 const REQUIRED_FIELDS: CurrentField[] = [
@@ -230,7 +232,7 @@ export function buildWeeklyMarketSignal(
   events: readonly MarketViewEventInput[],
   options: WeeklyMarketSignalOptions
 ): IntelligenceFinding | null {
-  const intelligence = buildMarketViewIntelligence(events, { asOfDate: options.scope.asOfDate });
+  const intelligence = options.existingIntelligence || buildMarketViewIntelligence(events, { asOfDate: options.scope.asOfDate });
   const selected = intelligence.hotWeeks.top[0];
   if (!selected) return null;
 

@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
     const sort = params.get("sort");
     const filterMode = params.get("filterMode");
     const includeMarketViewIntelligence = params.get("includeMarketViewIntelligence") === "1";
+    const includeMarketIntelligenceV2 = params.get("includeMarketIntelligenceV2") === "1";
     const query: DiscoveryQuery = {
       cursor: params.get("cursor"),
       limit: Number(params.get("limit") || LOAD_MORE_INCREMENT),
@@ -75,6 +76,7 @@ export async function GET(request: NextRequest) {
       includeMarketViewIntelligence,
       includeAllMarketAnalytics: false,
       includeAllMarketViewIntelligence: false,
+      includeMarketIntelligenceV2,
     }), {
       headers: { "Cache-Control": "no-store, max-age=0" },
     });

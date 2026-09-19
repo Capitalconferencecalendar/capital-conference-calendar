@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default async function MarketViewPage() {
   const [initialPage, tickerPage] = await Promise.all([
-    getDiscoveryPage({ limit: 30 }),
+    getDiscoveryPage({ limit: 30 }, { includeMarketIntelligenceV2: true }),
     getDiscoveryPage({ limit: 20 }),
   ]);
   const tickerEvents = tickerPage.events.length ? tickerPage.events : initialPage.events;
