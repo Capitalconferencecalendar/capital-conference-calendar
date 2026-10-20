@@ -1201,8 +1201,9 @@ function filterEvents(events: InternalDiscoveryEvent[], query: DiscoveryQuery) {
   const days = query.dateRange === "next30" ? 30 : query.dateRange === "next60" ? 60 : query.dateRange === "next90" ? 90 : 3650;
   const maxTime = todayTime + days * 86400000;
   const hasExplicitDateWindow = Boolean(query.fromDate || query.toDate);
-  const futureOnly = (query.dateRange || "all") === "all" && !hasExplicitDateWindow;
   const search = (query.q || "").trim().toLowerCase();
+  // The unfiltered workspace opens on upcoming events, while a direct search spans the approved archive.
+  const futureOnly = (query.dateRange || "all") === "all" && !hasExplicitDateWindow && !search;
   const ids = new Set(query.eventIds || []);
   const useOrFilters = query.filterMode === "or";
 
