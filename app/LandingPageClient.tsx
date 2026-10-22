@@ -293,26 +293,6 @@ export default function LandingPageClient() {
           </p>
           <div style={{ display: "grid", gap: "10px", justifyItems: "start" }}>
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-              <a
-                href="#request-access"
-                style={{
-                  height: "48px",
-                  padding: "0 20px",
-                  borderRadius: "12px",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#ffffff",
-                  textDecoration: "none",
-                  fontSize: "14px",
-                  fontWeight: 900,
-                  background: "linear-gradient(180deg, #2f6df6 0%, #1747aa 100%)",
-                  border: "1px solid rgba(147,197,253,0.44)",
-                  boxShadow: "0 16px 34px rgba(37,99,235,0.26)",
-                }}
-              >
-                Request Beta Access
-              </a>
               <button
                 type="button"
                 onClick={() => {
@@ -338,6 +318,26 @@ export default function LandingPageClient() {
               >
                 Access Beta
               </button>
+              <a
+                href="#request-access"
+                style={{
+                  height: "48px",
+                  padding: "0 20px",
+                  borderRadius: "12px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#ffffff",
+                  textDecoration: "none",
+                  fontSize: "14px",
+                  fontWeight: 900,
+                  background: "linear-gradient(180deg, #2f6df6 0%, #1747aa 100%)",
+                  border: "1px solid rgba(147,197,253,0.44)",
+                  boxShadow: "0 16px 34px rgba(37,99,235,0.26)",
+                }}
+              >
+                Request Beta Access
+              </a>
             </div>
             <div style={{ color: "#9fb5cf", fontSize: "13px", fontWeight: 750 }}>
               Limited beta access. We&apos;re selectively onboarding early users.
