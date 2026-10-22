@@ -164,10 +164,6 @@ export default function LandingPageClient() {
             object-fit: contain;
           }
 
-          .landing-nav-access {
-            display: none !important;
-          }
-
           .landing-hero {
             padding-top: 46.5px !important;
           }
@@ -244,28 +240,6 @@ export default function LandingPageClient() {
             style={{ height: "126px", width: "auto", display: "block", objectFit: "contain", filter: "drop-shadow(0 10px 22px rgba(0,0,0,0.24))" }}
           />
         </a>
-        <a
-          className="landing-nav-access"
-          href="#request-access"
-          style={{
-            height: "42px",
-            padding: "0 16px",
-            borderRadius: "12px",
-            border: "1px solid rgba(147,197,253,0.44)",
-            background: "linear-gradient(180deg, #2f6df6 0%, #1747aa 100%)",
-            color: "#ffffff",
-            textDecoration: "none",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "13px",
-            fontWeight: 950,
-            boxShadow: "0 12px 28px rgba(37,99,235,0.28)",
-            whiteSpace: "nowrap",
-          }}
-        >
-          Request Beta Access
-        </a>
       </nav>
 
       <section
@@ -303,19 +277,6 @@ export default function LandingPageClient() {
               maxWidth: "900px",
             }}
           >
-            <span
-              style={{
-                display: "block",
-                marginBottom: "10px",
-                color: "#9fb5cf",
-                fontSize: "clamp(17px, 1.8vw, 24px)",
-                fontStyle: "italic",
-                fontWeight: 700,
-                letterSpacing: "-0.01em",
-              }}
-            >
-              For the first time
-            </span>
             Every capital markets conference in one place
           </h1>
           <p
