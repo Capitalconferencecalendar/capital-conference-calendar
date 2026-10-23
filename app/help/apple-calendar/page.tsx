@@ -1,8 +1,8 @@
 import GuideLayout from "../calendar-setup/GuideLayout";
 import CopyLinkMockup from "../calendar-setup/CopyLinkMockup";
 
-const DEFAULT_FEED_URL = "https://capitalconferencecalendar.com/api/ics?view=investor-conferences";
-const DISPLAY_FEED_URL = "https://capitalconferencecalendar.com/api/ics?view=your-market-view";
+const DEFAULT_FEED_URL = "https://capitalconferencedatabase.com/api/ics?view=investor-conferences";
+const DISPLAY_FEED_URL = "https://capitalconferencedatabase.com/api/ics?view=your-market-view";
 
 function resolveFeedUrl(value: string | string[] | undefined) {
   const raw = Array.isArray(value) ? value[0] : value;

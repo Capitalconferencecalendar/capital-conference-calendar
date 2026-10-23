@@ -3849,7 +3849,7 @@ useEffect(() => {
       .join("\n\n");
 
     const intro = [
-      "This list is provided by Capital Conference Calendar (https://capitalconferencecalendar.com).",
+      "This list is provided by Capital Conference Calendar (https://capitalconferencedatabase.com).",
       "",
       "Track conference density, active cities, event clusters, and participation trends across the market calendar and convert filtered conference views into continuously updating calendar subscriptions.",
       "",

@@ -144,7 +144,7 @@ function buildDescription(event: EventRow): string {
     lines.push(`Source Page: ${event.sourcePage}`);
   }
 
-  lines.push(`Capital Conference Calendar: https://www.capitalconferencecalendar.com`);
+  lines.push(`Capital Conference Calendar: https://capitalconferencedatabase.com`);
 
   return lines.join("\n");
 }
@@ -376,7 +376,7 @@ export async function GET(request: NextRequest) {
       const url =
         event.website ||
         event.sourcePage ||
-        "https://www.capitalconferencecalendar.com";
+        "https://capitalconferencedatabase.com";
       const description = buildDescription(event);
       const htmlDescription = `${escapeHtml(description).replace(/\n/g, "<br/>")}${
         url ? `<br/><br/><a href="${escapeHtml(url)}">${escapeHtml(url)}</a>` : ""

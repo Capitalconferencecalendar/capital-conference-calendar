@@ -2,9 +2,21 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import "./globals.css";
 
+const siteUrl = new URL("https://capitalconferencedatabase.com");
+
 export const metadata: Metadata = {
+  metadataBase: siteUrl,
   title: "Capital Conference Database",
   description: "Capital markets conference database and live calendar feeds.",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    url: "/",
+    title: "Capital Conference Database",
+    description: "Capital markets conference database and live calendar feeds.",
+  },
 };
 
 export default function RootLayout({

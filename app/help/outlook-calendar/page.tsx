@@ -2,8 +2,8 @@ import Link from "next/link";
 import AppShell from "../../components/AppShell";
 import CopyLinkMockup from "../calendar-setup/CopyLinkMockup";
 
-const DEFAULT_FEED_URL = "https://capitalconferencecalendar.com/api/ics?view=conference-view";
-const DISPLAY_FEED_URL = "https://capitalconferencecalendar.com/api/ics?view=your-selected-view";
+const DEFAULT_FEED_URL = "https://capitalconferencedatabase.com/api/ics?view=conference-view";
+const DISPLAY_FEED_URL = "https://capitalconferencedatabase.com/api/ics?view=your-selected-view";
 
 function resolveFeedUrl(value: string | string[] | undefined) {
   const raw = Array.isArray(value) ? value[0] : value;
