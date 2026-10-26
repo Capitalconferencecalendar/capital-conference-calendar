@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 
 type HeaderProps = {
-  active?: "dashboard" | "events" | "feeds" | "submit" | "help" | "about" | "contact" | "legal" | "subscribe";
+  active?: "dashboard" | "events" | "feeds" | "submit" | "help" | "about" | "contact" | "legal" | "subscribe" | "account";
   searchQuery?: string;
   workspaceMode?: "getstarted" | "discovery" | "marketview";
 };
@@ -182,7 +184,30 @@ export default function Header({
   const [query, setQuery] = useState(searchQuery);
   const [compactNav, setCompactNav] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [accountEmail, setAccountEmail] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const pathname = usePathname();
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) return;
+    let mounted = true;
+    const refresh = () => {
+      void supabase.auth.getUser().then(({ data }) => {
+        if (mounted) setAccountEmail(data.user?.email ?? null);
+      });
+    };
+    refresh();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      window.setTimeout(refresh, 0);
+    });
+    window.addEventListener("focus", refresh);
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+      window.removeEventListener("focus", refresh);
+    };
+  }, [pathname]);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)");
@@ -493,6 +518,7 @@ export default function Header({
                     { href: "/get-started", label: "Get Started", active: workspaceMode === "getstarted" },
                     { href: "/discovery", label: "Discovery", active: workspaceMode === "discovery" },
                     { href: "/market-view", label: "Market View", active: workspaceMode === "marketview" },
+                    { href: accountEmail ? "/account" : "/account/sign-in", label: accountEmail ? "Account" : "Sign In", active: active === "account" },
                     { href: "/about", label: "About", icon: "about" as const, active: active === "about" },
                     { href: "/contact", label: "Contact", icon: "contact" as const, active: active === "contact" },
                     { href: "/submit", label: "Submit", icon: "submit" as const, active: active === "submit" },
@@ -554,6 +580,11 @@ export default function Header({
                 icon="submit"
                 isActive={active === "submit"}
                 compact={false}
+              />
+              <TopNavLink
+                href={accountEmail ? "/account" : "/account/sign-in"}
+                label={accountEmail ? "Account" : "Sign In"}
+                isActive={active === "account"}
               />
             </>
           )}
