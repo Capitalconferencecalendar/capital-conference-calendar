@@ -54,6 +54,7 @@ create index saved_views_user_id_idx on public.saved_views (user_id);
 create function public.set_user_workspace_updated_at()
 returns trigger
 language plpgsql
+security invoker
 set search_path = ''
 as $$
 begin
@@ -80,9 +81,9 @@ alter table public.lists enable row level security;
 alter table public.list_events enable row level security;
 alter table public.saved_views enable row level security;
 
-revoke all on public.profiles, public.user_schedule, public.lists, public.list_events, public.saved_views from public, anon;
-grant select, insert, update, delete on public.profiles, public.user_schedule, public.lists, public.saved_views to authenticated;
-grant select, insert, delete on public.list_events to authenticated;
+revoke all on public.profiles, public.user_schedule, public.lists, public.list_events, public.saved_views from public, anon, authenticated;
+grant select, insert, update, delete on public.profiles, public.lists, public.saved_views to authenticated;
+grant select, insert, delete on public.user_schedule, public.list_events to authenticated;
 
 create policy profiles_select_own on public.profiles
   for select to authenticated using (user_id = (select auth.uid()));
@@ -98,9 +99,6 @@ create policy user_schedule_select_own on public.user_schedule
   for select to authenticated using (user_id = (select auth.uid()));
 create policy user_schedule_insert_own on public.user_schedule
   for insert to authenticated with check (user_id = (select auth.uid()));
-create policy user_schedule_update_own on public.user_schedule
-  for update to authenticated using (user_id = (select auth.uid()))
-  with check (user_id = (select auth.uid()));
 create policy user_schedule_delete_own on public.user_schedule
   for delete to authenticated using (user_id = (select auth.uid()));
 
