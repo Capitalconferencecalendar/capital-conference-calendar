@@ -1,4 +1,5 @@
 begin;
+set local role postgres;
 
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
@@ -97,7 +98,7 @@ where schemaname = 'public'
   and tablename in ('profiles', 'user_schedule', 'lists', 'list_events', 'saved_views');
 
 select ok(
-  not p.prosecdef and 'search_path=' = any(p.proconfig),
+  not p.prosecdef and p.proconfig && array['search_path=', 'search_path=""'],
   'updated_at trigger uses SECURITY INVOKER and an empty search_path'
 )
 from pg_proc p

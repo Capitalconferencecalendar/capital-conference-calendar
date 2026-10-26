@@ -1,4 +1,5 @@
 begin;
+set local role postgres;
 
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
@@ -184,6 +185,14 @@ select lives_ok(
   $$delete from public.saved_views where id = '20000000-0000-4000-8000-0000000000a2'$$,
   'A can delete A saved view'
 );
+
+set local role postgres;
+delete from auth.users where id = '00000000-0000-4000-8000-0000000000b2';
+select is((select count(*) from public.profiles where user_id = '00000000-0000-4000-8000-0000000000b2'), 0::bigint, 'Deleting B cascades to B profile');
+select is((select count(*) from public.user_schedule where user_id = '00000000-0000-4000-8000-0000000000b2'), 0::bigint, 'Deleting B cascades to B schedule');
+select is((select count(*) from public.lists where user_id = '00000000-0000-4000-8000-0000000000b2'), 0::bigint, 'Deleting B cascades to B lists');
+select is((select count(*) from public.list_events where list_id = '10000000-0000-4000-8000-0000000000b2'), 0::bigint, 'Deleting B lists cascades to list events');
+select is((select count(*) from public.saved_views where user_id = '00000000-0000-4000-8000-0000000000b2'), 0::bigint, 'Deleting B cascades to B saved views');
 
 select * from finish();
 rollback;
