@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
+import { getSupabaseConfig } from "../../lib/supabase/config";
 
 type HeaderProps = {
   active?: "dashboard" | "events" | "feeds" | "submit" | "help" | "about" | "contact" | "legal" | "subscribe" | "account";
@@ -184,7 +185,9 @@ export default function Header({
   const [query, setQuery] = useState(searchQuery);
   const [compactNav, setCompactNav] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [accountEmail, setAccountEmail] = useState<string | null>(null);
+  const [accountState, setAccountState] = useState<"loading" | "authenticated" | "anonymous">(
+    () => getSupabaseConfig() ? "loading" : "anonymous"
+  );
   const menuRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
 
@@ -193,8 +196,8 @@ export default function Header({
     if (!supabase) return;
     let mounted = true;
     const refresh = () => {
-      void supabase.auth.getUser().then(({ data }) => {
-        if (mounted) setAccountEmail(data.user?.email ?? null);
+      void supabase.auth.getUser().then(({ data, error }) => {
+        if (mounted) setAccountState(!error && data.user?.id ? "authenticated" : "anonymous");
       });
     };
     refresh();
@@ -230,6 +233,8 @@ export default function Header({
   const isGetStartedActive = workspaceMode === "getstarted";
   const isDiscoveryActive = workspaceMode === "discovery";
   const isMarketViewActive = workspaceMode === "marketview";
+  const accountHref = accountState === "anonymous" ? "/account/sign-in" : "/account";
+  const accountLabel = accountState === "anonymous" ? "Sign In" : "Account";
 
   return (
     <header
@@ -518,7 +523,7 @@ export default function Header({
                     { href: "/get-started", label: "Get Started", active: workspaceMode === "getstarted" },
                     { href: "/discovery", label: "Discovery", active: workspaceMode === "discovery" },
                     { href: "/market-view", label: "Market View", active: workspaceMode === "marketview" },
-                    { href: accountEmail ? "/account" : "/account/sign-in", label: accountEmail ? "Account" : "Sign In", active: active === "account" },
+                    { href: accountHref, label: accountLabel, active: active === "account" },
                     { href: "/about", label: "About", icon: "about" as const, active: active === "about" },
                     { href: "/contact", label: "Contact", icon: "contact" as const, active: active === "contact" },
                     { href: "/submit", label: "Submit", icon: "submit" as const, active: active === "submit" },
@@ -582,8 +587,8 @@ export default function Header({
                 compact={false}
               />
               <TopNavLink
-                href={accountEmail ? "/account" : "/account/sign-in"}
-                label={accountEmail ? "Account" : "Sign In"}
+                href={accountHref}
+                label={accountLabel}
                 isActive={active === "account"}
               />
             </>
