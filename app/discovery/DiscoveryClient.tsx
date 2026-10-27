@@ -10,6 +10,7 @@ import FilterMatchingControl, { type FilterMatchMode } from "../components/platf
 import ControlPanel from "../components/platform/ControlPanel";
 import ContextHelpIcon from "../components/platform/ContextHelpIcon";
 import { getCachedEventPage, getOrFetchEventPage, seedEventPage } from "../components/platform/eventDataCache";
+import { useEventSchedule } from "../../lib/supabase/useEventSchedule";
 
 export type WorkspaceEvent = {
   id: string;
@@ -1453,7 +1454,7 @@ export default function EventsClient({
   const dataIsBootstrapping = shouldLoadInitialDiscovery && isLoadingEvents && events.length === 0;
   const [eventLoadError, setEventLoadError] = useState<string | null>(null);
   const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
-  const [scheduledEventIds, setScheduledEventIds] = useState<string[]>([]);
+  const { eventIds: scheduledEventIds, status: scheduleStatus, error: scheduleError, busy: scheduleBusy, refreshSchedule, addToSchedule, removeFromSchedule, clearSchedule } = useEventSchedule();
   const [savedLists, setSavedLists] = useState<SavedList[]>([]);
   const [activeSavedListId, setActiveSavedListId] = useState<string | null>(null);
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
@@ -1563,13 +1564,11 @@ export default function EventsClient({
       const lists = localStorage.getItem("ccc_saved_lists");
       const views = localStorage.getItem("ccc_saved_views");
       const selected = localStorage.getItem("ccc_selected_events");
-      const scheduled = localStorage.getItem("ccc_my_event_schedule");
       const recentFilters = localStorage.getItem("ccc_recent_filters");
       const recentActivityRaw = localStorage.getItem("ccc_recent_activity");
       if (lists) setSavedLists(JSON.parse(lists));
       if (views) setSavedViews(JSON.parse(views));
       if (selected) setSelectedEvents(JSON.parse(selected));
-      if (scheduled) setScheduledEventIds(unique(JSON.parse(scheduled)));
       if (recentFilters) setFilters(normalizeFiltersState(JSON.parse(recentFilters)));
       if (recentActivityRaw) setRecentActivity(JSON.parse(recentActivityRaw));
     } catch {
@@ -1731,7 +1730,6 @@ export default function EventsClient({
   }, []);
 
   useEffect(() => localStorage.setItem("ccc_selected_events", JSON.stringify(selectedEvents)), [selectedEvents]);
-  useEffect(() => localStorage.setItem("ccc_my_event_schedule", JSON.stringify(scheduledEventIds)), [scheduledEventIds]);
   useEffect(() => localStorage.setItem("ccc_saved_lists", JSON.stringify(savedLists)), [savedLists]);
   useEffect(() => localStorage.setItem("ccc_saved_views", JSON.stringify(savedViews)), [savedViews]);
   useEffect(() => localStorage.setItem("ccc_recent_filters", JSON.stringify(filters)), [filters]);
@@ -1939,7 +1937,7 @@ export default function EventsClient({
   }, [applyDiscoveryPage, discoveryRequest]);
 
   useEffect(() => {
-    if (shouldLoadInitialDiscovery || initialEvents.length === 0) return;
+    if (shouldLoadInitialDiscovery || initialEvents.length === 0 || scheduledOnly) return;
     const requestKey = discoveryRequest.toString();
     seedEventPage<DiscoveryPageResponse>(requestKey, {
       events: initialEvents,
@@ -1951,20 +1949,21 @@ export default function EventsClient({
       marketAnalytics: discoveryPage.marketAnalytics,
       allMarketAnalytics: discoveryPage.allMarketAnalytics,
     });
-  }, [discoveryPage, discoveryRequest, initialEvents, shouldLoadInitialDiscovery]);
+  }, [discoveryPage, discoveryRequest, initialEvents, scheduledOnly, shouldLoadInitialDiscovery]);
 
   useEffect(() => {
     if (shouldLoadInitialDiscovery && !urlSeeded) return;
+    if (scheduledOnly && (scheduleStatus === "loading" || scheduleStatus === "error")) return;
     const requestKey = discoveryRequest.toString();
     if (initialDiscoveryRequestRef.current === null) {
       initialDiscoveryRequestRef.current = requestKey;
-      if (shouldLoadInitialDiscovery) {
+      if (shouldLoadInitialDiscovery || scheduledOnly) {
         void loadDiscoveryPage();
       }
       return;
     }
     void loadDiscoveryPage();
-  }, [discoveryRequest, loadDiscoveryPage, shouldLoadInitialDiscovery, urlSeeded]);
+  }, [discoveryRequest, loadDiscoveryPage, scheduleStatus, scheduledOnly, shouldLoadInitialDiscovery, urlSeeded]);
 
   const cities = discoveryPage.filterOptions.cities;
   const regions = discoveryPage.filterOptions.regions;
@@ -3569,29 +3568,42 @@ useEffect(() => {
     return selectedEvents;
   };
 
-  const addSelectedToSchedule = () => {
+  const addSelectedToSchedule = async () => {
     const eventIds = getSavableEventIds();
     if (!eventIds.length) {
       setScheduleActionMessage("Select one or more event cards to add them to your schedule.");
       return;
     }
-    setScheduledEventIds((previous) => unique([...previous, ...eventIds]));
-    setSelectedEvents([]);
-    setScheduleActionMessage("");
-    recordActivity("view", "Added events to My Event Schedule", `${eventIds.length} events selected`);
+    try {
+      if (await addToSchedule(eventIds)) {
+        setSelectedEvents([]);
+        setScheduleActionMessage("");
+        recordActivity("view", "Added events to My Event Schedule", `${eventIds.length} events selected`);
+      }
+    } catch {
+      setScheduleActionMessage("Could not add events to your schedule. Try again.");
+    }
   };
 
-  const removeScheduledEvent = (eventId: string) => {
-    setScheduledEventIds((previous) => previous.filter((id) => id !== eventId));
-    recordActivity("view", "Removed event from My Event Schedule", "1 event removed");
+  const removeScheduledEvent = async (eventId: string) => {
+    try {
+      if (await removeFromSchedule(eventId)) recordActivity("view", "Removed event from My Event Schedule", "1 event removed");
+    } catch {
+      setScheduleActionMessage("Could not remove the event. Try again.");
+    }
   };
 
-  const clearEventSchedule = () => {
-    setScheduledEventIds([]);
-    setScheduleManageOpen(false);
-    setScheduledOnly(false);
-    setScheduleActionMessage("");
-    recordActivity("view", "Cleared My Event Schedule");
+  const clearEventSchedule = async () => {
+    try {
+      if (await clearSchedule()) {
+        setScheduleManageOpen(false);
+        setScheduledOnly(false);
+        setScheduleActionMessage("");
+        recordActivity("view", "Cleared My Event Schedule");
+      }
+    } catch {
+      setScheduleActionMessage("Could not clear your schedule. Try again.");
+    }
   };
 
   const loadEventSchedule = () => {
@@ -9123,7 +9135,7 @@ useEffect(() => {
             active: activeToolbarAction === "schedule",
             onClick: () => {
               markToolbarAction("schedule");
-              addSelectedToSchedule();
+              void addSelectedToSchedule();
             },
             onMouseEnter: () => setToolbarHelpText("Add selected event cards to My Event Schedule."),
             onMouseLeave: () => setToolbarHelpText(""),
@@ -9134,31 +9146,35 @@ useEffect(() => {
             title: "My Event Schedule",
             icon: "lists",
             count: scheduledEventIds.length,
-            countLabel: `${scheduledEventIds.length} events`,
+            countLabel: scheduleStatus === "loading" ? "Loading..." : scheduleStatus === "error" ? "Unavailable" : `${scheduledEventIds.length} events`,
             isOpen: eventScheduleOpen,
             onToggle: () => setEventScheduleOpen((value) => !value),
             children: (
               <div style={{ display: "grid", gap: "8px", padding: "0 14px 14px" }}>
-                {scheduledEventIds.length ? (
+                {scheduleStatus === "loading" ? (
+                  <div style={{ color: "#9fb6d4", fontSize: "12.5px" }}>Loading your schedule...</div>
+                ) : scheduleStatus === "error" ? (
+                  <div style={{ color: "#f2b7c4", fontSize: "12.5px" }}>{scheduleError} <button type="button" onClick={() => void refreshSchedule()}>Retry</button></div>
+                ) : scheduledEventIds.length ? (
                   <>
-                    <div style={{ color: "#9fb6d4", fontSize: "12px", lineHeight: 1.35 }}>{scheduledEventIds.length} event{scheduledEventIds.length === 1 ? "" : "s"} saved locally.</div>
+                    <div style={{ color: "#9fb6d4", fontSize: "12px", lineHeight: 1.35 }}>{scheduledEventIds.length} event{scheduledEventIds.length === 1 ? "" : "s"} in your schedule.</div>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                       <button type="button" onClick={loadEventSchedule} style={{ height: "28px", borderRadius: "8px", border: "1px solid rgba(96,165,250,0.42)", background: "rgba(37,99,235,0.22)", color: "#dbeafe", fontSize: "11px", fontWeight: 800, cursor: "pointer", padding: "0 12px" }}>Load</button>
                       <button type="button" onClick={() => setScheduleManageOpen((value) => !value)} style={{ height: "28px", borderRadius: "8px", border: "1px solid rgba(147,197,253,0.24)", background: "rgba(8,28,49,0.5)", color: "#bcd5ee", fontSize: "11px", fontWeight: 800, cursor: "pointer", padding: "0 10px" }}>{scheduleManageOpen ? "Hide" : "Manage"}</button>
-                      <button type="button" onClick={clearEventSchedule} style={{ border: "none", background: "transparent", color: "#9fc3e7", fontSize: "11px", fontWeight: 800, cursor: "pointer", padding: "3px 0" }}>Clear schedule</button>
+                      <button type="button" onClick={() => void clearEventSchedule()} disabled={scheduleBusy} style={{ border: "none", background: "transparent", color: "#9fc3e7", fontSize: "11px", fontWeight: 800, cursor: "pointer", padding: "3px 0" }}>Clear schedule</button>
                     </div>
                     {scheduleManageOpen ? (
                       <div style={{ display: "grid", gap: "2px", maxHeight: "150px", overflowY: "auto", overflowX: "hidden", paddingRight: "2px" }}>
                         {scheduledEvents.map((event) => (
                           <div key={event.id} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: "8px", minHeight: "30px", padding: "6px 0", borderBottom: "1px solid rgba(147,197,253,0.10)" }}>
                             <span title={event.title} style={{ color: "#dbeafe", fontSize: "11.5px", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.title}</span>
-                            <button type="button" onClick={() => removeScheduledEvent(event.id)} aria-label={`Remove ${event.title} from My Event Schedule`} title={`Remove ${event.title} from My Event Schedule`} style={{ width: "22px", height: "22px", borderRadius: "6px", border: "1px solid rgba(190,102,122,0.36)", background: "rgba(118,46,63,0.18)", color: "#f2b7c4", fontSize: "14px", lineHeight: 1, cursor: "pointer", padding: 0 }}>×</button>
+                            <button type="button" onClick={() => void removeScheduledEvent(event.id)} disabled={scheduleBusy} aria-label={`Remove ${event.title} from My Event Schedule`} title={`Remove ${event.title} from My Event Schedule`} style={{ width: "22px", height: "22px", borderRadius: "6px", border: "1px solid rgba(190,102,122,0.36)", background: "rgba(118,46,63,0.18)", color: "#f2b7c4", fontSize: "14px", lineHeight: 1, cursor: "pointer", padding: 0 }}>×</button>
                           </div>
                         ))}
                         {unavailableScheduledEventIds.map((eventId) => (
                           <div key={eventId} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: "8px", minHeight: "30px", padding: "6px 0", borderBottom: "1px solid rgba(147,197,253,0.10)" }}>
                             <span style={{ color: "#9fb6d4", fontSize: "11.5px", fontWeight: 700 }}>Event no longer available</span>
-                            <button type="button" onClick={() => removeScheduledEvent(eventId)} aria-label="Remove unavailable event from My Event Schedule" title="Remove unavailable event from My Event Schedule" style={{ width: "22px", height: "22px", borderRadius: "6px", border: "1px solid rgba(190,102,122,0.36)", background: "rgba(118,46,63,0.18)", color: "#f2b7c4", fontSize: "14px", lineHeight: 1, cursor: "pointer", padding: 0 }}>×</button>
+                            <button type="button" onClick={() => void removeScheduledEvent(eventId)} disabled={scheduleBusy} aria-label="Remove unavailable event from My Event Schedule" title="Remove unavailable event from My Event Schedule" style={{ width: "22px", height: "22px", borderRadius: "6px", border: "1px solid rgba(190,102,122,0.36)", background: "rgba(118,46,63,0.18)", color: "#f2b7c4", fontSize: "14px", lineHeight: 1, cursor: "pointer", padding: 0 }}>×</button>
                           </div>
                         ))}
                       </div>
@@ -9166,7 +9182,7 @@ useEffect(() => {
                   </>
                 ) : (
                   <div style={{ color: "#9fb6d4", fontSize: "12.5px", lineHeight: 1.4 }}>
-                    Select event cards, then use Add to Schedule.
+                    {scheduleStatus === "anonymous" ? "Sign in to build My Event Schedule." : "Select event cards, then use Add to Schedule."}
                   </div>
                 )}
               </div>

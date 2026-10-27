@@ -27,7 +27,7 @@ const labelStyle: React.CSSProperties = {
   fontWeight: 700,
 };
 
-export default function AuthForm({ mode, linkError = false }: { mode: Mode; linkError?: boolean }) {
+export default function AuthForm({ mode, linkError = false, next }: { mode: Mode; linkError?: boolean; next?: string }) {
   const action = mode === "create" ? createAccount
     : mode === "sign-in" ? signIn
       : mode === "forgot-password" ? requestPasswordReset
@@ -46,6 +46,7 @@ export default function AuthForm({ mode, linkError = false }: { mode: Mode; link
       </div>
 
       <form action={formAction} style={{ display: "grid", gap: "18px" }}>
+        {mode === "sign-in" && next ? <input type="hidden" name="next" value={next} /> : null}
         {mode !== "reset-password" ? (
           <label style={labelStyle}>
             Email

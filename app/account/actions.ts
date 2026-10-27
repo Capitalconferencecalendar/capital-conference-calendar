@@ -19,6 +19,19 @@ function passwordFrom(formData: FormData) {
   return typeof value === "string" && value.length >= 8 ? value : null;
 }
 
+function safeWorkspaceReturn(formData: FormData) {
+  const value = formData.get("next");
+  if (typeof value !== "string") return "/account";
+  try {
+    const url = new URL(value, "http://localhost");
+    if (url.origin !== "http://localhost") return "/account";
+    if (url.pathname !== "/discovery" && url.pathname !== "/market-view") return "/account";
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return "/account";
+  }
+}
+
 async function appOrigin() {
   const origin = (await headers()).get("origin");
   if (!origin) return null;
@@ -86,7 +99,7 @@ export async function signIn(_previous: AuthResult, formData: FormData): Promise
   const profileError = await ensureProfile(supabase, data.user.id);
   if (profileError) return { error: "Signed in, but profile setup did not finish. Please try again.", success: "" };
   revalidatePath("/account");
-  redirect("/account");
+  redirect(safeWorkspaceReturn(formData));
 }
 
 export async function requestPasswordReset(_previous: AuthResult, formData: FormData): Promise<AuthResult> {

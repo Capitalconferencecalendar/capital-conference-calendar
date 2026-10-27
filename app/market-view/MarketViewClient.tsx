@@ -7,6 +7,7 @@ import FilterMatchingControl, { type FilterMatchMode } from "../components/platf
 import ControlPanel from "../components/platform/ControlPanel";
 import ContextHelpIcon from "../components/platform/ContextHelpIcon";
 import { getCachedEventPage, getOrFetchEventPage, seedEventPage } from "../components/platform/eventDataCache";
+import { useEventSchedule } from "../../lib/supabase/useEventSchedule";
 
 const quickActions = ["Clear", "Share Selected", "Save Market View", "Save Selected", "Add to Schedule"];
 
@@ -576,7 +577,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const [selectedClusterIndex, setSelectedClusterIndex] = useState(0);
   const [hotWeekEvents, setHotWeekEvents] = useState<HotWeekEvent[]>([]);
   const [isLoadingHotWeekEvents, setIsLoadingHotWeekEvents] = useState(false);
-  const [scheduledEventIds, setScheduledEventIds] = useState<string[]>([]);
+  const { eventIds: scheduledEventIds, status: scheduleStatus, error: scheduleError, busy: scheduleBusy, refreshSchedule, clearSchedule } = useEventSchedule();
   const [savedListCount, setSavedListCount] = useState(0);
   const [savedViewCount, setSavedViewCount] = useState(0);
   const [eventScheduleOpen, setEventScheduleOpen] = useState(false);
@@ -603,7 +604,6 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
       }
     };
     const syncRailStorage = () => {
-      setScheduledEventIds(Array.from(new Set(readStoredArray("ccc_my_event_schedule").filter((value): value is string => typeof value === "string"))));
       setSavedListCount(readStoredArray("ccc_saved_lists").length);
       setSavedViewCount(readStoredArray("ccc_saved_views").length);
     };
@@ -617,8 +617,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   };
 
   const clearEventSchedule = () => {
-    localStorage.setItem("ccc_my_event_schedule", "[]");
-    setScheduledEventIds([]);
+    void clearSchedule().catch(() => setScheduleActionMessage("Could not clear your schedule. Try again."));
   };
 
   const updateFilterMode = (nextMode: FilterMatchMode) => {
@@ -1575,21 +1574,25 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
               title: "My Event Schedule",
               icon: "lists",
               count: scheduledEventIds.length,
-              countLabel: `${scheduledEventIds.length} events`,
+              countLabel: scheduleStatus === "loading" ? "Loading..." : scheduleStatus === "error" ? "Unavailable" : `${scheduledEventIds.length} events`,
               isOpen: eventScheduleOpen,
               onToggle: () => setEventScheduleOpen((value) => !value),
               children: (
                 <div style={{ display: "grid", gap: "8px", padding: "0 14px 14px" }}>
-                  {scheduledEventIds.length ? (
+                  {scheduleStatus === "loading" ? (
+                    <div style={{ color: "#9fb6d4", fontSize: "12.5px" }}>Loading your schedule...</div>
+                  ) : scheduleStatus === "error" ? (
+                    <div style={{ color: "#f2b7c4", fontSize: "12.5px" }}>{scheduleError} <button type="button" onClick={() => void refreshSchedule()}>Retry</button></div>
+                  ) : scheduledEventIds.length ? (
                     <>
-                      <div style={{ color: "#9fb6d4", fontSize: "12px", lineHeight: 1.35 }}>{scheduledEventIds.length} event{scheduledEventIds.length === 1 ? "" : "s"} saved locally.</div>
+                      <div style={{ color: "#9fb6d4", fontSize: "12px", lineHeight: 1.35 }}>{scheduledEventIds.length} event{scheduledEventIds.length === 1 ? "" : "s"} in your schedule.</div>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                         <button type="button" onClick={loadEventSchedule} style={{ height: "28px", borderRadius: "8px", border: "1px solid rgba(96,165,250,0.42)", background: "rgba(37,99,235,0.22)", color: "#dbeafe", fontSize: "11px", fontWeight: 800, cursor: "pointer", padding: "0 12px" }}>Load</button>
-                        <button type="button" onClick={clearEventSchedule} style={{ border: "none", background: "transparent", color: "#9fc3e7", fontSize: "11px", fontWeight: 800, cursor: "pointer", padding: "3px 0" }}>Clear schedule</button>
+                        <button type="button" onClick={clearEventSchedule} disabled={scheduleBusy} style={{ border: "none", background: "transparent", color: "#9fc3e7", fontSize: "11px", fontWeight: 800, cursor: "pointer", padding: "3px 0" }}>Clear schedule</button>
                       </div>
                     </>
                   ) : (
-                    <div style={{ color: "#9fb6d4", fontSize: "12.5px", lineHeight: 1.4 }}>Add events from Discovery to build your schedule.</div>
+                    <div style={{ color: "#9fb6d4", fontSize: "12.5px", lineHeight: 1.4 }}>{scheduleStatus === "anonymous" ? "Sign in to build My Event Schedule." : "Add events from Discovery to build your schedule."}</div>
                   )}
                 </div>
               ),
