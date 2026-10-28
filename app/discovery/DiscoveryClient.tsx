@@ -12,6 +12,7 @@ import ContextHelpIcon from "../components/platform/ContextHelpIcon";
 import { getCachedEventPage, getOrFetchEventPage, seedEventPage } from "../components/platform/eventDataCache";
 import { useEventSchedule } from "../../lib/supabase/useEventSchedule";
 import { useMyLists } from "../../lib/supabase/useMyLists";
+import { useSavedViews, normalizeSavedViewFilters, type SavedViewFilters } from "../../lib/supabase/useSavedViews";
 
 export type WorkspaceEvent = {
   id: string;
@@ -51,27 +52,9 @@ export type WorkspaceEvent = {
   verificationStamp?: string;
 };
 
-type SavedView = { id: string; name: string; filters: FiltersState; filterMode?: FilterMatchMode; createdAt: string; eventCount?: number };
 type RecentActivity = { id: string; type: "event" | "feed" | "view"; label: string; detail?: string; at: string };
 
-type FiltersState = {
-  dateRange: "next30" | "next60" | "next90" | "all";
-  country: string[];
-  region: string[];
-  state: string[];
-  cities: string[];
-  sectorThemes: string[];
-  publicCompanySectors: string[];
-  conferenceType: string[];
-  issuerParticipation: string[];
-  targetAudience: string[];
-  companyParticipants: string[];
-  eventFeatures: string[];
-  accessModel: string[];
-  marketCap: string[];
-  organizer: string[];
-  marketFocus: string[];
-};
+type FiltersState = SavedViewFilters;
 
 type AnalysisAction =
   | { type: "sectorTheme"; value: string }
@@ -1458,7 +1441,8 @@ export default function EventsClient({
   const { lists: savedLists, status: listsStatus, error: listsError, busy: listsBusy, refreshLists, createList, renameList, deleteList, addEventsToList, removeEventsFromList } = useMyLists();
   const [activeSavedListId, setActiveSavedListId] = useState<string | null>(null);
   const [listActionMessage, setListActionMessage] = useState("");
-  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  const { views: savedViews, status: viewsStatus, error: viewsError, busy: viewsBusy, refreshSavedViews, createSavedView, renameSavedView, deleteSavedView: removeSavedView } = useSavedViews();
+  const [viewActionMessage, setViewActionMessage] = useState("");
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [activeQuickView, setActiveQuickView] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -1562,11 +1546,9 @@ export default function EventsClient({
 
   useEffect(() => {
     try {
-      const views = localStorage.getItem("ccc_saved_views");
       const selected = localStorage.getItem("ccc_selected_events");
       const recentFilters = localStorage.getItem("ccc_recent_filters");
       const recentActivityRaw = localStorage.getItem("ccc_recent_activity");
-      if (views) setSavedViews(JSON.parse(views));
       if (selected) setSelectedEvents(JSON.parse(selected));
       if (recentFilters) setFilters(normalizeFiltersState(JSON.parse(recentFilters)));
       if (recentActivityRaw) setRecentActivity(JSON.parse(recentActivityRaw));
@@ -1729,7 +1711,6 @@ export default function EventsClient({
   }, []);
 
   useEffect(() => localStorage.setItem("ccc_selected_events", JSON.stringify(selectedEvents)), [selectedEvents]);
-  useEffect(() => localStorage.setItem("ccc_saved_views", JSON.stringify(savedViews)), [savedViews]);
   useEffect(() => localStorage.setItem("ccc_recent_filters", JSON.stringify(filters)), [filters]);
   useEffect(() => localStorage.setItem("ccc_recent_activity", JSON.stringify(recentActivity)), [recentActivity]);
   useLayoutEffect(() => {
@@ -3737,21 +3718,34 @@ useEffect(() => {
     }
   };
 
-  const saveCurrentView = () => {
+  const saveCurrentView = async () => {
     const name = window.prompt("View name", `Saved View ${savedViews.length + 1}`);
-    if (!name) return;
-    setSavedViews((prev) => [{ id: `${Date.now()}`, name, filters, filterMode, createdAt: new Date().toISOString(), eventCount: filteredEvents.length }, ...prev]);
-    recordActivity("view", `Saved view: ${name}`, `${filteredEvents.length} events`);
+    if (name === null) return;
+    try {
+      setViewActionMessage("");
+      const id = await createSavedView({ name, source: "discovery", filters, filterMode, searchQuery, fromDate, toDate, eventCount: discoveryPage.total });
+      if (!id) return;
+      recordActivity("view", `Saved view: ${name.trim()}`, `${discoveryPage.total} events`);
+      setViewActionMessage("View saved to your account.");
+    } catch (error) {
+      setViewActionMessage(error instanceof Error ? error.message : "Could not save this view. Try again.");
+    }
   };
 
   const loadSavedView = (viewId: string) => {
     const view = savedViews.find((v) => v.id === viewId);
     if (!view) return;
     setActiveSavedListId(null);
-    setFilters({ ...DEFAULT_FILTERS, ...view.filters });
-    setFilterMode(view.filterMode || "and");
-    setFromDate("");
-    setToDate("");
+    if (view.source === "market-view") {
+      window.location.assign(`/market-view?savedView=${encodeURIComponent(view.id)}`);
+      return;
+    }
+    setDashboardMode("market");
+    setFilters(normalizeSavedViewFilters(view.filters));
+    setFilterMode(view.filterMode);
+    setSearchQuery(view.searchQuery);
+    setFromDate(view.fromDate);
+    setToDate(view.toDate);
     setSelectedEvents([]);
     setScheduledOnly(false);
     setActiveQuickView("");
@@ -3759,14 +3753,61 @@ useEffect(() => {
     scrollToResultsAnchor();
   };
 
-  const deleteSavedView = (viewId: string) => {
+  const deleteSavedView = async (viewId: string) => {
     const target = savedViews.find((v) => v.id === viewId);
     if (!target) return;
     const confirmed = window.confirm(`Delete saved view "${target.name}"?`);
     if (!confirmed) return;
-    setSavedViews((prev) => prev.filter((v) => v.id !== viewId));
-    recordActivity("view", `Deleted view: ${target.name}`);
+    try {
+      setViewActionMessage("");
+      if (!await removeSavedView(viewId)) return;
+      recordActivity("view", `Deleted view: ${target.name}`);
+    } catch (error) {
+      setViewActionMessage(error instanceof Error ? error.message : "Could not delete this view. Try again.");
+    }
   };
+
+  const renameCurrentView = async (viewId: string) => {
+    const target = savedViews.find((view) => view.id === viewId);
+    if (!target) return;
+    const name = window.prompt("View name", target.name);
+    if (name === null) return;
+    try {
+      setViewActionMessage("");
+      if (!await renameSavedView(viewId, name)) return;
+      setViewActionMessage("View renamed.");
+    } catch (error) {
+      setViewActionMessage(error instanceof Error ? error.message : "Could not rename this view. Try again.");
+    }
+  };
+
+  useEffect(() => {
+    if (viewsStatus !== "ready") return;
+    const params = new URLSearchParams(window.location.search);
+    const viewId = params.get("savedView");
+    if (!viewId) return;
+    const view = savedViews.find((item) => item.id === viewId);
+    if (!view) {
+      setViewActionMessage("Saved view not found in this account.");
+      return;
+    }
+    params.delete("savedView");
+    window.history.replaceState(null, "", `${window.location.pathname}${params.size ? `?${params}` : ""}`);
+    if (view.source === "market-view") {
+      window.location.assign(`/market-view?savedView=${encodeURIComponent(view.id)}`);
+      return;
+    }
+    setActiveSavedListId(null);
+    setDashboardMode("market");
+    setFilters(normalizeSavedViewFilters(view.filters));
+    setFilterMode(view.filterMode);
+    setSearchQuery(view.searchQuery);
+    setFromDate(view.fromDate);
+    setToDate(view.toDate);
+    setSelectedEvents([]);
+    setScheduledOnly(false);
+    setActiveQuickView("");
+  }, [savedViews, viewsStatus]);
 
   const buildSuggestedCalendarFeedName = () => {
     const parts: string[] = [];
@@ -4320,7 +4361,8 @@ useEffect(() => {
                   <button type="button" onClick={createSelectedIcs} style={{ ...controlStyle, height: "38px", fontWeight: 700 }}>Download ICS Snapshot</button>
                   <button type="button" onClick={saveCurrentView} style={{ ...controlStyle, height: "38px", fontWeight: 700 }}>Save Current View</button>
                   <button type="button" onClick={shareSelected} style={{ ...controlStyle, height: "38px", fontWeight: 700 }}>Share Current Market View</button>
-                  <div style={{ color: "#9ec0e4", fontSize: "11px", marginTop: "4px" }}>Saved views and lists use local browser storage.</div>
+                  {viewActionMessage ? <div role="status" style={{ color: "#dbeafe", fontSize: "12px" }}>{viewActionMessage}</div> : null}
+                  <div style={{ color: "#9ec0e4", fontSize: "11px", marginTop: "4px" }}>Sign in to save views and lists to your account.</div>
                 </div>
               ) : null}
 
@@ -9087,13 +9129,13 @@ useEffect(() => {
             items={[
               { label: "Save Selected", description: "Save selected event cards into a new or existing list." },
               { label: "Share Selected", description: "Open an email draft with links to the selected events." },
-              { label: "Save Market View", description: "Save the current filtered view locally so you can return to it later." },
+              { label: "Save Market View", description: "Save the current filtered view to your account so you can return to it later." },
               { label: "Add to Schedule", description: "Select event cards first, then add them to My Event Schedule." },
               { label: "Clear", description: "Clear selected cards, filters, and quick views." },
             ]}
           />
         }
-        quickActionsMessage={listActionMessage || scheduleActionMessage || undefined}
+        quickActionsMessage={viewActionMessage || listActionMessage || scheduleActionMessage || undefined}
         panelHeight={PANEL_HEIGHT}
         calendarPlatforms={[
           { label: "Google", brand: "google", platform: "Google Calendar", onClick: () => openCalendarSync("Google Calendar") },
@@ -9131,13 +9173,13 @@ useEffect(() => {
             label: "Save Market View",
             kind: "saveView",
             accent: "#7ad6c8",
-            description: "Save the current filtered market view in this browser.",
+            description: "Save the current filtered market view to your account.",
             active: activeToolbarAction === "view",
             onClick: () => {
               markToolbarAction("view");
-              saveCurrentView();
+              void saveCurrentView();
             },
-            onMouseEnter: () => setToolbarHelpText("Save your current filters as a local market view preset."),
+            onMouseEnter: () => setToolbarHelpText("Save your current filters to your account."),
             onMouseLeave: () => setToolbarHelpText(""),
           },
           {
@@ -9288,18 +9330,20 @@ useEffect(() => {
             title: "Saved Views",
             icon: "views",
             count: savedViews.length,
+            countLabel: viewsStatus === "loading" ? "Loading..." : viewsStatus === "error" ? "Unavailable" : `${savedViews.length} saved`,
             isOpen: savedMarketViewsOpen,
             onToggle: () => setSavedMarketViewsOpen((value) => !value),
-            children: savedViews.length ? (
+            children: viewsStatus === "loading" ? <div style={{ color: "#9fb6d4", padding: "0 14px 14px", fontSize: "12.5px" }}>Loading saved views...</div> : viewsStatus === "error" ? <div style={{ color: "#f2b7c4", padding: "0 14px 14px", fontSize: "12.5px" }}>{viewsError} <button type="button" onClick={() => void refreshSavedViews()}>Retry</button></div> : viewsStatus === "anonymous" ? <div style={{ color: "#9fb6d4", padding: "0 14px 14px", fontSize: "12.5px" }}>Sign in to save and load views.</div> : savedViews.length ? (
               <div style={{ display: "grid", gap: "8px", padding: "0 14px 14px" }}>
                 {savedViews.map((view) => (
                   <div key={view.id} style={{ border: "1px solid rgba(147,197,253,0.18)", borderRadius: "10px", padding: "10px 10px 9px" }}>
                     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "10px", marginBottom: "4px" }}>
                       <div style={{ color: "#dbeafe", fontSize: "12px", lineHeight: 1.3, fontWeight: 700 }}>{view.name}</div>
-                      <button type="button" onClick={() => deleteSavedView(view.id)} style={{ height: "20px", minWidth: "20px", borderRadius: "6px", border: "1px solid rgba(190,102,122,0.36)", background: "rgba(118,46,63,0.18)", color: "#f2b7c4", fontSize: "11px", lineHeight: 1, cursor: "pointer", padding: "0 6px" }} title="Delete saved view">✕</button>
+                      <button type="button" onClick={() => void deleteSavedView(view.id)} disabled={viewsBusy} style={{ height: "20px", minWidth: "20px", borderRadius: "6px", border: "1px solid rgba(190,102,122,0.36)", background: "rgba(118,46,63,0.18)", color: "#f2b7c4", fontSize: "11px", lineHeight: 1, cursor: "pointer", padding: "0 6px" }} title="Delete saved view">✕</button>
                     </div>
-                    <div style={{ color: "#93c5fd", fontSize: "10.5px", marginBottom: "8px" }}>{view.eventCount ?? 0} events • Updated {new Date(view.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
+                    <div style={{ color: "#93c5fd", fontSize: "10.5px", marginBottom: "8px" }}>{view.eventCount ?? 0} events • Saved {new Date(view.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
                     <button type="button" onClick={() => loadSavedView(view.id)} style={{ height: "26px", borderRadius: "7px", border: "1px solid rgba(147,197,253,0.28)", background: "rgba(147,197,253,0.08)", color: "#dbeafe", fontSize: "10.5px", cursor: "pointer", padding: "0 10px" }}>Load</button>
+                    <button type="button" onClick={() => void renameCurrentView(view.id)} disabled={viewsBusy} style={{ height: "26px", marginLeft: "6px", borderRadius: "7px", border: "1px solid rgba(147,197,253,0.28)", background: "rgba(147,197,253,0.08)", color: "#dbeafe", fontSize: "10.5px", cursor: "pointer", padding: "0 10px" }}>Rename</button>
                   </div>
                 ))}
               </div>
