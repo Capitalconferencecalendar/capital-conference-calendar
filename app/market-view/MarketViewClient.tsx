@@ -8,6 +8,7 @@ import ControlPanel from "../components/platform/ControlPanel";
 import ContextHelpIcon from "../components/platform/ContextHelpIcon";
 import { getCachedEventPage, getOrFetchEventPage, seedEventPage } from "../components/platform/eventDataCache";
 import { useEventSchedule } from "../../lib/supabase/useEventSchedule";
+import { useMyLists } from "../../lib/supabase/useMyLists";
 
 const quickActions = ["Clear", "Share Selected", "Save Market View", "Save Selected", "Add to Schedule"];
 
@@ -578,9 +579,10 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const [hotWeekEvents, setHotWeekEvents] = useState<HotWeekEvent[]>([]);
   const [isLoadingHotWeekEvents, setIsLoadingHotWeekEvents] = useState(false);
   const { eventIds: scheduledEventIds, status: scheduleStatus, error: scheduleError, busy: scheduleBusy, refreshSchedule, clearSchedule } = useEventSchedule();
-  const [savedListCount, setSavedListCount] = useState(0);
+  const { lists: savedLists, status: listsStatus, error: listsError, refreshLists } = useMyLists();
   const [savedViewCount, setSavedViewCount] = useState(0);
   const [eventScheduleOpen, setEventScheduleOpen] = useState(false);
+  const [savedListsOpen, setSavedListsOpen] = useState(false);
   const [scheduleActionMessage, setScheduleActionMessage] = useState("");
 
   useEffect(() => {
@@ -604,7 +606,6 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
       }
     };
     const syncRailStorage = () => {
-      setSavedListCount(readStoredArray("ccc_saved_lists").length);
       setSavedViewCount(readStoredArray("ccc_saved_views").length);
     };
     syncRailStorage();
@@ -1597,7 +1598,17 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                 </div>
               ),
             },
-            { title: "My Lists", icon: "lists", count: savedListCount },
+            {
+              title: "My Lists", icon: "lists", count: savedLists.length,
+              countLabel: listsStatus === "loading" ? "Loading..." : listsStatus === "error" ? "Unavailable" : `${savedLists.length} saved`,
+              isOpen: savedListsOpen, onToggle: () => setSavedListsOpen((value) => !value),
+              children: <div style={{ padding: "0 14px 14px", color: "#9fb6d4", fontSize: "12.5px" }}>
+                {listsStatus === "error" ? <>{listsError} <button type="button" onClick={() => void refreshLists()}>Retry</button></> :
+                  listsStatus === "loading" ? "Loading your lists..." :
+                  listsStatus === "anonymous" ? "Sign in to view My Lists." :
+                  savedLists.length ? savedLists.map((list) => <div key={list.id} style={{ padding: "6px 0" }}>{list.name} · {list.eventIds.length} events</div>) : "No saved lists yet."}
+              </div>,
+            },
             { title: "Saved Views", icon: "views", count: savedViewCount },
           ]}
         />

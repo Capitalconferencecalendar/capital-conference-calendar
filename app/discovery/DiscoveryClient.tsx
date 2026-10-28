@@ -11,6 +11,7 @@ import ControlPanel from "../components/platform/ControlPanel";
 import ContextHelpIcon from "../components/platform/ContextHelpIcon";
 import { getCachedEventPage, getOrFetchEventPage, seedEventPage } from "../components/platform/eventDataCache";
 import { useEventSchedule } from "../../lib/supabase/useEventSchedule";
+import { useMyLists } from "../../lib/supabase/useMyLists";
 
 export type WorkspaceEvent = {
   id: string;
@@ -50,7 +51,6 @@ export type WorkspaceEvent = {
   verificationStamp?: string;
 };
 
-type SavedList = { id: string; name: string; eventIds: string[]; createdAt: string };
 type SavedView = { id: string; name: string; filters: FiltersState; filterMode?: FilterMatchMode; createdAt: string; eventCount?: number };
 type RecentActivity = { id: string; type: "event" | "feed" | "view"; label: string; detail?: string; at: string };
 
@@ -1455,8 +1455,9 @@ export default function EventsClient({
   const [eventLoadError, setEventLoadError] = useState<string | null>(null);
   const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
   const { eventIds: scheduledEventIds, status: scheduleStatus, error: scheduleError, busy: scheduleBusy, refreshSchedule, addToSchedule, removeFromSchedule, clearSchedule } = useEventSchedule();
-  const [savedLists, setSavedLists] = useState<SavedList[]>([]);
+  const { lists: savedLists, status: listsStatus, error: listsError, busy: listsBusy, refreshLists, createList, renameList, deleteList, addEventsToList, removeEventsFromList } = useMyLists();
   const [activeSavedListId, setActiveSavedListId] = useState<string | null>(null);
+  const [listActionMessage, setListActionMessage] = useState("");
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [activeQuickView, setActiveQuickView] = useState("");
@@ -1561,12 +1562,10 @@ export default function EventsClient({
 
   useEffect(() => {
     try {
-      const lists = localStorage.getItem("ccc_saved_lists");
       const views = localStorage.getItem("ccc_saved_views");
       const selected = localStorage.getItem("ccc_selected_events");
       const recentFilters = localStorage.getItem("ccc_recent_filters");
       const recentActivityRaw = localStorage.getItem("ccc_recent_activity");
-      if (lists) setSavedLists(JSON.parse(lists));
       if (views) setSavedViews(JSON.parse(views));
       if (selected) setSelectedEvents(JSON.parse(selected));
       if (recentFilters) setFilters(normalizeFiltersState(JSON.parse(recentFilters)));
@@ -1730,7 +1729,6 @@ export default function EventsClient({
   }, []);
 
   useEffect(() => localStorage.setItem("ccc_selected_events", JSON.stringify(selectedEvents)), [selectedEvents]);
-  useEffect(() => localStorage.setItem("ccc_saved_lists", JSON.stringify(savedLists)), [savedLists]);
   useEffect(() => localStorage.setItem("ccc_saved_views", JSON.stringify(savedViews)), [savedViews]);
   useEffect(() => localStorage.setItem("ccc_recent_filters", JSON.stringify(filters)), [filters]);
   useEffect(() => localStorage.setItem("ccc_recent_activity", JSON.stringify(recentActivity)), [recentActivity]);
@@ -1859,13 +1857,22 @@ export default function EventsClient({
     [activeSavedListId, savedLists]
   );
 
+  useEffect(() => {
+    if (listsStatus === "anonymous" || listsStatus === "error") setActiveSavedListId(null);
+    if (listsStatus === "ready" && activeSavedListId && !activeSavedList) setActiveSavedListId(null);
+  }, [activeSavedList, activeSavedListId, listsStatus]);
+
   const discoveryRequest = useMemo(() => {
     const params = new URLSearchParams();
-    params.set("limit", String(scheduledOnly ? Math.max(LOAD_MORE_INCREMENT, scheduledEventIds.length) : LOAD_MORE_INCREMENT));
+    params.set("limit", String(scheduledOnly ? Math.max(LOAD_MORE_INCREMENT, scheduledEventIds.length) : activeSavedList ? Math.max(LOAD_MORE_INCREMENT, activeSavedList.eventIds.length) : LOAD_MORE_INCREMENT));
     if (scheduledOnly) {
       params.set("schedule", "1");
       params.set("sort", "soonest");
       scheduledEventIds.forEach((value) => params.append("eventId", value));
+      return params;
+    }
+    if (activeSavedList && !activeSavedList.eventIds.length) {
+      params.set("schedule", "1");
       return params;
     }
     params.set("dateRange", filters.dateRange);
@@ -1892,7 +1899,7 @@ export default function EventsClient({
     activeSavedList?.eventIds.forEach((value) => params.append("eventId", value));
     urlEventIds.forEach((value) => params.append("eventId", value));
     return params;
-  }, [activeSavedList?.eventIds, filterMode, filters, fromDate, scheduledEventIds, scheduledOnly, searchQuery, sortMode, toDate, urlEventIds]);
+  }, [activeSavedList, filterMode, filters, fromDate, scheduledEventIds, scheduledOnly, searchQuery, sortMode, toDate, urlEventIds]);
   const initialDiscoveryRequestRef = useRef<string | null>(null);
 
   const applyDiscoveryPage = useCallback((next: DiscoveryPageResponse, append = false) => {
@@ -3614,48 +3621,91 @@ useEffect(() => {
     scrollToResultsAnchor();
   };
 
-  const addSelectedToNewList = () => {
+  const addSelectedToNewList = async () => {
     const eventIds = getSavableEventIds();
     if (!eventIds.length) {
-      window.alert("Select at least one conference to save.");
+      setListActionMessage("Select at least one conference to save.");
       return;
     }
     const defaultName = `Saved Conference List ${savedLists.length + 1}`;
     const name = window.prompt("List name", defaultName);
-    if (!name) return;
-    setSavedLists((prev) => [{ id: `${Date.now()}`, name, eventIds, createdAt: new Date().toISOString() }, ...prev]);
-    setActiveSavedListId(null);
-    setSelectedEvents([]);
-    recordActivity("view", `Saved list: ${name}`, `${eventIds.length} events`);
-    scrollToResultsAnchor();
+    if (name === null) return;
+    try {
+      setListActionMessage("");
+      const id = await createList(name, eventIds);
+      if (!id) return;
+      setActiveSavedListId(null);
+      setSelectedEvents([]);
+      recordActivity("view", `Saved list: ${name.trim()}`, `${eventIds.length} events`);
+      scrollToResultsAnchor();
+    } catch (error) {
+      setListActionMessage(error instanceof Error ? error.message : "Could not save the list. Try again.");
+    }
   };
 
-  const saveSingleEventToNewList = (event: WorkspaceEvent) => {
+  const saveSingleEventToNewList = async (event: WorkspaceEvent) => {
     const defaultName = `${event.title} List`;
     const name = window.prompt("List name", defaultName);
-    if (!name) return;
-    setSavedLists((prev) => [{ id: `${Date.now()}`, name, eventIds: [event.id], createdAt: new Date().toISOString() }, ...prev]);
-    recordActivity("view", `Saved list: ${name}`, "1 event");
+    if (name === null) return;
+    try {
+      setListActionMessage("");
+      const id = await createList(name, [event.id]);
+      if (id) recordActivity("view", `Saved list: ${name.trim()}`, "1 event");
+    } catch (error) {
+      setListActionMessage(error instanceof Error ? error.message : "Could not save the event. Try again.");
+    }
   };
 
-  const addSelectedToExistingList = (listId: string) => {
+  const addSelectedToExistingList = async (listId: string) => {
     const eventIds = getSavableEventIds();
     if (!eventIds.length) {
-      window.alert("Select at least one conference to save.");
+      setListActionMessage("Select at least one conference to save.");
       return;
     }
-    setSavedLists((prev) =>
-      prev.map((list) =>
-        list.id === listId
-          ? { ...list, eventIds: unique([...list.eventIds, ...eventIds]) }
-          : list
-      )
-    );
-    setActiveSavedListId(listId);
-    setSelectedEvents([]);
-    const target = savedLists.find((l) => l.id === listId);
-    recordActivity("view", `Updated list: ${target?.name || "Saved list"}`, `${eventIds.length} events added`);
-    scrollToResultsAnchor();
+    try {
+      setListActionMessage("");
+      if (!await addEventsToList(listId, eventIds)) return;
+      setActiveSavedListId(listId);
+      setSelectedEvents([]);
+      const target = savedLists.find((l) => l.id === listId);
+      recordActivity("view", `Updated list: ${target?.name || "Saved list"}`, `${eventIds.length} events added`);
+      scrollToResultsAnchor();
+    } catch (error) {
+      setListActionMessage(error instanceof Error ? error.message : "Could not update the list. Try again.");
+    }
+  };
+
+  const createEmptyList = async () => {
+    const name = window.prompt("List name", `Saved Conference List ${savedLists.length + 1}`);
+    if (name === null) return;
+    try {
+      setListActionMessage("");
+      await createList(name);
+    } catch (error) {
+      setListActionMessage(error instanceof Error ? error.message : "Could not create the list. Try again.");
+    }
+  };
+
+  const renameSavedList = async (listId: string) => {
+    const target = savedLists.find((list) => list.id === listId);
+    if (!target) return;
+    const name = window.prompt("Rename list", target.name);
+    if (name === null) return;
+    try {
+      setListActionMessage("");
+      await renameList(listId, name);
+    } catch (error) {
+      setListActionMessage(error instanceof Error ? error.message : "Could not rename the list. Try again.");
+    }
+  };
+
+  const removeEventFromSavedList = async (listId: string, eventId: string) => {
+    try {
+      setListActionMessage("");
+      await removeEventsFromList(listId, [eventId]);
+    } catch (error) {
+      setListActionMessage(error instanceof Error ? error.message : "Could not remove the event. Try again.");
+    }
   };
 
   const loadSavedList = (listId: string) => {
@@ -3672,16 +3722,19 @@ useEffect(() => {
     scrollToResultsAnchor();
   };
 
-  const deleteSavedList = (listId: string) => {
+  const deleteSavedList = async (listId: string) => {
     const target = savedLists.find((l) => l.id === listId);
     if (!target) return;
     const confirmed = window.confirm(`Delete saved conference list "${target.name}"?`);
     if (!confirmed) return;
-    setSavedLists((prev) => prev.filter((l) => l.id !== listId));
-    if (activeSavedListId === listId) {
-      setActiveSavedListId(null);
+    try {
+      setListActionMessage("");
+      if (!await deleteList(listId)) return;
+      if (activeSavedListId === listId) setActiveSavedListId(null);
+      recordActivity("view", `Deleted conference list: ${target.name}`);
+    } catch (error) {
+      setListActionMessage(error instanceof Error ? error.message : "Could not delete the list. Try again.");
     }
-    recordActivity("view", `Deleted conference list: ${target.name}`);
   };
 
   const saveCurrentView = () => {
@@ -9040,7 +9093,7 @@ useEffect(() => {
             ]}
           />
         }
-        quickActionsMessage={scheduleActionMessage || undefined}
+        quickActionsMessage={listActionMessage || scheduleActionMessage || undefined}
         panelHeight={PANEL_HEIGHT}
         calendarPlatforms={[
           { label: "Google", brand: "google", platform: "Google Calendar", onClick: () => openCalendarSync("Google Calendar") },
@@ -9091,14 +9144,14 @@ useEffect(() => {
             label: "Save Selected",
             kind: "saveSelected",
             accent: "#ffbf66",
-            description: "Add selected event cards to a new or existing local list.",
+            description: "Add selected event cards to a new or existing list.",
             active: activeToolbarAction === "save" || saveMenuOpen,
             containerRef: saveMenuRef,
             onClick: () => {
               markToolbarAction("save");
               setSaveMenuOpen((v) => !v);
             },
-            onMouseEnter: () => setToolbarHelpText("Save selected conferences to a new or existing local list."),
+            onMouseEnter: () => setToolbarHelpText("Save selected conferences to a new or existing list."),
             onMouseLeave: () => setToolbarHelpText(""),
             menu: saveMenuOpen ? (
               <div style={{ position: "absolute", top: "35px", left: 0, right: 0, zIndex: 400, borderRadius: "10px", border: "1px solid rgba(96,165,250,0.3)", background: "linear-gradient(180deg, rgba(8,30,53,0.98) 0%, rgba(7,25,45,0.98) 100%)", boxShadow: "0 14px 28px rgba(4,12,22,0.38)", padding: "10px", display: "grid", gap: "8px" }}>
@@ -9113,16 +9166,16 @@ useEffect(() => {
                   type="button"
                   onClick={() => {
                     if (saveListChoice === "new") {
-                      addSelectedToNewList();
+                      void addSelectedToNewList();
                     } else {
-                      addSelectedToExistingList(saveListChoice);
+                      void addSelectedToExistingList(saveListChoice);
                     }
                     setSaveMenuOpen(false);
                     setSaveListChoice("new");
                   }}
                   style={{ height: "34px", borderRadius: "8px", border: "1px solid rgba(96,165,250,0.44)", background: "rgba(37,99,235,0.24)", color: "#dbeafe", fontWeight: 700, cursor: "pointer" }}
                 >
-                  Save
+                  {listsBusy ? "Saving..." : "Save"}
                 </button>
               </div>
             ) : null,
@@ -9192,24 +9245,42 @@ useEffect(() => {
             title: "My Lists",
             icon: "lists",
             count: savedLists.length,
+            countLabel: listsStatus === "loading" ? "Loading..." : listsStatus === "error" ? "Unavailable" : `${savedLists.length} saved`,
             isOpen: savedConferenceListsOpen,
             onToggle: () => setSavedConferenceListsOpen((value) => !value),
-            children: savedLists.length ? (
+            children: listsStatus === "loading" ? (
+              <div style={{ color: "#9fb6d4", fontSize: "12.5px", padding: "0 14px 14px" }}>Loading your lists...</div>
+            ) : listsStatus === "error" ? (
+              <div style={{ color: "#f2b7c4", fontSize: "12.5px", padding: "0 14px 14px" }}>{listsError} <button type="button" onClick={() => void refreshLists()}>Retry</button></div>
+            ) : listsStatus === "anonymous" ? (
+              <div style={{ display: "grid", gap: "8px", color: "#9fb6d4", fontSize: "12.5px", padding: "0 14px 14px" }}>
+                <span>Sign in to manage My Lists.</span>
+                <button type="button" onClick={() => window.location.assign("/account/sign-in?next=%2Fdiscovery")} style={{ height: "28px", borderRadius: "7px", border: "1px solid rgba(147,197,253,0.28)", background: "rgba(147,197,253,0.08)", color: "#dbeafe", fontSize: "11px", fontWeight: 700, cursor: "pointer" }}>Create List</button>
+              </div>
+            ) : (
               <div style={{ display: "grid", gap: "8px", padding: "0 14px 14px" }}>
+                <button type="button" onClick={() => void createEmptyList()} disabled={listsBusy} style={{ height: "28px", borderRadius: "7px", border: "1px solid rgba(147,197,253,0.28)", background: "rgba(147,197,253,0.08)", color: "#dbeafe", fontSize: "11px", fontWeight: 700, cursor: "pointer" }}>Create List</button>
+                {listActionMessage ? <div role="alert" style={{ color: "#f2b7c4", fontSize: "11px" }}>{listActionMessage}</div> : null}
                 {savedLists.map((list) => (
                   <div key={list.id} style={{ border: "1px solid rgba(147,197,253,0.18)", borderRadius: "10px", padding: "10px 10px 9px" }}>
                     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "10px", marginBottom: "4px" }}>
                       <div style={{ color: "#dbeafe", fontSize: "12px", lineHeight: 1.3, fontWeight: 700 }}>{list.name}</div>
-                      <button type="button" onClick={() => deleteSavedList(list.id)} style={{ height: "20px", minWidth: "20px", borderRadius: "6px", border: "1px solid rgba(190,102,122,0.36)", background: "rgba(118,46,63,0.18)", color: "#f2b7c4", fontSize: "11px", lineHeight: 1, cursor: "pointer", padding: "0 6px" }} title="Delete saved list">✕</button>
+                      <button type="button" onClick={() => void deleteSavedList(list.id)} disabled={listsBusy} style={{ height: "20px", minWidth: "20px", borderRadius: "6px", border: "1px solid rgba(190,102,122,0.36)", background: "rgba(118,46,63,0.18)", color: "#f2b7c4", fontSize: "11px", lineHeight: 1, cursor: "pointer", padding: "0 6px" }} title="Delete saved list" aria-label={`Delete ${list.name}`}>✕</button>
                     </div>
-                    <div style={{ color: "#93c5fd", fontSize: "10.5px", marginBottom: "8px" }}>{list.eventIds.length} events • Updated {new Date(list.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
-                    <button type="button" onClick={() => loadSavedList(list.id)} style={{ height: "26px", borderRadius: "7px", border: "1px solid rgba(147,197,253,0.28)", background: "rgba(147,197,253,0.08)", color: "#dbeafe", fontSize: "10.5px", cursor: "pointer", padding: "0 10px" }}>Load</button>
+                    <div style={{ color: "#93c5fd", fontSize: "10.5px", marginBottom: "8px" }}>{list.eventIds.length} events • Created {new Date(list.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      <button type="button" onClick={() => loadSavedList(list.id)} style={{ height: "26px", borderRadius: "7px", border: "1px solid rgba(147,197,253,0.28)", background: "rgba(147,197,253,0.08)", color: "#dbeafe", fontSize: "10.5px", cursor: "pointer", padding: "0 10px" }}>Load</button>
+                      <button type="button" onClick={() => void renameSavedList(list.id)} disabled={listsBusy} style={{ height: "26px", borderRadius: "7px", border: "1px solid rgba(147,197,253,0.28)", background: "rgba(147,197,253,0.08)", color: "#dbeafe", fontSize: "10.5px", cursor: "pointer", padding: "0 10px" }}>Rename</button>
+                    </div>
+                    {activeSavedListId === list.id && list.eventIds.length ? <div style={{ display: "grid", gap: "3px", marginTop: "8px", maxHeight: "140px", overflowY: "auto" }}>
+                      {list.eventIds.map((eventId) => <div key={eventId} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px" }}>
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "11px", color: "#bcd5ee" }}>{events.find((event) => event.id === eventId)?.title || "Saved event"}</span>
+                        <button type="button" onClick={() => void removeEventFromSavedList(list.id, eventId)} disabled={listsBusy} aria-label="Remove event from list" title="Remove event from list" style={{ border: "none", background: "transparent", color: "#f2b7c4", cursor: "pointer" }}>✕</button>
+                      </div>)}
+                    </div> : null}
                   </div>
                 ))}
-              </div>
-            ) : (
-              <div style={{ color: "#9fb6d4", fontSize: "12.5px", lineHeight: 1.4, padding: "0 14px 14px" }}>
-                No saved lists yet.<br />Select events, then use Save Selected.
+                {!savedLists.length ? <div style={{ color: "#9fb6d4", fontSize: "12.5px", lineHeight: 1.4 }}>No saved lists yet.<br />Select events, then use Save Selected.</div> : null}
               </div>
             ),
           },
