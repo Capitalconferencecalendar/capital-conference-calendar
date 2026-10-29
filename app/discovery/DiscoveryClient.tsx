@@ -13,6 +13,9 @@ import { getCachedEventPage, getOrFetchEventPage, seedEventPage } from "../compo
 import { useEventSchedule } from "../../lib/supabase/useEventSchedule";
 import { useMyLists } from "../../lib/supabase/useMyLists";
 import { useSavedViews, normalizeSavedViewFilters, type SavedViewFilters } from "../../lib/supabase/useSavedViews";
+import { useWorkspaceIdentity } from "../../lib/supabase/useWorkspaceIdentity";
+import { workspacePreferenceKey } from "../../lib/supabase/workspacePreferences";
+import { useWorkspaceEventTitles } from "../../lib/useWorkspaceEventTitles";
 
 export type WorkspaceEvent = {
   id: string;
@@ -1437,6 +1440,8 @@ export default function EventsClient({
   const dataIsBootstrapping = shouldLoadInitialDiscovery && isLoadingEvents && events.length === 0;
   const [eventLoadError, setEventLoadError] = useState<string | null>(null);
   const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
+  const workspaceIdentity = useWorkspaceIdentity();
+  const [loadedPreferenceIdentity, setLoadedPreferenceIdentity] = useState<string | null>(null);
   const { eventIds: scheduledEventIds, status: scheduleStatus, error: scheduleError, busy: scheduleBusy, refreshSchedule, addToSchedule, removeFromSchedule, clearSchedule } = useEventSchedule();
   const { lists: savedLists, status: listsStatus, error: listsError, busy: listsBusy, refreshLists, createList, renameList, deleteList, addEventsToList, removeEventsFromList } = useMyLists();
   const [activeSavedListId, setActiveSavedListId] = useState<string | null>(null);
@@ -1545,35 +1550,42 @@ export default function EventsClient({
   };
 
   useEffect(() => {
+    setLoadedPreferenceIdentity(null);
+    setSelectedEvents([]);
+    setRecentActivity([]);
+    setFilters(DEFAULT_FILTERS);
+    setFilterMode("and");
+    setSearchQuery(initialSearchQuery);
+    setFromDate("");
+    setToDate("");
+    setActiveQuickView("");
+    setActiveSavedListId(null);
+    setScheduledOnly(false);
+    if (!workspaceIdentity) return;
     try {
-      const selected = localStorage.getItem("ccc_selected_events");
-      const recentFilters = localStorage.getItem("ccc_recent_filters");
-      const recentActivityRaw = localStorage.getItem("ccc_recent_activity");
-      if (selected) setSelectedEvents(JSON.parse(selected));
+      const selected = localStorage.getItem(workspacePreferenceKey(workspaceIdentity, "selectedEvents"));
+      const recentFilters = localStorage.getItem(workspacePreferenceKey(workspaceIdentity, "recentFilters"));
+      const recentActivityRaw = localStorage.getItem(workspacePreferenceKey(workspaceIdentity, "recentActivity"));
+      const savedMode = localStorage.getItem(workspacePreferenceKey(workspaceIdentity, "filterMode"));
+      const modeFromUrl = new URLSearchParams(window.location.search).get("filterMode");
+      if (selected) {
+        const values: unknown = JSON.parse(selected);
+        if (Array.isArray(values)) setSelectedEvents(values.filter((value): value is string => typeof value === "string"));
+      }
       if (recentFilters) setFilters(normalizeFiltersState(JSON.parse(recentFilters)));
-      if (recentActivityRaw) setRecentActivity(JSON.parse(recentActivityRaw));
+      if (recentActivityRaw) {
+        const values: unknown = JSON.parse(recentActivityRaw);
+        if (Array.isArray(values)) setRecentActivity(values as RecentActivity[]);
+      }
+      setFilterMode(modeFromUrl === "or" || (!modeFromUrl && savedMode === "or") ? "or" : "and");
     } catch {
       // ignore local storage parse issues
     }
-  }, []);
-
-  useEffect(() => {
-    try {
-      const modeFromUrl = new URLSearchParams(window.location.search).get("filterMode");
-      const savedMode = localStorage.getItem("ccc_filter_match_mode");
-      setFilterMode(modeFromUrl === "or" || (!modeFromUrl && savedMode === "or") ? "or" : "and");
-    } catch {
-      // Keep the default Match All mode when browser storage is unavailable.
-    }
-  }, []);
+    setLoadedPreferenceIdentity(workspaceIdentity);
+  }, [initialSearchQuery, workspaceIdentity]);
 
   const updateFilterMode = useCallback((nextMode: FilterMatchMode) => {
     setFilterMode(nextMode);
-    try {
-      localStorage.setItem("ccc_filter_match_mode", nextMode);
-    } catch {
-      // Browser storage may be unavailable.
-    }
   }, []);
 
   useEffect(() => {
@@ -1710,9 +1722,17 @@ export default function EventsClient({
     setRecentActivity((prev) => [next, ...prev].slice(0, 12));
   }, []);
 
-  useEffect(() => localStorage.setItem("ccc_selected_events", JSON.stringify(selectedEvents)), [selectedEvents]);
-  useEffect(() => localStorage.setItem("ccc_recent_filters", JSON.stringify(filters)), [filters]);
-  useEffect(() => localStorage.setItem("ccc_recent_activity", JSON.stringify(recentActivity)), [recentActivity]);
+  useEffect(() => {
+    if (!workspaceIdentity || loadedPreferenceIdentity !== workspaceIdentity) return;
+    try {
+      localStorage.setItem(workspacePreferenceKey(workspaceIdentity, "selectedEvents"), JSON.stringify(selectedEvents));
+      localStorage.setItem(workspacePreferenceKey(workspaceIdentity, "recentFilters"), JSON.stringify(filters));
+      localStorage.setItem(workspacePreferenceKey(workspaceIdentity, "recentActivity"), JSON.stringify(recentActivity));
+      localStorage.setItem(workspacePreferenceKey(workspaceIdentity, "filterMode"), filterMode);
+    } catch {
+      // Workspace preferences remain usable in memory when browser storage is unavailable.
+    }
+  }, [filterMode, filters, loadedPreferenceIdentity, recentActivity, selectedEvents, workspaceIdentity]);
   useLayoutEffect(() => {
     const el = centerWorkspaceRef.current;
     if (!el) return;
@@ -1753,7 +1773,7 @@ export default function EventsClient({
   }, []);
 
   useEffect(() => {
-    if (urlSeeded || typeof window === "undefined") return;
+    if (urlSeeded || !loadedPreferenceIdentity || typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const cityParams = params.getAll("city");
     const startDateParam = params.get("startDate") || params.get("fromDate") || "";
@@ -1805,7 +1825,7 @@ export default function EventsClient({
       if (eventIds.length) setUrlEventIds(eventIds);
     }
     setUrlSeeded(true);
-  }, [urlSeeded]);
+  }, [loadedPreferenceIdentity, urlSeeded]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -2074,16 +2094,14 @@ useEffect(() => {
 
   const selectedSet = useMemo(() => new Set(selectedEvents), [selectedEvents]);
   const scheduledEventSet = useMemo(() => new Set(scheduledEventIds), [scheduledEventIds]);
-  const scheduledEvents = useMemo(
-    () => scheduledEventIds.map((id) => events.find((event) => event.id === id)).filter((event): event is WorkspaceEvent => Boolean(event)),
-    [events, scheduledEventIds]
-  );
-  const unavailableScheduledEventIds = useMemo(
-    () => scheduledOnly && !isLoadingEvents
-      ? scheduledEventIds.filter((id) => !events.some((event) => event.id === id))
-      : [],
-    [events, isLoadingEvents, scheduledEventIds, scheduledOnly]
-  );
+  const lookupEventIds = useMemo(() => [...new Set([
+    ...(eventScheduleOpen && scheduleManageOpen ? scheduledEventIds : []),
+    ...(activeSavedList ? activeSavedList.eventIds : []),
+  ])], [activeSavedList, eventScheduleOpen, scheduleManageOpen, scheduledEventIds]);
+  const { titles: savedEventTitles, status: savedEventLookupStatus } = useWorkspaceEventTitles(lookupEventIds);
+  const savedEventLabel = (eventId: string) => savedEventTitles[eventId]
+    || (savedEventLookupStatus === "ready" ? "Event no longer available"
+      : savedEventLookupStatus === "error" ? "Event details unavailable right now" : "Loading event details...");
   const buildCalendarWeeks = useCallback((source: WorkspaceEvent[]) => {
     const weeks = new Map<
       string,
@@ -9260,16 +9278,10 @@ useEffect(() => {
                     </div>
                     {scheduleManageOpen ? (
                       <div style={{ display: "grid", gap: "2px", maxHeight: "150px", overflowY: "auto", overflowX: "hidden", paddingRight: "2px" }}>
-                        {scheduledEvents.map((event) => (
-                          <div key={event.id} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: "8px", minHeight: "30px", padding: "6px 0", borderBottom: "1px solid rgba(147,197,253,0.10)" }}>
-                            <span title={event.title} style={{ color: "#dbeafe", fontSize: "11.5px", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.title}</span>
-                            <button type="button" onClick={() => void removeScheduledEvent(event.id)} disabled={scheduleBusy} aria-label={`Remove ${event.title} from My Event Schedule`} title={`Remove ${event.title} from My Event Schedule`} style={{ width: "22px", height: "22px", borderRadius: "6px", border: "1px solid rgba(190,102,122,0.36)", background: "rgba(118,46,63,0.18)", color: "#f2b7c4", fontSize: "14px", lineHeight: 1, cursor: "pointer", padding: 0 }}>×</button>
-                          </div>
-                        ))}
-                        {unavailableScheduledEventIds.map((eventId) => (
+                        {scheduledEventIds.map((eventId) => (
                           <div key={eventId} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: "8px", minHeight: "30px", padding: "6px 0", borderBottom: "1px solid rgba(147,197,253,0.10)" }}>
-                            <span style={{ color: "#9fb6d4", fontSize: "11.5px", fontWeight: 700 }}>Event no longer available</span>
-                            <button type="button" onClick={() => void removeScheduledEvent(eventId)} disabled={scheduleBusy} aria-label="Remove unavailable event from My Event Schedule" title="Remove unavailable event from My Event Schedule" style={{ width: "22px", height: "22px", borderRadius: "6px", border: "1px solid rgba(190,102,122,0.36)", background: "rgba(118,46,63,0.18)", color: "#f2b7c4", fontSize: "14px", lineHeight: 1, cursor: "pointer", padding: 0 }}>×</button>
+                            <span title={savedEventLabel(eventId)} style={{ color: "#dbeafe", fontSize: "11.5px", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{savedEventLabel(eventId)}</span>
+                            <button type="button" onClick={() => void removeScheduledEvent(eventId)} disabled={scheduleBusy} aria-label={`Remove ${savedEventLabel(eventId)} from My Event Schedule`} title={`Remove ${savedEventLabel(eventId)} from My Event Schedule`} style={{ width: "22px", height: "22px", borderRadius: "6px", border: "1px solid rgba(190,102,122,0.36)", background: "rgba(118,46,63,0.18)", color: "#f2b7c4", fontSize: "14px", lineHeight: 1, cursor: "pointer", padding: 0 }}>×</button>
                           </div>
                         ))}
                       </div>
@@ -9316,7 +9328,7 @@ useEffect(() => {
                     </div>
                     {activeSavedListId === list.id && list.eventIds.length ? <div style={{ display: "grid", gap: "3px", marginTop: "8px", maxHeight: "140px", overflowY: "auto" }}>
                       {list.eventIds.map((eventId) => <div key={eventId} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px" }}>
-                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "11px", color: "#bcd5ee" }}>{events.find((event) => event.id === eventId)?.title || "Saved event"}</span>
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "11px", color: "#bcd5ee" }}>{savedEventLabel(eventId)}</span>
                         <button type="button" onClick={() => void removeEventFromSavedList(list.id, eventId)} disabled={listsBusy} aria-label="Remove event from list" title="Remove event from list" style={{ border: "none", background: "transparent", color: "#f2b7c4", cursor: "pointer" }}>✕</button>
                       </div>)}
                     </div> : null}

@@ -10,6 +10,8 @@ import { getCachedEventPage, getOrFetchEventPage, seedEventPage } from "../compo
 import { useEventSchedule } from "../../lib/supabase/useEventSchedule";
 import { useMyLists } from "../../lib/supabase/useMyLists";
 import { useSavedViews, normalizeSavedViewFilters, type SavedViewFilters } from "../../lib/supabase/useSavedViews";
+import { useWorkspaceIdentity } from "../../lib/supabase/useWorkspaceIdentity";
+import { workspacePreferenceKey } from "../../lib/supabase/workspacePreferences";
 
 const quickActions = ["Clear", "Share Selected", "Save Market View", "Save Selected", "Add to Schedule"];
 
@@ -565,6 +567,8 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const { eventIds: scheduledEventIds, status: scheduleStatus, error: scheduleError, busy: scheduleBusy, refreshSchedule, clearSchedule } = useEventSchedule();
   const { lists: savedLists, status: listsStatus, error: listsError, refreshLists } = useMyLists();
   const { views: savedViews, status: viewsStatus, error: viewsError, busy: viewsBusy, refreshSavedViews, createSavedView, renameSavedView, deleteSavedView } = useSavedViews();
+  const workspaceIdentity = useWorkspaceIdentity();
+  const [loadedPreferenceIdentity, setLoadedPreferenceIdentity] = useState<string | null>(null);
   const [savedViewsOpen, setSavedViewsOpen] = useState(false);
   const [viewActionMessage, setViewActionMessage] = useState("");
   const [eventScheduleOpen, setEventScheduleOpen] = useState(false);
@@ -572,14 +576,29 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   const [scheduleActionMessage, setScheduleActionMessage] = useState("");
 
   useEffect(() => {
+    setLoadedPreferenceIdentity(null);
+    setFilterMode("and");
+    setFilters(DEFAULT_FILTERS);
+    setViewScope("full");
+    if (!workspaceIdentity) return;
     try {
       const modeFromUrl = new URLSearchParams(window.location.search).get("filterMode");
-      const savedMode = localStorage.getItem("ccc_filter_match_mode");
+      const savedMode = localStorage.getItem(workspacePreferenceKey(workspaceIdentity, "filterMode"));
       setFilterMode(modeFromUrl === "or" || (!modeFromUrl && savedMode === "or") ? "or" : "and");
     } catch {
       // Keep the default Match All mode when browser storage is unavailable.
     }
-  }, []);
+    setLoadedPreferenceIdentity(workspaceIdentity);
+  }, [workspaceIdentity]);
+
+  useEffect(() => {
+    if (!workspaceIdentity || loadedPreferenceIdentity !== workspaceIdentity) return;
+    try {
+      localStorage.setItem(workspacePreferenceKey(workspaceIdentity, "filterMode"), filterMode);
+    } catch {
+      // Keep the current mode in memory when browser storage is unavailable.
+    }
+  }, [filterMode, loadedPreferenceIdentity, workspaceIdentity]);
 
   const loadEventSchedule = () => {
     window.location.assign("/discovery?schedule=1");
@@ -591,11 +610,6 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
 
   const updateFilterMode = (nextMode: FilterMatchMode) => {
     setFilterMode(nextMode);
-    try {
-      localStorage.setItem("ccc_filter_match_mode", nextMode);
-    } catch {
-      // Browser storage may be unavailable.
-    }
   };
 
   useEffect(() => {
@@ -979,7 +993,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
   };
 
   useEffect(() => {
-    if (viewsStatus !== "ready") return;
+    if (viewsStatus !== "ready" || !loadedPreferenceIdentity) return;
     const params = new URLSearchParams(window.location.search);
     const viewId = params.get("savedView");
     if (!viewId) return;
@@ -1001,7 +1015,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
       setViewScope(isDefaultFilters(restoredFilters) ? "full" : "filtered");
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [savedViews, viewsStatus]);
+  }, [loadedPreferenceIdentity, savedViews, viewsStatus]);
 
   return (
     <div className="v3-page">
