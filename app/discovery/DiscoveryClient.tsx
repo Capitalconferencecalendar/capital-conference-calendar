@@ -1872,8 +1872,10 @@ export default function EventsClient({
       scheduledEventIds.forEach((value) => params.append("eventId", value));
       return params;
     }
-    if (activeSavedList && !activeSavedList.eventIds.length) {
+    if (activeSavedList) {
       params.set("schedule", "1");
+      params.set("sort", "soonest");
+      activeSavedList.eventIds.forEach((value) => params.append("eventId", value));
       return params;
     }
     params.set("dateRange", filters.dateRange);
@@ -1897,7 +1899,6 @@ export default function EventsClient({
     filters.marketCap.forEach((value) => params.append("marketCap", value));
     filters.organizer.forEach((value) => params.append("organizer", value));
     filters.marketFocus.forEach((value) => params.append("investmentFocus", value));
-    activeSavedList?.eventIds.forEach((value) => params.append("eventId", value));
     urlEventIds.forEach((value) => params.append("eventId", value));
     return params;
   }, [activeSavedList, filterMode, filters, fromDate, scheduledEventIds, scheduledOnly, searchQuery, sortMode, toDate, urlEventIds]);
@@ -3720,6 +3721,21 @@ useEffect(() => {
     recordActivity("view", `Loaded conference list: ${list.name}`, `${list.eventIds.length} events`);
     scrollToResultsAnchor();
   };
+
+  useEffect(() => {
+    if (listsStatus !== "ready") return;
+    const params = new URLSearchParams(window.location.search);
+    const listId = params.get("savedList");
+    if (!listId) return;
+    const list = savedLists.find((item) => item.id === listId);
+    if (!list) {
+      setListActionMessage("Saved list not found in this account.");
+      return;
+    }
+    params.delete("savedList");
+    window.history.replaceState(null, "", `${window.location.pathname}${params.size ? `?${params}` : ""}`);
+    loadSavedList(listId);
+  }, [loadSavedList, savedLists, listsStatus]);
 
   const deleteSavedList = async (listId: string) => {
     const target = savedLists.find((l) => l.id === listId);

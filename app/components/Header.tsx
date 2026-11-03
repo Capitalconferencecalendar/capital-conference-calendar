@@ -9,7 +9,7 @@ import { getSupabaseConfig } from "../../lib/supabase/config";
 type HeaderProps = {
   active?: "dashboard" | "events" | "feeds" | "submit" | "help" | "about" | "contact" | "legal" | "subscribe" | "account";
   searchQuery?: string;
-  workspaceMode?: "getstarted" | "discovery" | "marketview";
+  workspaceMode?: "getstarted" | "discovery" | "marketview" | "myview";
 };
 
 function NavIcon({ name }: { name: "dashboard" | "about" | "contact" | "legal" | "subscribe" | "submit" }) {
@@ -233,6 +233,7 @@ export default function Header({
   const isGetStartedActive = workspaceMode === "getstarted";
   const isDiscoveryActive = workspaceMode === "discovery";
   const isMarketViewActive = workspaceMode === "marketview";
+  const isMyViewActive = workspaceMode === "myview";
   const accountHref = accountState === "anonymous" ? "/account/sign-in" : "/account";
   const accountLabel = accountState === "anonymous" ? "Sign In" : "Account";
 
@@ -457,6 +458,7 @@ export default function Header({
                 label="Market View"
                 isActive={isMarketViewActive}
               />
+              <WorkspaceNavButton href="/my-view" label="My View" isActive={isMyViewActive} />
             </div>
           ) : null}
         </form>
@@ -523,6 +525,7 @@ export default function Header({
                     { href: "/get-started", label: "Get Started", active: workspaceMode === "getstarted" },
                     { href: "/discovery", label: "Discovery", active: workspaceMode === "discovery" },
                     { href: "/market-view", label: "Market View", active: workspaceMode === "marketview" },
+                    { href: "/my-view", label: "My View", active: workspaceMode === "myview" },
                     { href: accountHref, label: accountLabel, active: active === "account" },
                     { href: "/about", label: "About", icon: "about" as const, active: active === "about" },
                     { href: "/contact", label: "Contact", icon: "contact" as const, active: active === "contact" },
