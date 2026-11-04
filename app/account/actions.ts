@@ -25,7 +25,7 @@ function safeWorkspaceReturn(formData: FormData) {
   try {
     const url = new URL(value, "http://localhost");
     if (url.origin !== "http://localhost") return "/account";
-    if (url.pathname !== "/discovery" && url.pathname !== "/market-view") return "/account";
+    if (url.pathname !== "/discovery" && url.pathname !== "/market-view" && url.pathname !== "/my-view") return "/account";
     return `${url.pathname}${url.search}`;
   } catch {
     return "/account";

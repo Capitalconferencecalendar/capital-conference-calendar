@@ -5,7 +5,7 @@ import Link from "next/link";
 type AppShellProps = {
   active?: "dashboard" | "events" | "feeds" | "submit" | "help" | "about" | "contact" | "legal" | "subscribe" | "account";
   searchQuery?: string;
-  workspaceMode?: "getstarted" | "discovery" | "marketview";
+  workspaceMode?: "getstarted" | "discovery" | "marketview" | "myview";
   fixedDesktopPreview?: boolean;
   children: React.ReactNode;
   rightRail?: React.ReactNode;

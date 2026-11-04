@@ -49,6 +49,8 @@ type ControlPanelProps = {
   savedSections: SavedSection[];
   utilityLinks?: Array<{ href: string; label: string }>;
   panelHeight?: string;
+  showCalendarSync?: boolean;
+  showQuickActions?: boolean;
 };
 
 function QuickActionIcon({ kind }: { kind: QuickActionKind }) {
@@ -106,6 +108,8 @@ export default function ControlPanel({
     { href: "/legal", label: "Legal" },
   ],
   panelHeight = "calc(100vh - 126px)",
+  showCalendarSync = true,
+  showQuickActions = true,
 }: ControlPanelProps) {
   return (
     <aside
@@ -119,7 +123,7 @@ export default function ControlPanel({
             <div style={{ color: "#9db4d3", fontSize: "13px", lineHeight: 1.35, maxWidth: "230px", width: "100%", textAlign: "left", justifySelf: "stretch" }}>{description}</div>
           </div>
 
-          <div style={{ padding: 0, overflow: "visible", position: "sticky", top: 0, zIndex: 8, background: "linear-gradient(180deg, rgba(13,35,62,0.98) 0%, rgba(8,25,46,0.96) 100%)", border: "1px solid rgba(88, 145, 230, 0.34)", borderRadius: "10px", boxShadow: "0 0 0 1px rgba(70,120,220,0.12), 0 12px 24px rgba(0,0,0,0.18)" }}>
+          {showCalendarSync ? <div style={{ padding: 0, overflow: "visible", position: "sticky", top: 0, zIndex: 8, background: "linear-gradient(180deg, rgba(13,35,62,0.98) 0%, rgba(8,25,46,0.96) 100%)", border: "1px solid rgba(88, 145, 230, 0.34)", borderRadius: "10px", boxShadow: "0 0 0 1px rgba(70,120,220,0.12), 0 12px 24px rgba(0,0,0,0.18)" }}>
             <div style={{ width: "100%", minHeight: "42px", padding: "0 14px", color: "#dbeafe", display: "flex", alignItems: "center", gap: "10px" }}>
               <span style={{ fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", display: "inline-flex", alignItems: "center", gap: "9px", textTransform: "uppercase" }}>
                 <span style={{ width: "18px", height: "18px", color: "#8fc2ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind="sync" /></span>
@@ -145,9 +149,9 @@ export default function ControlPanel({
                 ))}
               </div>
             </div>
-          </div>
+          </div> : null}
 
-          <div style={{ padding: 0, overflow: "visible", background: "transparent", border: "none", boxShadow: "none", borderRadius: 0 }}>
+          {showQuickActions ? <div style={{ padding: 0, overflow: "visible", background: "transparent", border: "none", boxShadow: "none", borderRadius: 0 }}>
             <div style={{ width: "100%", height: "40px", padding: "0 4px", color: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", display: "inline-flex", alignItems: "center", gap: "9px", textTransform: "uppercase" }}>
                 <span style={{ width: "18px", height: "18px", color: "#9ec5ff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><RightRailSectionIcon kind="actions" /></span>
@@ -186,7 +190,7 @@ export default function ControlPanel({
                 {quickActionsMessage}
               </div>
             ) : null}
-          </div>
+          </div> : null}
 
           {savedSections.map((section) => (
             <div key={section.title} style={savedSectionStyle}>
@@ -197,7 +201,7 @@ export default function ControlPanel({
                 </span>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                   <span style={{ color: "#9fc3e7", fontSize: 12, fontWeight: 700 }}>{section.countLabel || `${section.count} saved`}</span>
-                  <span style={{ color: "#9fb6d4", fontSize: 14, lineHeight: 1 }}>{section.onToggle ? (section.isOpen ? "▾" : "▸") : "▸"}</span>
+                  {section.onToggle ? <span style={{ color: "#9fb6d4", fontSize: 14, lineHeight: 1 }}>{section.isOpen ? "▾" : "▸"}</span> : null}
                 </span>
               </button>
               {section.isOpen ? (
