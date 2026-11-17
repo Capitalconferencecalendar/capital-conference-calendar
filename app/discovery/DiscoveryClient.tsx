@@ -16,6 +16,7 @@ import { useSavedViews, normalizeSavedViewFilters, type SavedViewFilters } from 
 import { useWorkspaceIdentity } from "../../lib/supabase/useWorkspaceIdentity";
 import { workspacePreferenceKey } from "../../lib/supabase/workspacePreferences";
 import { useWorkspaceEventTitles } from "../../lib/useWorkspaceEventTitles";
+import { accountsEnabled } from "../../lib/accountsVisibility";
 
 export type WorkspaceEvent = {
   id: string;
@@ -4393,10 +4394,10 @@ useEffect(() => {
                   <button type="button" onClick={() => openCalendarSync("Apple Calendar")} style={{ ...controlStyle, height: "38px", fontWeight: 700 }}>Apple Calendar</button>
                   <button type="button" onClick={() => openCalendarSync("Outlook")} style={{ ...controlStyle, height: "38px", fontWeight: 700 }}>Outlook</button>
                   <button type="button" onClick={createSelectedIcs} style={{ ...controlStyle, height: "38px", fontWeight: 700 }}>Download ICS Snapshot</button>
-                  <button type="button" onClick={saveCurrentView} style={{ ...controlStyle, height: "38px", fontWeight: 700 }}>Save Current View</button>
+                  {accountsEnabled ? <button type="button" onClick={saveCurrentView} style={{ ...controlStyle, height: "38px", fontWeight: 700 }}>Save Current View</button> : null}
                   <button type="button" onClick={shareSelected} style={{ ...controlStyle, height: "38px", fontWeight: 700 }}>Share Current Market View</button>
                   {viewActionMessage ? <div role="status" style={{ color: "#dbeafe", fontSize: "12px" }}>{viewActionMessage}</div> : null}
-                  <div style={{ color: "#9ec0e4", fontSize: "11px", marginTop: "4px" }}>Sign in to save views and lists to your account.</div>
+                  {accountsEnabled ? <div style={{ color: "#9ec0e4", fontSize: "11px", marginTop: "4px" }}>Sign in to save views and lists to your account.</div> : null}
                 </div>
               ) : null}
 
@@ -9166,7 +9167,7 @@ useEffect(() => {
               { label: "Save Market View", description: "Save the current filtered view to your account so you can return to it later." },
               { label: "Add to Schedule", description: "Select event cards first, then add them to My Event Schedule." },
               { label: "Clear", description: "Clear selected cards, filters, and quick views." },
-            ]}
+            ].filter((item) => accountsEnabled || item.label === "Share Selected" || item.label === "Clear")}
           />
         }
         quickActionsMessage={viewActionMessage || listActionMessage || scheduleActionMessage || undefined}
@@ -9179,7 +9180,7 @@ useEffect(() => {
         quickActions={[
           {
             label: "Clear",
-            kind: "clear",
+            kind: "clear" as const,
             accent: "#9fc3ff",
             description: "Clear selected event cards, filters, and quick views.",
             active: activeToolbarAction === "clear",
@@ -9192,7 +9193,7 @@ useEffect(() => {
           },
           {
             label: "Share Selected",
-            kind: "share",
+            kind: "share" as const,
             accent: "#8fd0ff",
             description: "Open an email draft with up to 20 selected event links.",
             active: activeToolbarAction === "share",
@@ -9205,7 +9206,7 @@ useEffect(() => {
           },
           {
             label: "Save Market View",
-            kind: "saveView",
+            kind: "saveView" as const,
             accent: "#7ad6c8",
             description: "Save the current filtered market view to your account.",
             active: activeToolbarAction === "view",
@@ -9218,7 +9219,7 @@ useEffect(() => {
           },
           {
             label: "Save Selected",
-            kind: "saveSelected",
+            kind: "saveSelected" as const,
             accent: "#ffbf66",
             description: "Add selected event cards to a new or existing list.",
             active: activeToolbarAction === "save" || saveMenuOpen,
@@ -9258,7 +9259,7 @@ useEffect(() => {
           },
           {
             label: "Add to Schedule",
-            kind: "schedule",
+            kind: "schedule" as const,
             accent: "#6ee7d4",
             description: "Select event cards first, then add them to My Event Schedule.",
             active: activeToolbarAction === "schedule",
@@ -9269,8 +9270,8 @@ useEffect(() => {
             onMouseEnter: () => setToolbarHelpText("Add selected event cards to My Event Schedule."),
             onMouseLeave: () => setToolbarHelpText(""),
           },
-        ]}
-        savedSections={[
+        ].filter((action) => accountsEnabled || action.kind === "clear" || action.kind === "share")}
+        savedSections={accountsEnabled ? [
           {
             title: "My Event Schedule",
             icon: "lists",
@@ -9381,7 +9382,7 @@ useEffect(() => {
               </div>
             ),
           },
-        ]}
+        ] : []}
       />
     </div>
   );
