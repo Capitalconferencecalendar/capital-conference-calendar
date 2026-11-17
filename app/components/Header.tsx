@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { getSupabaseConfig } from "../../lib/supabase/config";
+import { accountsEnabled } from "../../lib/accountsVisibility";
 
 type HeaderProps = {
   active?: "dashboard" | "events" | "feeds" | "submit" | "help" | "about" | "contact" | "legal" | "subscribe" | "account";
@@ -458,7 +459,7 @@ export default function Header({
                 label="Market View"
                 isActive={isMarketViewActive}
               />
-              <WorkspaceNavButton href="/my-view" label="My View" isActive={isMyViewActive} />
+              {accountsEnabled ? <WorkspaceNavButton href="/my-view" label="My View" isActive={isMyViewActive} /> : null}
             </div>
           ) : null}
         </form>
@@ -508,7 +509,7 @@ export default function Header({
                 <div
                   style={{
                     position: "absolute",
-                    right: 0,
+                    left: 0,
                     top: "58px",
                     width: "190px",
                     borderRadius: "8px",
@@ -525,8 +526,10 @@ export default function Header({
                     { href: "/get-started", label: "Get Started", active: workspaceMode === "getstarted" },
                     { href: "/discovery", label: "Discovery", active: workspaceMode === "discovery" },
                     { href: "/market-view", label: "Market View", active: workspaceMode === "marketview" },
-                    { href: "/my-view", label: "My View", active: workspaceMode === "myview" },
-                    { href: accountHref, label: accountLabel, active: active === "account" },
+                    ...(accountsEnabled ? [
+                      { href: "/my-view", label: "My View", active: workspaceMode === "myview" },
+                      { href: accountHref, label: accountLabel, active: active === "account" },
+                    ] : []),
                     { href: "/about", label: "About", icon: "about" as const, active: active === "about" },
                     { href: "/contact", label: "Contact", icon: "contact" as const, active: active === "contact" },
                     { href: "/submit", label: "Submit", icon: "submit" as const, active: active === "submit" },
@@ -589,11 +592,11 @@ export default function Header({
                 isActive={active === "submit"}
                 compact={false}
               />
-              <TopNavLink
+              {accountsEnabled ? <TopNavLink
                 href={accountHref}
                 label={accountLabel}
                 isActive={active === "account"}
-              />
+              /> : null}
             </>
           )}
         </div>
