@@ -12,7 +12,6 @@ import { useMyLists } from "../../lib/supabase/useMyLists";
 import { useSavedViews, normalizeSavedViewFilters, type SavedViewFilters } from "../../lib/supabase/useSavedViews";
 import { useWorkspaceIdentity } from "../../lib/supabase/useWorkspaceIdentity";
 import { workspacePreferenceKey } from "../../lib/supabase/workspacePreferences";
-import { accountsEnabled } from "../../lib/accountsVisibility";
 
 const quickActions = ["Clear", "Share Selected", "Save Market View", "Save Selected", "Add to Schedule"];
 
@@ -1612,12 +1611,10 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
               title="Quick Actions"
               ariaLabel="Help: Quick Actions"
               items={[
-              ...(accountsEnabled ? [{ label: "Save Selected", description: "Save selected event cards into a new or existing list." }] : []),
+              { label: "Save Selected", description: "Save selected event cards into a new or existing list." },
               { label: "Share Selected", description: "Open an email draft with links to the selected events." },
-              ...(accountsEnabled ? [
-                { label: "Save Market View", description: "Save the current filtered view to your account so you can return to it later." },
-                { label: "Add to Schedule", description: "Select event cards first, then add them to My Event Schedule." },
-              ] : []),
+              { label: "Save Market View", description: "Save the current filtered view to your account so you can return to it later." },
+              { label: "Add to Schedule", description: "Select event cards first, then add them to My Event Schedule." },
               { label: "Clear", description: "Clear selected cards, filters, and quick views." },
             ]}
           />
@@ -1629,8 +1626,8 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
             accent: ["#9fc3ff", "#8fd0ff", "#7ad6c8", "#ffbf66", "#6ee7d4"][index],
             description: action === "Add to Schedule" ? "Select one or more event cards to add them to your schedule." : undefined,
             onClick: action === "Add to Schedule" ? () => setScheduleActionMessage("Select one or more event cards to add them to your schedule.") : action === "Save Market View" ? () => { void saveCurrentView(); } : undefined,
-          })).filter((action) => accountsEnabled || action.kind === "clear" || action.kind === "share")}
-          savedSections={accountsEnabled ? [
+          }))}
+          savedSections={[
             {
               title: "My Event Schedule",
               icon: "lists",
@@ -1684,7 +1681,7 @@ export default function MarketViewClient({ initialPage }: { initialPage: MarketV
                 </div>) : "No saved views yet."}
               </div>,
             },
-          ] : []}
+          ]}
         />
       </div>
     </div>
